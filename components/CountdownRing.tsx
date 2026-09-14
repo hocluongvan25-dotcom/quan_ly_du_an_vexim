@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { remainingMs, splitCountdown } from "@/lib/utils";
-
 export function CountdownRing({
   registeredAt,
   expiresAt,
@@ -38,10 +37,10 @@ export function CountdownRing({
   const dash = c * pct;
 
   const items = [
-    { label: "Ngày", value: parts.days },
-    { label: "Giờ", value: parts.hours },
-    { label: "Phút", value: parts.minutes },
-    { label: "Giây", value: parts.seconds },
+    { label: "Days", value: parts.days },
+    { label: "Hours", value: parts.hours },
+    { label: "Minutes", value: parts.minutes },
+    { label: "Seconds", value: parts.seconds },
   ];
 
   return (
@@ -66,7 +65,7 @@ export function CountdownRing({
               {Math.ceil(remain / 86400000)}
             </div>
             <div className="text-[10px] font-semibold uppercase tracking-widest text-navy-900/50">
-              ngày còn lại
+              days remaining
             </div>
           </div>
         </div>
@@ -85,7 +84,7 @@ export function CountdownRing({
         ))}
       </div>
       <p className="max-w-xs text-center text-[11px] leading-relaxed text-navy-900/55">
-        Đồng hồ hiệu lực đếm từ ngày hết hạn về ngày đăng ký — thời gian còn lại của chứng chỉ.
+        Validity clock counts from expiry date back to registration date — remaining time of the certificate.
       </p>
     </div>
   );

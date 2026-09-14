@@ -28,7 +28,7 @@ export type Certificate = {
   scope: string;
   registered_at: string;
   expires_at: string;
-  validity_years: number; // 1-10 năm, dựa theo hợp đồng với khách
+  validity_years: number; // 1-10 years per client contract
   validity_confirmed: number;
   status: CertificateStatus;
   published_at: string | null;
@@ -62,14 +62,14 @@ export type PublicCertificate = {
 
 export const COMPANY = {
   name: "Vexim Global",
-  legal: "CÔNG TY TNHH VEXIM GLOBAL",
-  address: "Số 25/6/51 Ngọa Long, Tây Tựu, Bắc Từ Liêm, Hà Nội",
+  legal: "VEXIM GLOBAL CO., LTD",
+  address: "No. 25/6/51 Ngoa Long, Tay Tuu, Bac Tu Liem, Hanoi",
   phone: "0373 685 634",
   phoneHref: "tel:0373685634",
   email: "contact@veximglobal.com",
   website: "https://www.veximglobal.com",
   websiteLabel: "www.veximglobal.com",
-  hours: "T2–T6: 8:00–18:00 · T7: 8:00–12:00",
+  hours: "Mon–Fri: 8:00–18:00 · Sat: 8:00–12:00",
 };
 
 export const STANDARD_YEARS: Record<Standard, number> = {
@@ -77,7 +77,7 @@ export const STANDARD_YEARS: Record<Standard, number> = {
   GACC: 5,
 };
 
-// Hỗ trợ 1-10 năm theo hợp đồng
+// Support 1-10 years per contract
 export const VALIDITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 export type ValidityYears = (typeof VALIDITY_OPTIONS)[number];
 

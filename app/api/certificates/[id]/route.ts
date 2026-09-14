@@ -50,7 +50,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     const standard = body.standard === "GACC" ? "GACC" : "FDA";
     const validity_years = body.validity_years ? Number(body.validity_years) : undefined;
     if (validity_years && !isValidValidityYears(validity_years)) {
-      return NextResponse.json({ error: "Thời hạn hợp đồng phải từ 1 đến 10 năm." }, { status: 400 });
+      return NextResponse.json({ error: "Contract duration must be between 1 and 10 years." }, { status: 400 });
     }
     await updateCertificate(id, {
       standard: standard as Standard,
@@ -68,11 +68,11 @@ export async function PUT(req: Request, ctx: Ctx) {
       return handleApiError(e);
     }
     const map: Record<string, string> = {
-      NOT_FOUND: "Không tìm thấy hồ sơ.",
-      NOT_CONFIRMED: "Cần xác nhận hiệu lực (VALID) trước khi xuất bản.",
-      INCOMPLETE: "Thiếu tên công ty hoặc mã số đăng ký.",
-      MISSING_DATES: "Thiếu ngày đăng ký / ngày hết hạn.",
-      PUBLISHED: "Không thể xoá hồ sơ đã xuất bản.",
+      NOT_FOUND: "Certificate not found.",
+      NOT_CONFIRMED: "Validity must be confirmed (VALID) before publishing.",
+      INCOMPLETE: "Missing company name or registration code.",
+      MISSING_DATES: "Missing registration date / expiry date.",
+      PUBLISHED: "Cannot delete a published certificate.",
     };
     return NextResponse.json({ error: map[msg] || msg }, { status: 400 });
   }
@@ -90,7 +90,7 @@ export async function DELETE(_: Request, ctx: Ctx) {
       return handleApiError(e);
     }
     return NextResponse.json(
-      { error: msg === "PUBLISHED" ? "Không thể xoá hồ sơ đã xuất bản." : msg },
+      { error: msg === "PUBLISHED" ? "Cannot delete a published certificate." : msg },
       { status: 400 }
     );
   }

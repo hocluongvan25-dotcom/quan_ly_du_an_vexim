@@ -21,7 +21,6 @@ export default async function DashboardPage() {
   });
   const stats = user.role === "admin" ? await revenueStats() : null;
 
-  // Thống kê theo thời hạn
   const validityStats = VALIDITY_OPTIONS.map((y) => ({
     years: y,
     count: items.filter((c) => getValidityYears(c) === y).length,
@@ -31,59 +30,59 @@ export default async function DashboardPage() {
     <div className="space-y-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">
-          Xin chào, {user.name}
+          Hello, {user.name}
         </p>
-        <h1 className="mt-1 font-display text-3xl font-extrabold text-navy-900">Tổng quan hồ sơ</h1>
+        <h1 className="mt-1 font-display text-3xl font-extrabold text-navy-900">Dashboard Overview</h1>
         <p className="mt-1 text-sm text-navy-900/60">
-          FDA linh hoạt 1-10 năm theo hợp đồng · GACC mặc định 5 năm (tùy chỉnh 1-10 năm) · gia hạn theo chu kỳ hợp đồng
+          FDA flexible 1-10 years per contract · GACC default 5 years (customizable 1-10 years) · Renewal per contract cycle
         </p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           icon={<FileBadge2 className="h-5 w-5" />}
-          label="Tổng hồ sơ"
+          label="Total Records"
           value={String(items.length)}
           hint={`${items.filter((i) => i.standard === "FDA").length} FDA · ${items.filter((i) => i.standard === "GACC").length} GACC`}
         />
         <Stat
           icon={<ShieldCheck className="h-5 w-5" />}
-          label="Đang VALID"
+          label="VALID"
           value={String(valid.length)}
-          hint="Đã xuất bản và còn hiệu lực"
+          hint="Published and still valid"
         />
         <Stat
           icon={<AlertTriangle className="h-5 w-5" />}
-          label="Sắp hết hạn (90 ngày)"
+          label="Expiring (90 days)"
           value={String(expiring.length)}
-          hint="Cần chủ động gia hạn"
+          hint="Needs renewal soon"
         />
         <Stat
           icon={<Wallet className="h-5 w-5" />}
-          label={user.role === "admin" ? "Doanh thu đã ghi" : "Vai trò"}
-          value={user.role === "admin" ? formatVnd(stats?.total || 0) : "Chuyên môn"}
-          hint={user.role === "admin" ? `${stats?.count || 0} hồ sơ đã xuất bản` : "Điền hồ sơ sau khi đăng ký xong"}
+          label={user.role === "admin" ? "Recorded Revenue" : "Role"}
+          value={user.role === "admin" ? formatVnd(stats?.total || 0) : "Specialist"}
+          hint={user.role === "admin" ? `${stats?.count || 0} published records` : "Fill records after registration"}
         />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="rounded-3xl bg-white p-5 shadow-card lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold">Hồ sơ cần chú ý</h2>
+            <h2 className="font-display text-lg font-bold">Records Needing Attention</h2>
             <Link href="/dashboard/ho-so" className="text-sm font-semibold text-teal-700">
-              Xem tất cả
+              View All
             </Link>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="text-[11px] uppercase tracking-wider text-navy-900/45">
                 <tr>
-                  <th className="pb-2">Chứng chỉ</th>
-                  <th className="pb-2">Công ty</th>
-                  <th className="pb-2">Chuẩn</th>
-                  <th className="pb-2">Hạn HĐ</th>
-                  <th className="pb-2">Hết hạn</th>
-                  <th className="pb-2">Còn lại</th>
+                  <th className="pb-2">Certificate</th>
+                  <th className="pb-2">Company</th>
+                  <th className="pb-2">Standard</th>
+                  <th className="pb-2">Contract</th>
+                  <th className="pb-2">Expiry</th>
+                  <th className="pb-2">Remaining</th>
                 </tr>
               </thead>
               <tbody>
@@ -110,12 +109,12 @@ export default async function DashboardPage() {
                       </td>
                       <td className="py-3">
                         <span className="rounded-full bg-gold-100 px-2 py-0.5 text-xs font-bold text-gold-700">
-                          {vy} năm
+                          {vy} {vy === 1 ? "year" : "years"}
                         </span>
                       </td>
                       <td className="py-3">{formatDate(c.expires_at)}</td>
                       <td className={`py-3 font-semibold ${left < 0 ? "text-rose-600" : left <= 90 ? "text-amber-600" : "text-emerald-600"}`}>
-                        {left < 0 ? "Hết hạn" : `${left} ngày`}
+                        {left < 0 ? "Expired" : `${left} days`}
                       </td>
                     </tr>
                   );
@@ -125,33 +124,33 @@ export default async function DashboardPage() {
           </div>
         </section>
         <section className="rounded-3xl bg-navy-900 p-5 text-white shadow-card">
-          <h2 className="font-display text-lg font-bold">Quy tắc thời hạn linh hoạt</h2>
+          <h2 className="font-display text-lg font-bold">Flexible Validity Rules</h2>
           <div className="mt-4 space-y-3">
             <div className="rounded-2xl bg-white/10 p-4">
-              <div className="text-xs uppercase tracking-wider text-teal-300">FDA - Linh hoạt</div>
-              <div className="mt-1 text-2xl font-extrabold">1-10 năm</div>
-              <p className="mt-1 text-sm text-white/65">Theo hợp đồng với khách. Mặc định 2 năm, có thể chọn 1-10 năm.</p>
+              <div className="text-xs uppercase tracking-wider text-teal-300">FDA - Flexible</div>
+              <div className="mt-1 text-2xl font-extrabold">1-10 years</div>
+              <p className="mt-1 text-sm text-white/65">Per client contract. Default 2 years, selectable 1-10 years.</p>
               <div className="mt-2 flex flex-wrap gap-1">
                 {VALIDITY_OPTIONS.map((y) => (
                   <span key={y} className="rounded-full bg-white/10 px-2 py-0.5 text-[10px]">
-                    {y}N
+                    {y}Y
                   </span>
                 ))}
               </div>
             </div>
             <div className="rounded-2xl bg-white/10 p-4">
-              <div className="text-xs uppercase tracking-wider text-gold-400">GACC - Linh hoạt</div>
-              <div className="mt-1 text-2xl font-extrabold">1-10 năm</div>
-              <p className="mt-1 text-sm text-white/65">Mặc định 5 năm, có thể tùy chỉnh 1-10 năm theo hợp đồng.</p>
+              <div className="text-xs uppercase tracking-wider text-gold-400">GACC - Flexible</div>
+              <div className="mt-1 text-2xl font-extrabold">1-10 years</div>
+              <p className="mt-1 text-sm text-white/65">Default 5 years, customizable 1-10 years per contract.</p>
             </div>
             {validityStats.length > 0 && (
               <div className="rounded-2xl bg-white/10 p-4">
-                <div className="text-xs uppercase tracking-wider text-white/60">Thống kê theo hợp đồng</div>
+                <div className="text-xs uppercase tracking-wider text-white/60">Stats by Contract</div>
                 <div className="mt-2 space-y-1">
                   {validityStats.map((s) => (
                     <div key={s.years} className="flex justify-between text-sm">
-                      <span>{s.years} năm</span>
-                      <span className="font-bold">{s.count} hồ sơ</span>
+                      <span>{s.years} {s.years === 1 ? "year" : "years"}</span>
+                      <span className="font-bold">{s.count} records</span>
                     </div>
                   ))}
                 </div>
@@ -162,7 +161,7 @@ export default async function DashboardPage() {
             href="/dashboard/ho-so/moi"
             className="mt-5 block rounded-2xl bg-teal-500 py-3 text-center text-sm font-bold text-navy-950"
           >
-            Điền hồ sơ mới
+            Create New Record
           </Link>
         </section>
       </div>

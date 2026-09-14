@@ -46,29 +46,29 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
             </div>
             <p className="max-w-xs text-sm leading-relaxed text-navy-900/70">
               {valid
-                ? `Chứng chỉ còn hiệu lực ${validityYears} năm theo hợp đồng. Thời gian còn lại được đếm từ ngày hết hạn về ngày đăng ký.`
-                : "Chứng chỉ đã hết hiệu lực. Vui lòng liên hệ Vexim Global để gia hạn."}
+                ? `Certificate is valid for ${validityYears} ${validityYears === 1 ? "year" : "years"} per contract. Remaining time is counted from expiry date back to registration date.`
+                : "Certificate has expired. Please contact Vexim Global for renewal."}
             </p>
           </div>
 
           <div className="relative mt-6 grid grid-cols-2 gap-3">
-            <Info label="Standards" value={cert.standard} strong />
-            <Info label="Mã số" value={cert.registration_code} mono />
-            <Info label="Thời hạn HĐ" value={`${validityYears} năm`} strong />
-            <Info label="Ngày đăng ký" value={formatDate(cert.registered_at)} />
-            <Info label="Ngày hết hạn" value={formatDate(cert.expires_at)} />
+            <Info label="Standard" value={cert.standard} strong />
+            <Info label="Code" value={cert.registration_code} mono />
+            <Info label="Contract Term" value={`${validityYears} ${validityYears === 1 ? "year" : "years"}`} strong />
+            <Info label="Registration Date" value={formatDate(cert.registered_at)} />
+            <Info label="Expiry Date" value={formatDate(cert.expires_at)} />
             <Info
-              label="Số ngày còn lại"
+              label="Days Remaining"
               value={left < 0 ? "0" : String(left)}
               strong
             />
             <Info
-              label="Chu kỳ hiệu lực"
-              value={`${validityYears} năm · ${total} ngày`}
+              label="Validity Cycle"
+              value={`${validityYears} ${validityYears === 1 ? "year" : "years"} · ${total} days`}
             />
             <Info
-              label="Gia hạn"
-              value={`${validityYears} năm/lần`}
+              label="Renewal"
+              value={`${validityYears} ${validityYears === 1 ? "year" : "years"}/cycle`}
             />
           </div>
 
@@ -87,7 +87,7 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
             running={Boolean(cert.validity_confirmed)}
           />
           <p className="mt-3 text-center text-xs text-navy-900/50">
-            Hợp đồng {validityYears} năm · {formatDate(cert.registered_at)} → {formatDate(cert.expires_at)}
+            Contract {validityYears} {validityYears === 1 ? "year" : "years"} · {formatDate(cert.registered_at)} → {formatDate(cert.expires_at)}
           </p>
         </div>
 
@@ -122,7 +122,7 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
             {COMPANY.websiteLabel}
           </a>
           <p className="mt-3 text-center text-[11px] text-white/45">
-            Trang xác thực công khai không hiển thị giá dịch vụ.
+            Public verification page does not display service fees.
           </p>
         </section>
       </main>

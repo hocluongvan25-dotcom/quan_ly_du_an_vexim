@@ -18,7 +18,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="sticky top-0 z-20 flex items-center justify-between border-b border-navy-900/5 bg-white/80 px-4 py-3 backdrop-blur md:px-8">
           <MobileNav user={user} />
           <div className="hidden text-sm text-navy-900/60 md:block">
-            Hệ thống nội bộ · Vexim Global
+            Internal System · Vexim Global
           </div>
           <div className="ml-auto text-right text-xs text-navy-900/50">{user.email}</div>
         </header>

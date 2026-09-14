@@ -25,7 +25,7 @@ export default function LoginPage() {
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(data.error || "Đăng nhập thất bại");
+      setError(data.error || "Login failed");
       return;
     }
     router.replace("/dashboard");
@@ -41,16 +41,16 @@ export default function LoginPage() {
               Certificate Control
             </p>
             <h1 className="mt-3 font-display text-3xl font-extrabold leading-tight">
-              Quản lý hồ sơ FDA & GACC tập trung
+              Centralized FDA & GACC Management
             </h1>
             <p className="mt-4 text-sm leading-relaxed text-white/70">
-              Theo dõi thời hạn, xuất bản mã QR xác thực và thống kê doanh thu cho từng mã đăng ký.
+              Track validity, publish QR verification codes and revenue statistics for each registration code.
             </p>
             <ul className="mt-8 space-y-3 text-sm text-white/80">
               {[
-                "FDA gia hạn 2 năm / lần",
-                "GACC gia hạn 5 năm / lần",
-                "Landing page xác thực tối ưu mobile",
+                "FDA flexible 1-10 years per contract",
+                "GACC flexible 1-10 years per contract",
+                "Mobile-optimized verification landing page",
               ].map((t) => (
                 <li key={t} className="flex items-center gap-2">
                   <ShieldCheck className="h-4 w-4 text-teal-400" /> {t}
@@ -65,10 +65,10 @@ export default function LoginPage() {
             <Logo />
           </div>
           <h2 className="mt-6 font-display text-2xl font-bold text-navy-900 md:mt-2">
-            Đăng nhập nội bộ
+            Internal Login
           </h2>
           <p className="mt-1 text-sm text-navy-900/55">
-            Dành cho quản trị viên và bộ phận chuyên môn.
+            For administrators and specialists.
           </p>
           <label className="mt-8 block text-xs font-semibold uppercase tracking-wider text-navy-900/60">
             Email
@@ -81,7 +81,7 @@ export default function LoginPage() {
             required
           />
           <label className="mt-4 block text-xs font-semibold uppercase tracking-wider text-navy-900/60">
-            Mật khẩu
+            Password
           </label>
           <input
             className="mt-1.5 w-full rounded-xl border border-navy-900/10 bg-[#fffaf0] px-3 py-2.5 text-sm outline-none ring-gold-400/40 focus:ring-4"
@@ -95,12 +95,12 @@ export default function LoginPage() {
             disabled={loading}
             className="mt-6 w-full rounded-xl bg-gradient-to-r from-gold-400 to-teal-500 py-3 text-sm font-bold text-navy-950 hover:opacity-95 disabled:opacity-60"
           >
-            {loading ? "Đang xác thực..." : "Vào hệ thống"}
+            {loading ? "Authenticating..." : "Enter System"}
           </button>
           <div className="mt-6 rounded-2xl bg-teal-50 p-4 text-xs leading-relaxed text-navy-900/70">
-            <div className="font-semibold text-navy-900">Tài khoản demo</div>
+            <div className="font-semibold text-navy-900">Demo Accounts</div>
             <p className="mt-1">Admin: admin@veximglobal.com / Vexim@Admin2026</p>
-            <p>Chuyên môn: chuyenmon@veximglobal.com / Vexim@CM2026</p>
+            <p>Specialist: chuyenmon@veximglobal.com / Vexim@CM2026</p>
           </div>
         </form>
       </div>

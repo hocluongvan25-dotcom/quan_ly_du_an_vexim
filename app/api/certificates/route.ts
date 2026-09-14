@@ -24,11 +24,11 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const standard = body.standard === "GACC" ? "GACC" : "FDA";
     if (!body.company_name || !body.registered_at || !body.registration_code) {
-      return NextResponse.json({ error: "Vui lòng điền đủ thông tin bắt buộc." }, { status: 400 });
+      return NextResponse.json({ error: "Please fill all required fields." }, { status: 400 });
     }
     const validity_years = Number(body.validity_years || 0);
     if (validity_years && !isValidValidityYears(validity_years)) {
-      return NextResponse.json({ error: "Thời hạn hợp đồng phải từ 1 đến 10 năm." }, { status: 400 });
+      return NextResponse.json({ error: "Contract duration must be between 1 and 10 years." }, { status: 400 });
     }
     const id = await createCertificate({
       standard: standard as Standard,

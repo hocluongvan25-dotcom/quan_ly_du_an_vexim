@@ -16,7 +16,7 @@ export function formatDate(iso: string | null | undefined) {
   if (!iso) return "—";
   const d = parseDate(iso);
   if (!d) return "—";
-  return d.toLocaleDateString("vi-VN", {
+  return d.toLocaleDateString("en-US", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -45,7 +45,7 @@ export function addYears(isoDate: string, years: number) {
   return toIsoDate(d);
 }
 
-// Hỗ trợ validity_years linh hoạt 1-10 năm theo hợp đồng
+// Support flexible validity_years 1-10 years per contract
 export function expiryFromStandard(
   registeredAt: string,
   standard: Standard,
@@ -67,7 +67,7 @@ export function getValidityYears(cert: {
   if (cert.validity_years && cert.validity_years >= 1 && cert.validity_years <= 10) {
     return cert.validity_years;
   }
-  // Fallback cho dữ liệu cũ chưa có validity_years: tính từ expires_at - registered_at hoặc dùng STANDARD_YEARS
+  // Fallback for old data without validity_years: calculate from dates or use default
   if (cert.expires_at && cert.registered_at) {
     const diff = daysBetween(cert.registered_at, cert.expires_at);
     const approxYears = Math.round(diff / 365);
@@ -133,12 +133,12 @@ export function splitCountdown(ms: number) {
 }
 
 export function statusLabel(status: string, remaining: number) {
-  if (status !== "published") return status === "draft" ? "Nháp" : "Hết hạn";
-  if (remaining < 0) return "Hết hạn";
-  if (remaining <= 90) return "Sắp hết hạn";
-  return "Đã xuất bản";
+  if (status !== "published") return status === "draft" ? "Draft" : "Expired";
+  if (remaining < 0) return "Expired";
+  if (remaining <= 90) return "Expiring Soon";
+  return "Published";
 }
 
 export function validityLabel(years: number) {
-  return `${years} năm`;
+  return `${years} ${years === 1 ? "year" : "years"}`;
 }

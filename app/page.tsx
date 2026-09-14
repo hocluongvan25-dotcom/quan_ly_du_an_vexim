@@ -12,7 +12,7 @@ export default function HomePage() {
           href="/login"
           className="rounded-full bg-navy-900 px-4 py-2 text-sm font-semibold text-gold-400 hover:bg-navy-800"
         >
-          Đăng nhập nội bộ
+          Internal Login
         </Link>
       </header>
       <main className="mx-auto max-w-6xl px-5 pb-20 pt-8">
@@ -20,18 +20,18 @@ export default function HomePage() {
           Vexim Certificate Network
         </p>
         <h1 className="mt-4 max-w-3xl font-display text-4xl font-extrabold leading-tight md:text-6xl">
-          Xác thực hồ sơ FDA & GACC do Vexim Global cấp
+          Verify FDA & GACC Certificates Issued by Vexim Global
         </h1>
         <p className="mt-5 max-w-xl text-base text-navy-900/70 md:text-lg">
-          Quét mã QR trên chứng chỉ để xem hiệu lực, phạm vi và thời hạn còn lại. Giá dịch vụ
-          không công khai trên trang xác thực.
+          Scan the QR code on the certificate to view validity, scope and remaining duration. Service fees
+          are not disclosed on the public verification page.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
             href="/login"
             className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-gold-400 to-teal-500 px-5 py-3 text-sm font-bold text-navy-950 shadow-lift"
           >
-            Vào hệ thống quản lý <ArrowRight className="h-4 w-4" />
+            Go to Management System <ArrowRight className="h-4 w-4" />
           </Link>
           <a
             href={COMPANY.website}
@@ -44,18 +44,18 @@ export default function HomePage() {
           {[
             {
               icon: ShieldCheck,
-              title: "Hiệu lực chuẩn",
-              desc: "FDA 2 năm / GACC 5 năm. Đồng hồ đếm ngược từ ngày hết hạn.",
+              title: "Standard Validity",
+              desc: "FDA 1-10 years flexible per contract / GACC 1-10 years. Countdown from expiry date.",
             },
             {
               icon: QrCode,
-              title: "QR in trên chứng chỉ",
-              desc: "Mỗi hồ sơ xuất bản có mã QR riêng, khách hàng tự xác thực.",
+              title: "QR Printed on Certificate",
+              desc: "Each published record has its own QR code, customers can self-verify.",
             },
             {
               icon: ArrowRight,
-              title: "Hai vai trò",
-              desc: "Admin điều hành hệ thống. Bộ phận chuyên môn điền hồ sơ sau đăng ký.",
+              title: "Two Roles",
+              desc: "Admin manages system. Specialists fill records after registration.",
             },
           ].map((c) => (
             <div

@@ -2,7 +2,7 @@
   "name": "quan-ly-du-an-vexim",
   "version": "1.0.0",
   "private": true,
-  "description": "Hệ thống quản lý hồ sơ FDA & GACC — Vexim Global",
+  "description": "FDA & GACC Certificate Management System — Vexim Global",
   "scripts": {
     "dev": "next dev -H 0.0.0.0 -p 3000",
     "build": "next build",

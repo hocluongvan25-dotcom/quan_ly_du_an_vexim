@@ -33,14 +33,14 @@ export default function CertificatesPage() {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl font-extrabold text-navy-900">Hồ sơ FDA & GACC</h1>
-          <p className="mt-1 text-sm text-navy-900/55">FDA 1-10 năm theo hợp đồng · GACC mặc định 5 năm (tùy chỉnh 1-10 năm)</p>
+          <h1 className="font-display text-3xl font-extrabold text-navy-900">FDA & GACC Records</h1>
+          <p className="mt-1 text-sm text-navy-900/55">FDA 1-10 years per contract · GACC default 5 years (customizable 1-10 years)</p>
         </div>
         <Link
           href="/dashboard/ho-so/moi"
           className="rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white"
         >
-          Tạo hồ sơ
+          Create Record
         </Link>
       </div>
 
@@ -50,7 +50,7 @@ export default function CertificatesPage() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm công ty, mã chứng chỉ, mã số..."
+            placeholder="Search company, certificate no, code..."
             className="w-full rounded-xl border border-navy-900/10 bg-white py-2 pl-9 pr-3 text-sm outline-none"
           />
         </div>
@@ -62,7 +62,7 @@ export default function CertificatesPage() {
               std === s ? "bg-navy-900 text-white" : "bg-white text-navy-900"
             }`}
           >
-            {s === "ALL" ? "Tất cả" : s}
+            {s === "ALL" ? "All" : s}
           </button>
         ))}
       </div>
@@ -73,14 +73,14 @@ export default function CertificatesPage() {
             <thead className="bg-[#fffaf0] text-[11px] uppercase tracking-wider text-navy-900/45">
               <tr>
                 <th className="px-4 py-3">Certificate No</th>
-                <th className="px-4 py-3">Công ty</th>
-                <th className="px-4 py-3">Standards</th>
-                <th className="px-4 py-3">Hạn HĐ</th>
-                <th className="px-4 py-3">Mã số</th>
-                <th className="px-4 py-3">Ngày ĐK / Hết hạn</th>
-                <th className="px-4 py-3">Còn lại</th>
-                {role === "admin" && <th className="px-4 py-3">Giá dịch vụ</th>}
-                <th className="px-4 py-3">Trạng thái</th>
+                <th className="px-4 py-3">Company</th>
+                <th className="px-4 py-3">Standard</th>
+                <th className="px-4 py-3">Contract</th>
+                <th className="px-4 py-3">Code</th>
+                <th className="px-4 py-3">Reg / Expiry</th>
+                <th className="px-4 py-3">Remaining</th>
+                {role === "admin" && <th className="px-4 py-3">Service Fee</th>}
+                <th className="px-4 py-3">Status</th>
               </tr>
             </thead>
             <tbody>
@@ -98,7 +98,7 @@ export default function CertificatesPage() {
                     <td className="px-4 py-3 font-bold">{c.standard}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-gold-100 px-2 py-0.5 text-xs font-bold text-gold-700">
-                        {vy} năm
+                        {vy} {vy === 1 ? "year" : "years"}
                       </span>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs">{c.registration_code}</td>
@@ -106,7 +106,7 @@ export default function CertificatesPage() {
                       {formatDate(c.registered_at)}
                       <div className="text-navy-900/45">→ {formatDate(c.expires_at)}</div>
                     </td>
-                    <td className="px-4 py-3 font-semibold">{left < 0 ? "—" : `${left} ngày`}</td>
+                    <td className="px-4 py-3 font-semibold">{left < 0 ? "—" : `${left} days`}</td>
                     {role === "admin" && (
                       <td className="px-4 py-3 text-xs">{formatVnd(c.service_price)}</td>
                     )}
@@ -133,7 +133,7 @@ export default function CertificatesPage() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={9} className="px-4 py-10 text-center text-navy-900/45">
-                    Chưa có hồ sơ phù hợp.
+                    No matching records found.
                   </td>
                 </tr>
               )}

@@ -52,10 +52,10 @@ function assertNoSupabaseError(error: any, context: string) {
   if (error.code === "PGRST205" || String(error.message || "").includes("PGRST205") || String(error.message || "").includes("schema cache")) {
     console.error(`[Supabase] ${context} - PGRST205:`, error);
     throw new Error(
-      `SUPABASE_SCHEMA_MISSING: Bảng '${context}' chưa tồn tại hoặc chưa được expose trong Supabase. ` +
-        `Vui lòng vào Supabase Dashboard > SQL Editor và chạy toàn bộ file supabase/schema.sql, ` +
-        `sau đó chạy: NOTIFY pgrst, 'reload schema'; ` +
-        `Chi tiết gốc: ${error.message}`
+      `SUPABASE_SCHEMA_MISSING: Table '${context}' does not exist or is not exposed in Supabase. ` +
+        `Please go to Supabase Dashboard > SQL Editor and run the entire supabase/schema.sql file, ` +
+        `then run: NOTIFY pgrst, 'reload schema'; ` +
+        `Original details: ${error.message}`
     );
   }
   throw error;
@@ -82,8 +82,8 @@ const SAMPLE_CERTS: Array<{
     standard: "FDA",
     code: "17823456789",
     price: 18500000,
-    company: "Công ty CP Thực phẩm An Phát",
-    scope: "Food Facility Registration — chế biến thủy sản đông lạnh xuất khẩu sang Hoa Kỳ",
+    company: "An Phat Food JSC",
+    scope: "Food Facility Registration — frozen seafood processing for export to USA",
     registered: "2025-01-15",
     published: "2025-01-16T09:30:00Z",
     validity: 2,
@@ -93,8 +93,8 @@ const SAMPLE_CERTS: Array<{
     standard: "GACC",
     code: "VN-GACC-44012345678",
     price: 42000000,
-    company: "Công ty TNHH Nông sản Mekong",
-    scope: "Đăng ký doanh nghiệp sản xuất thực phẩm xuất khẩu vào Trung Quốc (GACC Decree 248)",
+    company: "Mekong Agri Products Co., Ltd",
+    scope: "Food enterprise registration for export to China (GACC Decree 248)",
     registered: "2024-03-20",
     published: "2024-03-22T09:30:00Z",
     validity: 5,
@@ -115,8 +115,8 @@ const SAMPLE_CERTS: Array<{
     standard: "GACC",
     code: "VN-GACC-33098765432",
     price: 38500000,
-    company: "Công ty CP Gạo Việt Phát",
-    scope: "Cơ sở xay xát, đóng gói gạo xuất khẩu sang thị trường Trung Quốc",
+    company: "Viet Phat Rice JSC",
+    scope: "Rice milling and packaging facility for export to China market",
     registered: "2026-06-01",
     published: "2026-06-03T09:30:00Z",
     validity: 5,
@@ -126,8 +126,8 @@ const SAMPLE_CERTS: Array<{
     standard: "FDA",
     code: "17200998877",
     price: 16500000,
-    company: "Công ty TNHH Hải sản Bình Minh",
-    scope: "FDA Food Facility Registration — thủy sản tươi sống và đông lạnh",
+    company: "Binh Minh Seafood Co., Ltd",
+    scope: "FDA Food Facility Registration — fresh and frozen seafood",
     registered: "2026-08-18",
     published: "2026-08-20T09:30:00Z",
     validity: 2,
@@ -154,13 +154,13 @@ export async function ensureSeed() {
       .insert([
         {
           email: "admin@veximglobal.com",
-          name: "Quản trị viên",
+          name: "Administrator",
           password_hash: hashPassword("Vexim@Admin2026"),
           role: "admin",
         },
         {
           email: "chuyenmon@veximglobal.com",
-          name: "Chuyên viên hồ sơ",
+          name: "Documentation Specialist",
           password_hash: hashPassword("Vexim@CM2026"),
           role: "specialist",
         },

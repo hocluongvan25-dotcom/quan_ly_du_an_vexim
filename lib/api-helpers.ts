@@ -7,9 +7,9 @@ export function handleApiError(e: unknown) {
   if (msg.includes("SUPABASE_SCHEMA_MISSING")) {
     return NextResponse.json(
       {
-        error: "Lỗi cấu hình Supabase",
+        error: "Supabase Configuration Error",
         details: msg,
-        hint: "Vui lòng vào Supabase Dashboard > SQL Editor, chạy toàn bộ file supabase/schema.sql, sau đó chạy: NOTIFY pgrst, 'reload schema';",
+        hint: "Please go to Supabase Dashboard > SQL Editor, run the entire supabase/schema.sql file, then run: NOTIFY pgrst, 'reload schema';",
         code: "PGRST205",
       },
       { status: 500 }
@@ -19,9 +19,9 @@ export function handleApiError(e: unknown) {
   if (msg.includes("PGRST205") || msg.includes("schema cache") || msg.includes("Could not find the table")) {
     return NextResponse.json(
       {
-        error: "Không tìm thấy bảng trong Supabase (PGRST205)",
+        error: "Table not found in Supabase (PGRST205)",
         details: msg,
-        hint: "Bảng public.staff_users hoặc public.certificates chưa tồn tại. Hãy chạy supabase/schema.sql trong Supabase SQL Editor và reload schema cache.",
+        hint: "Table public.staff_users or public.certificates does not exist. Please run supabase/schema.sql in Supabase SQL Editor and reload schema cache.",
         code: "PGRST205",
       },
       { status: 500 }
@@ -29,13 +29,13 @@ export function handleApiError(e: unknown) {
   }
 
   const map: Record<string, string> = {
-    NOT_FOUND: "Không tìm thấy hồ sơ.",
-    NOT_CONFIRMED: "Cần xác nhận hiệu lực (VALID) trước khi xuất bản.",
-    INCOMPLETE: "Thiếu tên công ty hoặc mã số đăng ký.",
-    MISSING_DATES: "Thiếu ngày đăng ký / ngày hết hạn.",
-    PUBLISHED: "Không thể xoá hồ sơ đã xuất bản.",
-    UNAUTHORIZED: "Chưa đăng nhập.",
-    FORBIDDEN: "Không có quyền.",
+    NOT_FOUND: "Certificate not found.",
+    NOT_CONFIRMED: "Validity must be confirmed (VALID) before publishing.",
+    INCOMPLETE: "Missing company name or registration code.",
+    MISSING_DATES: "Missing registration date / expiry date.",
+    PUBLISHED: "Cannot delete a published certificate.",
+    UNAUTHORIZED: "Not authenticated.",
+    FORBIDDEN: "Access denied.",
   };
 
   return NextResponse.json({ error: map[msg] || msg }, { status: 400 });

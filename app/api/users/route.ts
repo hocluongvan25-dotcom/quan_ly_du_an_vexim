@@ -30,7 +30,7 @@ export async function POST(req: Request) {
     const password = String(body.password || "");
     const role: Role = body.role === "admin" ? "admin" : "specialist";
     if (!email || !name || password.length < 6) {
-      return NextResponse.json({ error: "Thiếu thông tin hoặc mật khẩu quá ngắn." }, { status: 400 });
+      return NextResponse.json({ error: "Missing info or password too short." }, { status: 400 });
     }
     const id = await createUser({ email, name, password, role });
     return NextResponse.json({ id });
@@ -39,6 +39,6 @@ export async function POST(req: Request) {
     if (msg.includes("SUPABASE_SCHEMA_MISSING") || msg.includes("PGRST205")) {
       return handleApiError(e);
     }
-    return NextResponse.json({ error: "Email đã tồn tại." }, { status: 400 });
+    return NextResponse.json({ error: "Email already exists." }, { status: 400 });
   }
 }

@@ -1,112 +1,112 @@
-# Vexim Global — Quản lý hồ sơ FDA & GACC
+# Vexim Global — FDA & GACC Certificate Management
 
-Hệ thống nội bộ của **Công ty TNHH Vexim Global**: quản lý hồ sơ FDA / GACC, xác thực QR, thống kê doanh thu.
+Internal system of **Vexim Global Co., Ltd**: FDA / GACC record management, QR verification, revenue analytics.
 
-- FDA linh hoạt **1-10 năm** theo hợp đồng với khách (mặc định 2 năm), GACC **1-10 năm** (mặc định 5 năm)
-- Gia hạn theo đúng thời hạn hợp đồng đã ký
-- Vai trò Admin và Bộ phận chuyên môn
-- Landing page quét QR **không hiển thị giá dịch vụ**
-- Dữ liệu quản trị trên **Supabase** (PostgreSQL)
-- Deploy **Vercel**
+- FDA flexible **1-10 years** per client contract (default 2 years), GACC **1-10 years** (default 5 years)
+- Renewal follows contract duration
+- Roles: Admin and Specialist
+- QR landing page **does not display service fees**
+- Data managed on **Supabase** (PostgreSQL)
+- Deploy on **Vercel**
 
-Font chữ: **Be Vietnam Pro** (hỗ trợ đầy đủ dấu tiếng Việt).
+Font: **Be Vietnam Pro** (full Vietnamese diacritics support, but UI is English).
 
-## 1. Tính năng thời hạn linh hoạt (Mới)
+## 1. Flexible Validity Feature (New)
 
-Trước đây FDA cố định 2 năm, GACC cố định 5 năm. Hiện tại đã hỗ trợ **1-10 năm** dựa theo hợp đồng:
+Previously FDA fixed 2 years, GACC fixed 5 years. Now supports **1-10 years** per contract:
 
-- Khi tạo hồ sơ mới, chọn **Thời hạn hợp đồng**: 1 năm, 2 năm, 3 năm, ..., 10 năm
-- FDA: thường 2 năm nhưng có thể ký 1 năm, 3 năm, 5 năm, 10 năm tùy khách
-- GACC: mặc định 5 năm, nhưng vẫn cho phép tùy chỉnh 1-10 năm
-- Ngày hết hạn tự tính: `registered_at + validity_years`
-- Gia hạn: tự động gia hạn thêm đúng số năm của hợp đồng hiện tại (ví dụ hợp đồng 3 năm thì gia hạn thêm 3 năm)
-- Dashboard hiển thị thống kê theo từng mức thời hạn
+- When creating a new record, select **Contract Duration**: 1 year, 2 years, 3 years, ..., 10 years
+- FDA: typically 2 years but can be 1, 3, 5, 10 years per client
+- GACC: default 5 years, but customizable 1-10 years
+- Expiry auto-calculated: `registered_at + validity_years`
+- Renewal: automatically extends by contract duration (e.g., 3-year contract renews +3 years)
+- Dashboard shows stats per validity duration
 
 **Migration:**
-- Chạy lại `supabase/schema.sql` trong Supabase SQL Editor để thêm cột `validity_years`
-- SQLite local sẽ tự migrate khi chạy `npm run dev`
+- Re-run `supabase/schema.sql` in Supabase SQL Editor to add `validity_years` column
+- Local SQLite will auto-migrate on `npm run dev`
 
-## 2. Supabase
+## 2. Supabase Setup
 
-1. Tạo project tại [supabase.com](https://supabase.com)
-2. SQL Editor → dán và chạy `supabase/schema.sql`
+1. Create project at [supabase.com](https://supabase.com)
+2. SQL Editor → paste and run `supabase/schema.sql`
 3. Settings → API, copy:
    - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon` `public` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` → `SUPABASE_SERVICE_ROLE_KEY` (chỉ dùng phía server, không đưa ra client)
+   - `service_role` → `SUPABASE_SERVICE_ROLE_KEY` (server-side only, never expose to client)
 
-Lần đăng nhập đầu tiên hệ thống tự tạo tài khoản demo nếu bảng `staff_users` trống.
+On first login, system auto-creates demo accounts if `staff_users` table is empty.
 
-## 3. Chạy local
+## 3. Run Locally
 
 ```bash
 cp .env.example .env.local
-# điền 3 biến Supabase
+# fill 3 Supabase vars
 npm install
 npm run dev
 ```
 
-Nếu **chưa** có biến Supabase, app tạm dùng SQLite `data/vexim.db` để xem giao diện.
+If **no** Supabase vars, app falls back to SQLite `data/vexim.db` for UI preview.
 
-## 4. Deploy Vercel
+## 4. Deploy to Vercel
 
 ```bash
 npx vercel
 ```
 
-Trên Vercel → Project → Settings → Environment Variables, thêm đúng 4 biến trong `.env.example`.
+On Vercel → Project → Settings → Environment Variables, add 4 vars from `.env.example`.
 
-Hoặc kết nối GitHub repo `hocluongvan25-dotcom/quan_ly_du_an_vexim` và Import trên vercel.com.
+Or connect GitHub repo `hocluongvan25-dotcom/quan_ly_du_an_vexim` and Import on vercel.com.
 
 ## 5. Troubleshooting
 
-### Lỗi PGRST205: Could not find the table 'public.staff_users' in the schema cache
+### Error PGRST205: Could not find the table 'public.staff_users' in the schema cache
 
-**Nguyên nhân:** Bảng `staff_users` / `certificates` chưa được tạo trong Supabase, hoặc PostgREST schema cache chưa reload sau khi tạo bảng.
+**Cause:** Table `staff_users` / `certificates` not created in Supabase, or PostgREST schema cache not reloaded.
 
-**Cách fix:**
+**Fix:**
 
-1. Vào **Supabase Dashboard** → chọn project → **SQL Editor** → **New query**
-2. Copy toàn bộ nội dung file `supabase/schema.sql` và chạy (Run)
-3. Sau khi chạy xong, chạy thêm lệnh:
+1. Go to **Supabase Dashboard** → select project → **SQL Editor** → **New query**
+2. Copy entire `supabase/schema.sql` and run
+3. Then run:
    ```sql
    NOTIFY pgrst, 'reload schema';
    ```
-   Hoặc:
+   Or:
    ```sql
    SELECT pg_notify('pgrst', 'reload schema');
    ```
-4. Đợi 5-10 giây cho cache reload
-5. Kiểm tra lại bằng cách vào **Table Editor** xem đã có 2 bảng `staff_users` và `certificates` chưa
-6. Test API health: truy cập `/api/health` trên website của bạn, phải trả về `status: ok`
+4. Wait 5-10 seconds for cache reload
+5. Check **Table Editor** for tables `staff_users` and `certificates`
+6. Test health: visit `/api/health`, should return `status: ok`
 
-**Kiểm tra biến môi trường trên Vercel:**
+**Check Vercel env vars:**
 
-- `NEXT_PUBLIC_SUPABASE_URL` phải là URL dạng `https://xxxx.supabase.co`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` là anon key
-- `SUPABASE_SERVICE_ROLE_KEY` là service_role key (quan trọng, phải có để bypass RLS)
-- Sau khi sửa biến môi trường, nhớ **Redeploy** lại
+- `NEXT_PUBLIC_SUPABASE_URL` must be like `https://xxxx.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` is anon key
+- `SUPABASE_SERVICE_ROLE_KEY` is service_role key (required to bypass RLS)
+- After changing env vars, **Redeploy**
 
-**Nếu vẫn lỗi:**
+**Still failing:**
 
-- Vào Supabase → Settings → API → kiểm tra **Exposed schemas** có chứa `public` không
-- Vào Database → Roles → đảm bảo `service_role` có quyền
-- Thử tắt RLS tạm thời để test: `ALTER TABLE public.staff_users DISABLE ROW LEVEL SECURITY;`
+- Supabase → Settings → API → check **Exposed schemas** contains `public`
+- Database → Roles → ensure `service_role` has permissions
+- Temporarily disable RLS for testing: `ALTER TABLE public.staff_users DISABLE ROW LEVEL SECURITY;`
 
-### Debug nhanh
+### Quick Debug
 
-Truy cập endpoint `/api/health` sẽ cho biết:
-- Supabase có được cấu hình không
-- Bảng có tồn tại không
-- Số lượng bản ghi hiện tại
+Visit `/api/health` endpoint to see:
+- Whether Supabase is configured
+- Whether tables exist
+- Current record counts
 
-## Tài khoản demo
+## Demo Accounts
 
-| Vai trò | Email | Mật khẩu |
+| Role | Email | Password |
 | --- | --- | --- |
 | Admin | `admin@veximglobal.com` | `Vexim@Admin2026` |
-| Chuyên môn | `chuyenmon@veximglobal.com` | `Vexim@CM2026` |
+| Specialist | `chuyenmon@veximglobal.com` | `Vexim@CM2026` |
 
-## Liên hệ Vexim Global
+## Contact Vexim Global
 
-Số 25/6/51 Ngọa Long, Tây Tựu, Bắc Từ Liêm, Hà Nội · 0373 685 634 · contact@veximglobal.com
+No. 25/6/51 Ngoa Long, Tay Tuu, Bac Tu Liem, Hanoi · 0373 685 634 · contact@veximglobal.com

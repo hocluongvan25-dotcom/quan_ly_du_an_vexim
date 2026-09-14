@@ -58,13 +58,13 @@ function migrate(db: DatabaseSync) {
     );
   `);
 
-  // Migration cho DB cũ chưa có cột validity_years
+  // Migration for old DB without validity_years column
   try {
     const cols = db.prepare("PRAGMA table_info(certificates)").all() as Array<{ name: string }>;
     const hasValidity = cols.some((c) => c.name === "validity_years");
     if (!hasValidity) {
       db.exec("ALTER TABLE certificates ADD COLUMN validity_years INTEGER NOT NULL DEFAULT 2 CHECK (validity_years BETWEEN 1 AND 10)");
-      // Cập nhật dữ liệu cũ
+      // Update old data
       db.exec("UPDATE certificates SET validity_years = 2 WHERE standard='FDA' AND (validity_years IS NULL OR validity_years NOT BETWEEN 1 AND 10)");
       db.exec("UPDATE certificates SET validity_years = 5 WHERE standard='GACC' AND (validity_years IS NULL OR validity_years NOT BETWEEN 1 AND 10)");
     }
@@ -84,13 +84,13 @@ function seed(db: DatabaseSync) {
     );
     insertUser.run(
       "admin@veximglobal.com",
-      "Quản trị viên",
+      "Administrator",
       hashPassword("Vexim@Admin2026"),
       "admin"
     );
     insertUser.run(
       "chuyenmon@veximglobal.com",
-      "Chuyên viên hồ sơ",
+      "Documentation Specialist",
       hashPassword("Vexim@CM2026"),
       "specialist"
     );
@@ -119,8 +119,8 @@ function seed(db: DatabaseSync) {
         standard: "FDA",
         code: "17823456789",
         price: 18500000,
-        company: "Công ty CP Thực phẩm An Phát",
-        scope: "Food Facility Registration — chế biến thủy sản đông lạnh xuất khẩu sang Hoa Kỳ",
+        company: "An Phat Food JSC",
+        scope: "Food Facility Registration — frozen seafood processing for export to USA",
         registered: "2025-01-15",
         published: "2025-01-16",
         validity: 2,
@@ -131,8 +131,8 @@ function seed(db: DatabaseSync) {
         standard: "GACC",
         code: "VN-GACC-44012345678",
         price: 42000000,
-        company: "Công ty TNHH Nông sản Mekong",
-        scope: "Đăng ký doanh nghiệp sản xuất thực phẩm xuất khẩu vào Trung Quốc (GACC Decree 248)",
+        company: "Mekong Agri Products Co., Ltd",
+        scope: "Food enterprise registration for export to China (GACC Decree 248)",
         registered: "2024-03-20",
         published: "2024-03-22",
         validity: 5,
@@ -155,8 +155,8 @@ function seed(db: DatabaseSync) {
         standard: "GACC",
         code: "VN-GACC-33098765432",
         price: 38500000,
-        company: "Công ty CP Gạo Việt Phát",
-        scope: "Cơ sở xay xát, đóng gói gạo xuất khẩu sang thị trường Trung Quốc",
+        company: "Viet Phat Rice JSC",
+        scope: "Rice milling and packaging facility for export to China market",
         registered: "2026-06-01",
         published: "2026-06-03",
         validity: 5,
@@ -167,8 +167,8 @@ function seed(db: DatabaseSync) {
         standard: "FDA",
         code: "17200998877",
         price: 16500000,
-        company: "Công ty TNHH Hải sản Bình Minh",
-        scope: "FDA Food Facility Registration — thủy sản tươi sống và đông lạnh",
+        company: "Binh Minh Seafood Co., Ltd",
+        scope: "FDA Food Facility Registration — fresh and frozen seafood",
         registered: "2026-08-18",
         published: "2026-08-20",
         validity: 2,
@@ -261,7 +261,7 @@ function plain<T>(row: T): T {
 function hydrate(row: Certificate): Certificate {
   if (!row) return row;
   const next = plain(row);
-  // Fallback cho dữ liệu cũ chưa có validity_years
+  // Fallback for old data without validity_years
   if (!next.validity_years) {
     next.validity_years = getValidityYears(next as any);
   }

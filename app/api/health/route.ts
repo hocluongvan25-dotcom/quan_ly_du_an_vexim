@@ -20,7 +20,7 @@ export async function GET() {
       ...checks,
       status: "ok",
       mode: "sqlite",
-      message: "Đang dùng SQLite local (data/vexim.db). Để dùng Supabase, cấu hình 3 biến môi trường.",
+      message: "Using local SQLite (data/vexim.db). To use Supabase, configure 3 environment variables.",
     });
   }
 
@@ -40,8 +40,8 @@ export async function GET() {
             ...checks,
             status: "error",
             code: "PGRST205",
-            message: "Bảng staff_users chưa tồn tại trong Supabase",
-            solution: "Vào Supabase Dashboard > SQL Editor > chạy toàn bộ file supabase/schema.sql, sau đó chạy: NOTIFY pgrst, 'reload schema';",
+            message: "Table staff_users does not exist in Supabase",
+            solution: "Go to Supabase Dashboard > SQL Editor > run the entire supabase/schema.sql file, then run: NOTIFY pgrst, 'reload schema';",
             error: userError,
           },
           { status: 500 }
@@ -65,8 +65,8 @@ export async function GET() {
             ...checks,
             status: "error",
             code: "PGRST205",
-            message: "Bảng certificates chưa tồn tại trong Supabase",
-            solution: "Vào Supabase Dashboard > SQL Editor > chạy toàn bộ file supabase/schema.sql, sau đó chạy: NOTIFY pgrst, 'reload schema';",
+            message: "Table certificates does not exist in Supabase",
+            solution: "Go to Supabase Dashboard > SQL Editor > run the entire supabase/schema.sql file, then run: NOTIFY pgrst, 'reload schema';",
             error: certError,
           },
           { status: 500 }
@@ -81,7 +81,7 @@ export async function GET() {
       ...checks,
       status: "ok",
       mode: "supabase",
-      message: "Supabase kết nối thành công, bảng đã tồn tại.",
+      message: "Supabase connected successfully, tables exist.",
     });
   } catch (e: any) {
     console.error("[Health Check Error]", e);
@@ -89,10 +89,10 @@ export async function GET() {
       {
         ...checks,
         status: "error",
-        message: e?.message || "Lỗi kiểm tra Supabase",
+        message: e?.message || "Supabase check error",
         error: e,
         solution:
-          "Kiểm tra: 1) Đã chạy supabase/schema.sql chưa? 2) Biến môi trường Supabase đúng chưa? 3) Chạy NOTIFY pgrst, 'reload schema'; trong SQL Editor",
+          "Check: 1) Did you run supabase/schema.sql? 2) Are Supabase env vars correct? 3) Run NOTIFY pgrst, 'reload schema'; in SQL Editor",
       },
       { status: 500 }
     );

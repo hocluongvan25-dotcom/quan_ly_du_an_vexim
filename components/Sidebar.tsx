@@ -15,11 +15,11 @@ import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/types";
 
 const NAV = [
-  { href: "/dashboard", label: "Tổng quan", icon: LayoutDashboard, adminOnly: false },
-  { href: "/dashboard/ho-so", label: "Hồ sơ FDA / GACC", icon: FileBadge2, adminOnly: false },
-  { href: "/dashboard/ho-so/moi", label: "Tạo hồ sơ mới", icon: Plus, adminOnly: false },
-  { href: "/dashboard/doanh-thu", label: "Doanh thu", icon: BarChart3, adminOnly: true },
-  { href: "/dashboard/nguoi-dung", label: "Người dùng & vai trò", icon: Users, adminOnly: true },
+  { href: "/dashboard", label: "Overview", icon: LayoutDashboard, adminOnly: false },
+  { href: "/dashboard/ho-so", label: "FDA / GACC Records", icon: FileBadge2, adminOnly: false },
+  { href: "/dashboard/ho-so/moi", label: "New Record", icon: Plus, adminOnly: false },
+  { href: "/dashboard/doanh-thu", label: "Revenue", icon: BarChart3, adminOnly: true },
+  { href: "/dashboard/nguoi-dung", label: "Users & Roles", icon: Users, adminOnly: true },
 ];
 
 export function Sidebar({ user }: { user: SessionUser }) {
@@ -36,7 +36,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
       <div className="border-b border-white/10 px-5 py-5">
         <Logo invert />
         <p className="mt-3 text-[11px] leading-relaxed text-white/55">
-          Quản lý hồ sơ FDA · GACC
+          FDA · GACC Record Management
         </p>
       </div>
       <nav className="flex-1 space-y-1 px-3 py-4">
@@ -70,14 +70,14 @@ export function Sidebar({ user }: { user: SessionUser }) {
         <div className="mb-3 rounded-2xl bg-white/5 px-3 py-2.5">
           <div className="text-sm font-semibold">{user.name}</div>
           <div className="text-[11px] text-teal-300">
-            {user.role === "admin" ? "Quản trị viên" : "Bộ phận chuyên môn"}
+            {user.role === "admin" ? "Administrator" : "Specialist"}
           </div>
         </div>
         <button
           onClick={logout}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/15"
         >
-          <LogOut className="h-4 w-4" /> Đăng xuất
+          <LogOut className="h-4 w-4" /> Logout
         </button>
       </div>
     </aside>
