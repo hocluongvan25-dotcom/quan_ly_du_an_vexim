@@ -1,166 +1,248 @@
 "use client";
 
 import { COMPANY, type Certificate } from "@/lib/types";
-import { daysBetween, formatDate, isValidNow, remainingDays, getValidityYears, formatDuns } from "@/lib/utils";
-import { CountdownRing } from "./CountdownRing";
-import { Logo } from "./Logo";
-import { ValiditySeal } from "./ValiditySeal";
-import { Mail, MapPin, Phone, ShieldCheck, Building2 } from "lucide-react";
-import { useI18n } from "@/lib/i18n/context";
-import { LanguageSwitcher } from "./LanguageSwitcher";
+import {
+  daysBetween,
+  formatDate,
+  isValidNow,
+  remainingDays,
+  getValidityYears,
+  formatDuns,
+} from "@/lib/utils";
 
-export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> & { duns_code?: string } }) {
-  const { t } = useI18n();
-  const valid = Boolean(cert.validity_confirmed) && isValidNow(cert.expires_at, cert.registered_at);
+export function VerifyView({
+  cert,
+}: {
+  cert: Omit<Certificate, "service_price"> & { duns_code?: string };
+}) {
+  const valid =
+    Boolean(cert.validity_confirmed) &&
+    isValidNow(cert.expires_at, cert.registered_at);
   const left = remainingDays(cert.expires_at);
   const total = daysBetween(cert.registered_at, cert.expires_at);
   const validityYears = getValidityYears(cert as any);
   const duns = (cert as any).duns_code || "";
+  const todayStr = formatDate(new Date().toISOString());
 
   return (
-    <div className="min-h-screen bg-[#fff8ec] text-navy-900">
-      <header className="bg-navy-900 text-white">
-        <div className="mx-auto flex max-w-lg items-center justify-between px-5 py-4">
-          <Logo invert markClassName="h-11 w-11" />
-          <div className="flex items-center gap-3">
-            <LanguageSwitcher variant="light" size="sm" />
-            <div className="text-right text-[10px] uppercase tracking-[0.22em] text-teal-300">
-              {t("verify.certificateVerification")}
+    <div className="min-h-screen bg-[#f1f3f6] text-slate-900 antialiased">
+      {/* Government Header */}
+      <header className="border-b-[4px] border-[#0a1931] bg-white">
+        <div className="mx-auto flex max-w-[860px] items-center justify-between px-6 py-5 sm:px-8">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">
+              {COMPANY.legal}
+            </div>
+            <div className="mt-1 font-serif text-[15px] font-bold uppercase tracking-[0.04em] text-[#0a1931]">
+              Official Certificate Verification System
+            </div>
+          </div>
+          <div className="hidden text-right sm:block">
+            <div className="text-[10px] uppercase tracking-wider text-slate-400">
+              Document Verification
+            </div>
+            <div className="mt-0.5 font-mono text-[11px] text-slate-600">
+              VERIFY / {cert.public_code}
             </div>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-lg px-4 pb-16 pt-6">
-        <div className="paper-card relative overflow-hidden rounded-[32px] border border-white/80 p-6 shadow-lift">
-          <div className="pointer-events-none absolute inset-3 rounded-[24px] border border-gold-500/35" />
-          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-100/80" />
-          <div className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-gold-100/50" />
-
-          <div className="relative flex flex-col items-center text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-teal-700">{t("verify.officialRecord")}</p>
-            <h1 className="mt-2 font-display text-[28px] font-extrabold leading-tight">{cert.company_name}</h1>
-            <p className="mt-1 text-sm text-navy-900/55">{cert.certificate_no}</p>
-            <div className="my-6">
-              <ValiditySeal valid={valid} confirmed={Boolean(cert.validity_confirmed)} size="lg" />
-            </div>
-            <p className="max-w-xs text-sm leading-relaxed text-navy-900/70">
-              {valid
-                ? t("verify.validDesc", {
-                    years: validityYears,
-                    yearLabel: validityYears === 1 ? t("common.year") : t("common.years"),
-                  })
-                : t("verify.expiredDesc")}
+      <main className="mx-auto max-w-[860px] px-4 py-8 sm:px-6">
+        {/* Title & Status Bar */}
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="font-serif text-[26px] font-bold leading-none text-[#0a1931] sm:text-[30px]">
+              CERTIFICATE VERIFICATION
+            </h1>
+            <p className="mt-2 max-w-[520px] text-[13px] leading-[1.5] text-slate-600">
+              This is an official electronic record issued by {COMPANY.legal}. The information below is extracted
+              from the internal certification registry and is valid at the time of verification: {todayStr}.
             </p>
           </div>
-
-          <div className="relative mt-6 grid grid-cols-2 gap-3">
-            <Info label={t("verify.standard")} value={cert.standard} strong />
-            <Info label={t("verify.code")} value={cert.registration_code} mono />
-            <Info label={t("verify.dunsNumber")} value={duns ? formatDuns(duns) : "—"} mono strong={!!duns} />
-            <Info
-              label={t("verify.contractTerm")}
-              value={`${validityYears} ${validityYears === 1 ? t("common.year") : t("common.years")}`}
-              strong
-            />
-            <Info label={t("verify.registrationDate")} value={formatDate(cert.registered_at)} />
-            <Info label={t("verify.expiryDate")} value={formatDate(cert.expires_at)} />
-            <Info label={t("verify.daysRemaining")} value={left < 0 ? "0" : String(left)} strong />
-            <Info
-              label={t("verify.validityCycle")}
-              value={t("verify.yearsCycle", {
-                years: validityYears,
-                yearLabel: validityYears === 1 ? t("common.year") : t("common.years"),
-                days: total,
-              })}
-            />
-            <Info
-              label={t("verify.renewal")}
-              value={t("verify.yearsPerCycle", {
-                years: validityYears,
-                yearLabel: validityYears === 1 ? t("common.year") : t("common.years"),
-              })}
-            />
+          <div className="shrink-0">
+            <div
+              className={`inline-flex min-w-[132px] justify-center border-2 px-5 py-2.5 text-[12px] font-bold uppercase tracking-[0.14em] ${
+                valid
+                  ? "border-[#0a1931] bg-[#0a1931] text-white"
+                  : "border-[#b42318] bg-[#fef2f2] text-[#b42318]"
+              }`}
+            >
+              {valid ? "VALID" : cert.validity_confirmed ? "EXPIRED" : "NOT CONFIRMED"}
+            </div>
+            <div className="mt-1.5 text-center font-mono text-[11px] text-slate-500">
+              {left < 0 ? "0 days remaining" : `${left} days remaining`}
+            </div>
           </div>
+        </div>
 
-          <div className="relative mt-4 rounded-2xl bg-[#fff6df] p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-navy-900/45">{t("verify.scope")}</div>
-            <p className="mt-1 text-sm leading-relaxed">{cert.scope || "—"}</p>
-          </div>
-
-          {duns && (
-            <div className="relative mt-4">
-              <div className="flex items-center gap-3 rounded-2xl border border-navy-900/10 bg-white px-4 py-3">
-                <Building2 className="h-5 w-5 shrink-0 text-navy-900/40" />
-                <div>
-                  <div className="text-[10px] font-semibold uppercase tracking-wider text-navy-900/40">{t("verify.dunsDun")}</div>
-                  <div className="font-mono text-sm font-bold">{formatDuns(duns)}</div>
-                  <div className="text-[11px] text-navy-900/50">{t("verify.requiredFDA")}</div>
-                </div>
+        {/* Main Document */}
+        <div className="overflow-hidden border border-slate-300 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
+          {/* Certificate Header */}
+          <div className="border-b border-slate-200 bg-[#fafaf9] px-6 py-5 sm:px-8">
+            <div className="flex flex-col gap-1">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
+                Certificate Holder
+              </div>
+              <div className="font-serif text-[20px] font-bold leading-tight text-[#0a1931] sm:text-[22px]">
+                {cert.company_name}
+              </div>
+              <div className="mt-1 font-mono text-[13px] text-slate-700">
+                Certificate No: <span className="font-bold">{cert.certificate_no}</span>
+                <span className="mx-2 text-slate-300">|</span>
+                Code: <span className="font-bold">{cert.registration_code || "—"}</span>
               </div>
             </div>
-          )}
-        </div>
-
-        <div className="mt-4 rounded-[32px] bg-white p-6 shadow-card">
-          <CountdownRing registeredAt={cert.registered_at} expiresAt={cert.expires_at} running={Boolean(cert.validity_confirmed)} />
-          <p className="mt-3 text-center text-xs text-navy-900/50">
-            {t("verify.contractYears", {
-              years: validityYears,
-              yearLabel: validityYears === 1 ? t("common.year") : t("common.years"),
-              from: formatDate(cert.registered_at),
-              to: formatDate(cert.expires_at),
-            })}
-          </p>
-        </div>
-
-        <section className="mt-4 rounded-[32px] bg-navy-900 p-6 text-white shadow-card">
-          <div className="flex items-center gap-2 text-teal-300">
-            <ShieldCheck className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-[0.24em]">{t("verify.verifiedBy")}</span>
           </div>
-          <h2 className="mt-3 font-display text-xl font-bold">{COMPANY.legal}</h2>
-          <ul className="mt-4 space-y-3 text-sm text-white/80">
-            <li className="flex gap-3">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gold-400" />
-              {COMPANY.address}
-            </li>
-            <li className="flex gap-3">
-              <Phone className="mt-0.5 h-4 w-4 shrink-0 text-gold-400" />
-              <a href={COMPANY.phoneHref} className="underline-offset-2 hover:underline">
-                {COMPANY.phone}
-              </a>
-            </li>
-            <li className="flex gap-3">
-              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-gold-400" />
-              <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a>
-            </li>
-          </ul>
-          <a href={COMPANY.website} className="mt-5 block rounded-2xl bg-teal-500 py-3 text-center text-sm font-bold text-navy-950">
-            {COMPANY.websiteLabel}
-          </a>
-          <p className="mt-3 text-center text-[11px] text-white/45">{t("verify.publicNoFee")}</p>
-        </section>
+
+          {/* Data Grid */}
+          <div className="divide-y divide-slate-200">
+            {/* Section 1 */}
+            <section className="px-6 py-6 sm:px-8">
+              <h2 className="mb-4 border-l-[3px] border-[#0a1931] pl-3 text-[12px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
+                1. Registration Details
+              </h2>
+              <div className="grid grid-cols-1 gap-y-5 sm:grid-cols-3 sm:gap-x-8">
+                <Field label="Standard" value={cert.standard} />
+                <Field label="Registration Code" value={cert.registration_code || "—"} mono />
+                <Field label="DUNS Number" value={duns ? formatDuns(duns) : "—"} mono />
+                <Field label="Registration Date" value={formatDate(cert.registered_at)} />
+                <Field label="Expiry Date" value={formatDate(cert.expires_at)} />
+                <Field
+                  label="Contract Term"
+                  value={`${validityYears} ${validityYears === 1 ? "Year" : "Years"} (${total} days)`}
+                />
+              </div>
+            </section>
+
+            {/* Section 2 */}
+            <section className="px-6 py-6 sm:px-8">
+              <h2 className="mb-4 border-l-[3px] border-[#0a1931] pl-3 text-[12px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
+                2. Validity Information
+              </h2>
+              <div className="grid grid-cols-1 gap-y-5 sm:grid-cols-3 sm:gap-x-8">
+                <Field
+                  label="Validity Status"
+                  value={valid ? `VALID — ${validityYears} Years — Active` : valid ? "VALID" : "EXPIRED / NOT CONFIRMED"}
+                />
+                <Field
+                  label="Days Remaining"
+                  value={left < 0 ? "0 (Expired)" : `${left} days`}
+                />
+                <Field
+                  label="Validity Cycle"
+                  value={`${validityYears} Years / ${total} days — Renewal per ${validityYears} Year${validityYears > 1 ? "s" : ""}`}
+                />
+                <Field
+                  label="Registered Period"
+                  value={`${formatDate(cert.registered_at)} → ${formatDate(cert.expires_at)}`}
+                  full
+                />
+              </div>
+              <div className="mt-5 border border-slate-200 bg-[#f8fafc] px-4 py-3 text-[12px] leading-[1.6] text-slate-600">
+                <span className="font-bold text-slate-800">Note:</span> The validity period is calculated from the
+                registration date. For FDA, the term is flexible 1-10 years per client contract (default 2 years).
+                For GACC, the term is fixed at 5 years. Renewal extends the expiry date by the selected term.
+              </div>
+            </section>
+
+            {/* Section 3 */}
+            <section className="px-6 py-6 sm:px-8">
+              <h2 className="mb-4 border-l-[3px] border-[#0a1931] pl-3 text-[12px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
+                3. Scope of Registration
+              </h2>
+              <div className="min-h-[56px] border border-slate-200 bg-white px-4 py-3 text-[13.5px] leading-[1.7] text-slate-800">
+                {cert.scope || "— No scope information provided —"}
+              </div>
+              {duns && cert.standard === "FDA" && (
+                <div className="mt-4 border border-slate-200 px-4 py-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    DUNS Number (Dun & Bradstreet) — Required for FDA Facility Registration
+                  </div>
+                  <div className="mt-1 font-mono text-[14px] font-bold text-slate-900">{formatDuns(duns)}</div>
+                </div>
+              )}
+            </section>
+
+            {/* Section 4 */}
+            <section className="bg-[#fafaf9] px-6 py-6 sm:px-8">
+              <h2 className="mb-4 border-l-[3px] border-[#0a1931] pl-3 text-[12px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
+                4. Issuing Authority
+              </h2>
+              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                <div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Issued By
+                  </div>
+                  <div className="mt-1 font-serif text-[14px] font-bold text-[#0a1931]">{COMPANY.legal}</div>
+                  <div className="mt-3 space-y-1.5 text-[12.5px] leading-[1.6] text-slate-700">
+                    <div>{COMPANY.address}</div>
+                    <div>Phone: {COMPANY.phone}</div>
+                    <div>Email: {COMPANY.email}</div>
+                    <div>Website: {COMPANY.website.replace("https://", "")}</div>
+                  </div>
+                </div>
+                <div className="border border-slate-200 bg-white px-4 py-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    Verification Statement
+                  </div>
+                  <p className="mt-2 text-[12px] leading-[1.6] text-slate-600">
+                    This document was generated electronically through the official verification portal of{" "}
+                    {COMPANY.legal}. The public verification page does not display service fees. For any
+                    discrepancy, please contact the issuing authority with the certificate number and verification
+                    code.
+                  </p>
+                  <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3">
+                    <div className="font-mono text-[10px] uppercase tracking-wider text-slate-400">
+                      Verification Code
+                    </div>
+                    <div className="font-mono text-[12px] font-bold tracking-wide text-[#0a1931]">
+                      {cert.public_code}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          {/* Footer Strip */}
+          <div className="flex items-center justify-between border-t border-slate-200 bg-white px-6 py-3 sm:px-8">
+            <div className="font-mono text-[10px] uppercase tracking-wider text-slate-400">
+              Official Record · {COMPANY.legal} · Generated {todayStr}
+            </div>
+            <div className="font-mono text-[10px] text-slate-400">veximglobal.com/verify/{cert.public_code}</div>
+          </div>
+        </div>
+
+        <div className="mx-auto mt-6 max-w-[680px] text-center text-[11px] leading-[1.6] text-slate-500">
+          This verification result is for reference only. The official printed certificate with stamp and signature
+          remains the authoritative document. If this certificate shows EXPIRED, please contact {COMPANY.legal} for
+          renewal procedures. Service fees are not disclosed on this public page.
+        </div>
       </main>
     </div>
   );
 }
 
-function Info({
+function Field({
   label,
   value,
-  strong,
   mono,
+  full,
 }: {
   label: string;
   value: string;
-  strong?: boolean;
   mono?: boolean;
+  full?: boolean;
 }) {
   return (
-    <div className="rounded-2xl bg-[#fff6df] px-3 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-navy-900/40">{label}</div>
-      <div className={`mt-1 text-sm ${strong ? "font-extrabold" : "font-semibold"} ${mono ? "font-mono text-[12px]" : ""}`}>{value}</div>
+    <div className={full ? "sm:col-span-3" : ""}>
+      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</div>
+      <div
+        className={`mt-1 text-[13.5px] leading-[1.5] text-slate-900 ${mono ? "font-mono text-[13px]" : "font-medium"}`}
+      >
+        {value}
+      </div>
     </div>
   );
 }
