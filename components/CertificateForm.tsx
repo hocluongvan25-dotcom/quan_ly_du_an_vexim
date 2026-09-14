@@ -6,7 +6,7 @@ import { CountdownRing } from "./CountdownRing";
 import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
 import { expiryFromStandard, formatDate, remainingDays, getValidityYears, formatDuns } from "@/lib/utils";
-import { VALIDITY_OPTIONS, DEFAULT_VALIDITY, type Certificate, type Standard } from "@/lib/types";
+import { FDA_VALIDITY_OPTIONS, GACC_FIXED_YEARS, DEFAULT_VALIDITY, type Certificate, type Standard } from "@/lib/types";
 import { CheckCircle2, Loader2, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
 
@@ -32,7 +32,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     company_name: initial?.company_name || "",
     scope: initial?.scope || "",
     registered_at: initial?.registered_at?.slice(0, 10) || new Date().toISOString().slice(0, 10),
-    validity_years: initial?.validity_years || (initial?.standard ? DEFAULT_VALIDITY[initial.standard] : 2),
+    validity_years: initial?.standard === "GACC" ? GACC_FIXED_YEARS : initial?.validity_years || DEFAULT_VALIDITY[initial?.standard || "FDA"] || 2,
   });
   const [item, setItem] = useState<Certificate | undefined>(initial);
   const [msg, setMsg] = useState("");
@@ -41,7 +41,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
 
   // Renew dialog state
   const [showRenewDialog, setShowRenewDialog] = useState(false);
-  const [renewYears, setRenewYears] = useState<number>(initial?.validity_years || 2);
+  const [renewYears, setRenewYears] = useState<number>(initial?.standard === "GACC" ? GACC_FIXED_YEARS : initial?.validity_years || 2);
   const [renewFee, setRenewFee] = useState<string>("0");
 
   useEffect(() => {
@@ -54,6 +54,13 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     }
   }, [item?.id]);
 
+  // When standard changes to GACC, force 5 years
+  useEffect(() => {
+    if (form.standard === "GACC" && form.validity_years !== GACC_FIXED_YEARS) {
+      setForm((s) => ({ ...s, validity_years: GACC_FIXED_YEARS }));
+    }
+  }, [form.standard]);
+
   const expires = useMemo(
     () => expiryFromStandard(form.registered_at, form.standard, form.validity_years),
     [form.registered_at, form.standard, form.validity_years]
@@ -65,7 +72,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
   const published = item?.status === "published" || item?.status === "expired";
   const valid = confirmed && savedLeft >= 0; // validity badge based on saved expiry
   // displayValidity follows the selected years in the form (dynamic), savedValidity is the persisted contract
-  const displayValidity = form.validity_years;
+  const displayValidity = form.standard === "GACC" ? GACC_FIXED_YEARS : form.validity_years;
   const savedValidity = item ? getValidityYears(item) : form.validity_years;
   // Keep currentValidity alias for backward compat in renew logic (saved value)
   const currentValidity = savedValidity;
@@ -102,10 +109,11 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
         return;
       }
     }
+    const finalValidity = form.standard === "GACC" ? GACC_FIXED_YEARS : Number(form.validity_years);
     const payload = {
       ...form,
       service_price: Number(String(form.service_price).replace(/[^\d]/g, "") || 0),
-      validity_years: Number(form.validity_years),
+      validity_years: finalValidity,
       duns_code: form.duns_code.replace(/\D/g, "").slice(0, 9),
     };
     const res = await fetch(item ? `/api/certificates/${item.id}` : "/api/certificates", {
@@ -160,10 +168,11 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     if (!item) return;
     setBusy("renew");
     setMsg("");
+    const finalRenewYears = item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears;
     const payload = {
       action: "renew",
-      validity_years: renewYears,
-      renew_years: renewYears,
+      validity_years: finalRenewYears,
+      renew_years: finalRenewYears,
       extra_fee: Number(String(renewFee).replace(/[^\d]/g, "") || 0),
     };
     const res = await fetch(`/api/certificates/${item.id}`, {
@@ -191,6 +200,8 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
 
   const qrUrl = item && origin ? `${origin}/verify/${item.public_code}` : "";
 
+  const isGacc = form.standard === "GACC";
+
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <form onSubmit={save} className="space-y-4 rounded-3xl bg-white p-5 shadow-card md:p-7">
@@ -213,7 +224,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                 setForm((s) => ({
                   ...s,
                   standard: newStd,
-                  validity_years: initial ? s.validity_years : DEFAULT_VALIDITY[newStd] ?? 2,
+                  validity_years: newStd === "GACC" ? GACC_FIXED_YEARS : s.validity_years,
                 }));
               }}
               className="input"
@@ -223,22 +234,29 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
             </select>
           </Field>
           <Field label={t("form.contractDuration")}>
-            <select
-              value={form.validity_years}
-              onChange={(e) => patch("validity_years", Number(e.target.value))}
-              className="input font-semibold"
-            >
-              {VALIDITY_OPTIONS.map((y) => (
-                <option key={y} value={y}>
-                  {y} {y === 1 ? t("common.year") : t("common.years")}{" "}
-                  {y === DEFAULT_VALIDITY[form.standard] ? t("form.default", { standard: form.standard }) : ""}{" "}
-                  {y === 1 ? t("form.shortTerm") : y >= 8 ? t("form.longTerm") : ""}
-                </option>
-              ))}
-            </select>
-            <div className="mt-1 text-[11px] text-navy-900/50">
-              {form.standard === "FDA" ? t("form.fdaFlexible") : t("form.gaccFlexible")}
-            </div>
+            {isGacc ? (
+              <>
+                <input className="input bg-slate-50 font-bold" readOnly value={`5 ${t("common.years")} (fixed)`} />
+                <div className="mt-1 text-[11px] text-navy-900/50">{t("form.gaccFixed")}</div>
+              </>
+            ) : (
+              <>
+                <select
+                  value={form.validity_years}
+                  onChange={(e) => patch("validity_years", Number(e.target.value))}
+                  className="input font-semibold"
+                >
+                  {FDA_VALIDITY_OPTIONS.map((y) => (
+                    <option key={y} value={y}>
+                      {y} {y === 1 ? t("common.year") : t("common.years")}{" "}
+                      {y === DEFAULT_VALIDITY[form.standard] ? t("form.default", { standard: form.standard }) : ""}{" "}
+                      {y === 1 ? t("form.shortTerm") : y >= 8 ? t("form.longTerm") : ""}
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-1 text-[11px] text-navy-900/50">{t("form.fdaFlexible")}</div>
+              </>
+            )}
           </Field>
           <Field label={t("form.certificateNo")}>
             <input className="input bg-slate-50" readOnly value={item?.certificate_no || t("form.autoGenerated")} />
@@ -294,12 +312,12 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               onChange={(e) => patch("registered_at", e.target.value)}
             />
           </Field>
-          <Field label={t("form.expiryDate", { years: form.validity_years, yearLabel: form.validity_years === 1 ? t("common.year") : t("common.years") })}>
+          <Field label={t("form.expiryDate", { years: displayValidity, yearLabel: displayValidity === 1 ? t("common.year") : t("common.years") })}>
             <input className="input bg-slate-50 font-semibold" readOnly value={expires} />
             <div className="mt-1 text-[11px] text-emerald-700">
               {t("form.contractYears", {
-                years: form.validity_years,
-                yearLabel: form.validity_years === 1 ? t("common.year") : t("common.years"),
+                years: displayValidity,
+                yearLabel: displayValidity === 1 ? t("common.year") : t("common.years"),
                 from: formatDate(form.registered_at),
                 to: formatDate(expires),
               })}
@@ -379,7 +397,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               type="button"
               disabled={!!busy}
               onClick={() => {
-                setRenewYears(currentValidity);
+                setRenewYears(item ? getValidityYears(item) : displayValidity);
                 setRenewFee("0");
                 setShowRenewDialog(true);
               }}
@@ -406,8 +424,8 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
             {t("form.registeredExpires", {
               from: formatDate(form.registered_at),
               to: formatDate(expires),
-              years: form.validity_years,
-              yearLabel: form.validity_years === 1 ? t("common.year") : t("common.years"),
+              years: displayValidity,
+              yearLabel: displayValidity === 1 ? t("common.year") : t("common.years"),
             })}
           </p>
           <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs">
@@ -415,9 +433,10 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
             <div className="mt-1 text-navy-900/60">
               {t("form.standardLabel")}: <b>{form.standard}</b> · {t("form.duration")}:{" "}
               <b>
-                {form.validity_years} {form.validity_years === 1 ? t("common.year") : t("common.years")}
+                {displayValidity} {displayValidity === 1 ? t("common.year") : t("common.years")}
               </b>{" "}
-              · {t("form.renewal")}: <b>{t("form.selectable")}</b>
+              · {t("form.renewal")}:{" "}
+              <b>{isGacc ? `5 ${t("common.years")} fixed` : t("form.selectable")}</b>
             </div>
             {form.duns_code && (
               <div className="mt-2">
@@ -429,8 +448,8 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                 {t("form.renewedTimes", {
                   count: item.renewal_count,
                   date: item.last_renewed_at ? formatDate(item.last_renewed_at) : "—",
-                  years: currentValidity,
-                  yearLabel: currentValidity === 1 ? t("common.year") : t("common.years"),
+                  years: savedValidity,
+                  yearLabel: savedValidity === 1 ? t("common.year") : t("common.years"),
                 })}
               </div>
             )}
@@ -468,16 +487,25 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                 <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-navy-900/50">
                   {t("form.renewalDuration")}
                 </div>
-                <select value={renewYears} onChange={(e) => setRenewYears(Number(e.target.value))} className="input font-semibold">
-                  {VALIDITY_OPTIONS.map((y) => (
-                    <option key={y} value={y}>
-                      {y} {y === 1 ? t("common.year") : t("common.years")}{" "}
-                      {y === currentValidity ? t("form.currentContract") : ""}{" "}
-                      {y === 1 ? t("form.oneYearRenewal") : y === 2 ? t("form.twoYears") : y >= 5 ? t("form.multiYear") : ""}
-                    </option>
-                  ))}
-                </select>
-                <div className="mt-1 text-[11px] text-navy-900/50">{t("form.exampleRenew")}</div>
+                {item.standard === "GACC" ? (
+                  <>
+                    <input className="input bg-slate-50 font-bold" readOnly value={`5 ${t("common.years")} (fixed)`} />
+                    <div className="mt-1 text-[11px] text-navy-900/50">{t("form.gaccFixed")}</div>
+                  </>
+                ) : (
+                  <>
+                    <select value={renewYears} onChange={(e) => setRenewYears(Number(e.target.value))} className="input font-semibold">
+                      {FDA_VALIDITY_OPTIONS.map((y) => (
+                        <option key={y} value={y}>
+                          {y} {y === 1 ? t("common.year") : t("common.years")}{" "}
+                          {y === savedValidity ? t("form.currentContract") : ""}{" "}
+                          {y === 1 ? t("form.oneYearRenewal") : y === 2 ? t("form.twoYears") : y >= 5 ? t("form.multiYear") : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-1 text-[11px] text-navy-900/50">{t("form.exampleRenew")}</div>
+                  </>
+                )}
               </label>
 
               <label>
@@ -493,16 +521,16 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                 <div className="mt-1 text-emerald-800">
                   {t("form.previewText", {
                     from: formatDate(renewBaseDate),
-                    years: renewYears,
-                    yearLabel: renewYears === 1 ? t("common.year") : t("common.years"),
+                    years: item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears,
+                    yearLabel: (item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears) === 1 ? t("common.year") : t("common.years"),
                     to: formatDate(renewNewExpiry),
                   })}
                 </div>
                 <div className="mt-1 text-xs text-emerald-700/70">
                   {t("form.renewalCountPreview", {
                     count: item.renewal_count + 1,
-                    years: renewYears,
-                    yearLabel: renewYears === 1 ? t("common.year") : t("common.years"),
+                    years: item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears,
+                    yearLabel: (item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears) === 1 ? t("common.year") : t("common.years"),
                   })}
                 </div>
               </div>
@@ -526,7 +554,10 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                     <Loader2 className="h-4 w-4 animate-spin" /> {t("form.renewing")}
                   </span>
                 ) : (
-                  t("form.renewAction", { years: renewYears, yearLabel: renewYears === 1 ? t("common.year") : t("common.years") })
+                  t("form.renewAction", {
+                    years: item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears,
+                    yearLabel: (item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears) === 1 ? t("common.year") : t("common.years"),
+                  })
                 )}
               </button>
             </div>

@@ -4,7 +4,7 @@ import path from "path";
 import { hashPassword } from "./auth";
 import { expiryFromStandard, randomCode, remainingDays, getValidityYears } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
-import { DEFAULT_VALIDITY, isValidValidityYears } from "./types";
+import { DEFAULT_VALIDITY, isValidValidityYears, GACC_FIXED_YEARS, isValidValidityYearsForStandard } from "./types";
 
 const dataDir = path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "vexim.db");
@@ -324,6 +324,7 @@ export function getCertificateByPublicCode(code: string) {
 }
 
 function normalizeValidityYears(input: number | undefined, standard: Standard): number {
+  if (standard === "GACC") return GACC_FIXED_YEARS;
   if (input && isValidValidityYears(input)) return Math.round(input);
   return DEFAULT_VALIDITY[standard] ?? 2;
 }
@@ -446,9 +447,11 @@ export function publishCertificate(id: number) {
 export function renewCertificate(id: number, extraFee = 0, renewalYears?: number) {
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  // Renewal can be custom years (1-10) selected by user, otherwise follow current contract
+  // FDA flexible 1-10, GACC fixed 5
   let validity: number;
-  if (renewalYears && isValidValidityYears(renewalYears)) {
+  if (current.standard === "GACC") {
+    validity = GACC_FIXED_YEARS;
+  } else if (renewalYears && isValidValidityYearsForStandard(renewalYears, current.standard)) {
     validity = Math.round(renewalYears);
   } else {
     validity = getValidityYears(current);

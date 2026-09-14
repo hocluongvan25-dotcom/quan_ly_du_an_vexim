@@ -57,7 +57,7 @@ export const translations: Record<Locale, TranslationTree> = {
       features: {
         validity: {
           title: "Standard Validity",
-          desc: "FDA 1-10 years flexible per contract / GACC 1-10 years. Countdown from expiry date.",
+          desc: "FDA 1-10 years flexible per contract / GACC fixed 5 years. Countdown from expiry date.",
         },
         qr: {
           title: "QR Printed on Certificate",
@@ -84,8 +84,7 @@ export const translations: Record<Locale, TranslationTree> = {
     },
     dashboard: {
       overview: "Dashboard Overview",
-      flexibleDesc:
-        "FDA flexible 1-10 years per contract · GACC default 5 years (customizable 1-10 years) · Renewal per contract cycle",
+      flexibleDesc: "FDA flexible 1-10 years per contract · GACC fixed 5 years · Renewal: FDA selectable, GACC fixed 5 years",
       totalRecords: "Total Records",
       totalHint: "{fda} FDA · {gacc} GACC",
       valid: "VALID",
@@ -110,9 +109,9 @@ export const translations: Record<Locale, TranslationTree> = {
       fdaFlexible: "FDA - Flexible",
       fdaYears: "1-10 years",
       fdaDesc: "Per client contract. Default 2 years, selectable 1-10 years.",
-      gaccFlexible: "GACC - Flexible",
-      gaccYears: "1-10 years",
-      gaccDesc: "Default 5 years, customizable 1-10 years per contract.",
+      gaccFlexible: "GACC - Fixed",
+      gaccYears: "5 years",
+      gaccDesc: "Fixed 5 years, not selectable. FDA allows 1-10 years.",
       statsByContract: "Stats by Contract",
       records: "records",
       createNew: "Create New Record",
@@ -120,7 +119,7 @@ export const translations: Record<Locale, TranslationTree> = {
     },
     records: {
       title: "FDA & GACC Records",
-      subtitle: "FDA 1-10 years per contract · GACC default 5 years (customizable 1-10 years) · DUNS tracking · Renewal follows contract",
+      subtitle: "FDA 1-10 years flexible · GACC fixed 5 years · DUNS tracking · Renewal: FDA selectable years, GACC fixed 5",
       createRecord: "Create Record",
       searchPlaceholder: "Search company, certificate no, code, DUNS...",
       all: "All",
@@ -142,7 +141,7 @@ export const translations: Record<Locale, TranslationTree> = {
       newRecord: "New Record",
       editRecord: "Edit Record",
       specialistFill:
-        "Specialists fill after registration is complete. Service fee is internal only. Contract duration 1-10 years. Renewal allows custom years + fee.",
+        "Specialists fill after registration is complete. Service fee is internal only. FDA 1-10 years flexible, GACC fixed 5 years. Renewal: FDA selectable years + fee, GACC fixed 5 years.",
       standard: "Standard",
       standardFDA: "FDA — Food & Cosmetics",
       standardGACC: "GACC — China",
@@ -197,7 +196,8 @@ export const translations: Record<Locale, TranslationTree> = {
       renewedMsg: "Renewed for {years} {yearLabel}: new expiry {date} (renewal #{count}).",
       dunsError: "DUNS must be exactly 9 digits (e.g. 12-345-6789).",
       fdaFlexible: "FDA flexible 1-10 years per client contract",
-      gaccFlexible: "GACC usually 5 years, customizable 1-10 years",
+      gaccFlexible: "GACC fixed 5 years",
+      gaccFixed: "GACC is fixed 5 years, not selectable. FDA allows 1-10 years.",
       shortTerm: "- short term",
       longTerm: "- long term",
       default: "(default {standard})",
@@ -344,7 +344,7 @@ export const translations: Record<Locale, TranslationTree> = {
       features: {
         validity: {
           title: "Hiệu lực tiêu chuẩn",
-          desc: "FDA 1-10 năm linh hoạt theo hợp đồng / GACC 1-10 năm. Đếm ngược từ ngày hết hạn.",
+          desc: "FDA 1-10 năm linh hoạt theo hợp đồng / GACC cố định 5 năm. Đếm ngược từ ngày hết hạn.",
         },
         qr: {
           title: "QR in trên chứng nhận",
@@ -371,8 +371,7 @@ export const translations: Record<Locale, TranslationTree> = {
     },
     dashboard: {
       overview: "Tổng quan Dashboard",
-      flexibleDesc:
-        "FDA linh hoạt 1-10 năm theo hợp đồng · GACC mặc định 5 năm (tùy chỉnh 1-10 năm) · Gia hạn theo chu kỳ hợp đồng",
+      flexibleDesc: "FDA linh hoạt 1-10 năm theo hợp đồng · GACC cố định 5 năm · Gia hạn: FDA chọn số năm, GACC cố định 5 năm",
       totalRecords: "Tổng số hồ sơ",
       totalHint: "{fda} FDA · {gacc} GACC",
       valid: "HỢP LỆ",
@@ -397,9 +396,9 @@ export const translations: Record<Locale, TranslationTree> = {
       fdaFlexible: "FDA - Linh hoạt",
       fdaYears: "1-10 năm",
       fdaDesc: "Theo hợp đồng khách hàng. Mặc định 2 năm, chọn 1-10 năm.",
-      gaccFlexible: "GACC - Linh hoạt",
-      gaccYears: "1-10 năm",
-      gaccDesc: "Mặc định 5 năm, tùy chỉnh 1-10 năm theo hợp đồng.",
+      gaccFlexible: "GACC - Cố định",
+      gaccYears: "5 năm",
+      gaccDesc: "Cố định 5 năm, không chọn được. FDA cho phép 1-10 năm.",
       statsByContract: "Thống kê theo hợp đồng",
       records: "hồ sơ",
       createNew: "Tạo hồ sơ mới",
@@ -407,7 +406,7 @@ export const translations: Record<Locale, TranslationTree> = {
     },
     records: {
       title: "Hồ sơ FDA & GACC",
-      subtitle: "FDA 1-10 năm theo hợp đồng · GACC mặc định 5 năm (tùy chỉnh 1-10 năm) · Theo dõi DUNS · Gia hạn theo hợp đồng",
+      subtitle: "FDA 1-10 năm linh hoạt · GACC cố định 5 năm · Theo dõi DUNS · Gia hạn: FDA chọn số năm, GACC cố định 5",
       createRecord: "Tạo hồ sơ",
       searchPlaceholder: "Tìm công ty, số chứng nhận, mã, DUNS...",
       all: "Tất cả",
@@ -429,7 +428,7 @@ export const translations: Record<Locale, TranslationTree> = {
       newRecord: "Hồ sơ mới",
       editRecord: "Chỉnh sửa hồ sơ",
       specialistFill:
-        "Chuyên viên điền sau khi đăng ký hoàn tất. Phí dịch vụ chỉ nội bộ. Thời hạn hợp đồng 1-10 năm. Gia hạn cho phép chọn số năm + phí.",
+        "Chuyên viên điền sau khi đăng ký hoàn tất. Phí dịch vụ chỉ nội bộ. FDA linh hoạt 1-10 năm, GACC cố định 5 năm. Gia hạn: FDA chọn số năm + phí, GACC cố định 5 năm.",
       standard: "Tiêu chuẩn",
       standardFDA: "FDA — Thực phẩm & Mỹ phẩm",
       standardGACC: "GACC — Trung Quốc",
@@ -484,7 +483,8 @@ export const translations: Record<Locale, TranslationTree> = {
       renewedMsg: "Đã gia hạn {years} {yearLabel}: hết hạn mới {date} (lần gia hạn #{count}).",
       dunsError: "DUNS phải đúng 9 chữ số (ví dụ 12-345-6789).",
       fdaFlexible: "FDA linh hoạt 1-10 năm theo hợp đồng khách hàng",
-      gaccFlexible: "GACC thường 5 năm, tùy chỉnh 1-10 năm",
+      gaccFlexible: "GACC cố định 5 năm",
+      gaccFixed: "GACC cố định 5 năm, không chọn được. FDA cho phép 1-10 năm.",
       shortTerm: "- ngắn hạn",
       longTerm: "- dài hạn",
       default: "(mặc định {standard})",

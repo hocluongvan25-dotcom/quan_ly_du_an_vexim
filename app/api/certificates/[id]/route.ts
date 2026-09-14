@@ -10,7 +10,7 @@ import {
 } from "@/lib/db";
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
-import { isValidValidityYears, isValidDunsCode } from "@/lib/types";
+import { isValidValidityYearsForStandard, isValidDunsCode, GACC_FIXED_YEARS } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -47,16 +47,24 @@ export async function PUT(req: Request, ctx: Ctx) {
       const extraFee = Number(body.extra_fee || body.renew_fee || 0);
       const renewalYearsRaw = body.validity_years ?? body.renew_years ?? body.years;
       const renewalYears = renewalYearsRaw ? Number(renewalYearsRaw) : undefined;
-      if (renewalYears !== undefined && !isValidValidityYears(renewalYears)) {
-        return NextResponse.json({ error: "Renewal duration must be between 1 and 10 years." }, { status: 400 });
+      // GACC fixed 5 years, FDA 1-10
+      const current = await getCertificate(id);
+      if (!current) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+      if (current.standard === "GACC" && renewalYears !== undefined && renewalYears !== GACC_FIXED_YEARS) {
+        return NextResponse.json({ error: "GACC renewal is fixed 5 years." }, { status: 400 });
+      }
+      if (current.standard === "FDA" && renewalYears !== undefined && !isValidValidityYearsForStandard(renewalYears, "FDA")) {
+        return NextResponse.json({ error: "FDA renewal duration must be between 1 and 10 years." }, { status: 400 });
       }
       const item = await renewCertificate(id, extraFee, renewalYears);
       return NextResponse.json({ item });
     }
     const standard = body.standard === "GACC" ? "GACC" : "FDA";
-    const validity_years = body.validity_years ? Number(body.validity_years) : undefined;
-    if (validity_years && !isValidValidityYears(validity_years)) {
-      return NextResponse.json({ error: "Contract duration must be between 1 and 10 years." }, { status: 400 });
+    let validity_years = body.validity_years ? Number(body.validity_years) : undefined;
+    if (standard === "GACC") {
+      validity_years = GACC_FIXED_YEARS;
+    } else if (validity_years && !isValidValidityYearsForStandard(validity_years, standard as Standard)) {
+      return NextResponse.json({ error: "FDA contract duration must be between 1 and 10 years." }, { status: 400 });
     }
     if (body.duns_code) {
       const raw = String(body.duns_code).replace(/\D/g, "");

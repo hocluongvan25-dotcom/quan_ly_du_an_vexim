@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatDate, formatVnd, remainingDays, statusLabel, getValidityYears } from "@/lib/utils";
-import { VALIDITY_OPTIONS } from "@/lib/types";
+import { FDA_VALIDITY_OPTIONS, GACC_FIXED_YEARS } from "@/lib/types";
 import { AlertTriangle, FileBadge2, ShieldCheck, Wallet } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
 import type { Certificate } from "@/lib/types";
@@ -45,10 +45,14 @@ export default function DashboardPage() {
     return d >= 0 && d <= 90;
   });
 
-  const validityStats = VALIDITY_OPTIONS.map((y) => ({
-    years: y,
-    count: items.filter((c) => getValidityYears(c) === y).length,
-  })).filter((s) => s.count > 0);
+  const validityStats = [...FDA_VALIDITY_OPTIONS, GACC_FIXED_YEARS]
+    .filter((v, i, a) => a.indexOf(v) === i)
+    .sort((a, b) => a - b)
+    .map((y) => ({
+      years: y,
+      count: items.filter((c) => getValidityYears(c) === y).length,
+    }))
+    .filter((s) => s.count > 0);
 
   return (
     <div className="space-y-6">
@@ -156,7 +160,7 @@ export default function DashboardPage() {
               <div className="mt-1 text-2xl font-extrabold">{t("dashboard.fdaYears")}</div>
               <p className="mt-1 text-sm text-white/65">{t("dashboard.fdaDesc")}</p>
               <div className="mt-2 flex flex-wrap gap-1">
-                {VALIDITY_OPTIONS.map((y) => (
+                {FDA_VALIDITY_OPTIONS.map((y) => (
                   <span key={y} className="rounded-full bg-white/10 px-2 py-0.5 text-[10px]">
                     {y}Y
                   </span>
@@ -167,6 +171,11 @@ export default function DashboardPage() {
               <div className="text-xs uppercase tracking-wider text-gold-400">{t("dashboard.gaccFlexible")}</div>
               <div className="mt-1 text-2xl font-extrabold">{t("dashboard.gaccYears")}</div>
               <p className="mt-1 text-sm text-white/65">{t("dashboard.gaccDesc")}</p>
+              <div className="mt-2">
+                <span className="rounded-full bg-gold-400/20 px-2 py-0.5 text-[10px] font-bold text-gold-300">
+                  {GACC_FIXED_YEARS}Y fixed
+                </span>
+              </div>
             </div>
             {validityStats.length > 0 && (
               <div className="rounded-2xl bg-white/10 p-4">

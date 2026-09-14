@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import { createCertificate, listCertificates } from "@/lib/db";
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
-import { isValidValidityYears, isValidDunsCode } from "@/lib/types";
+import { isValidValidityYearsForStandard, isValidDunsCode, GACC_FIXED_YEARS } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -26,9 +26,11 @@ export async function POST(req: Request) {
     if (!body.company_name || !body.registered_at || !body.registration_code) {
       return NextResponse.json({ error: "Please fill all required fields." }, { status: 400 });
     }
-    const validity_years = Number(body.validity_years || 0);
-    if (validity_years && !isValidValidityYears(validity_years)) {
-      return NextResponse.json({ error: "Contract duration must be between 1 and 10 years." }, { status: 400 });
+    let validity_years = Number(body.validity_years || 0);
+    if (standard === "GACC") {
+      validity_years = GACC_FIXED_YEARS;
+    } else if (validity_years && !isValidValidityYearsForStandard(validity_years, standard as Standard)) {
+      return NextResponse.json({ error: "FDA contract duration must be between 1 and 10 years." }, { status: 400 });
     }
     if (body.duns_code) {
       const raw = String(body.duns_code).replace(/\D/g, "");
