@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { createCertificate, listCertificates } from "@/lib/db";
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
+import { isValidValidityYears } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -25,6 +26,10 @@ export async function POST(req: Request) {
     if (!body.company_name || !body.registered_at || !body.registration_code) {
       return NextResponse.json({ error: "Vui lòng điền đủ thông tin bắt buộc." }, { status: 400 });
     }
+    const validity_years = Number(body.validity_years || 0);
+    if (validity_years && !isValidValidityYears(validity_years)) {
+      return NextResponse.json({ error: "Thời hạn hợp đồng phải từ 1 đến 10 năm." }, { status: 400 });
+    }
     const id = await createCertificate({
       standard: standard as Standard,
       registration_code: String(body.registration_code),
@@ -32,6 +37,7 @@ export async function POST(req: Request) {
       company_name: String(body.company_name),
       scope: String(body.scope || ""),
       registered_at: String(body.registered_at).slice(0, 10),
+      validity_years: validity_years || undefined,
       created_by: user.id,
     });
     return NextResponse.json({ id });

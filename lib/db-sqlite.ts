@@ -2,8 +2,9 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
 import { hashPassword } from "./auth";
-import { expiryFromStandard, randomCode, remainingDays } from "./utils";
+import { expiryFromStandard, randomCode, remainingDays, getValidityYears } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
+import { DEFAULT_VALIDITY, isValidValidityYears } from "./types";
 
 const dataDir = path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "vexim.db");
@@ -44,6 +45,7 @@ function migrate(db: DatabaseSync) {
       scope TEXT NOT NULL DEFAULT '',
       registered_at TEXT NOT NULL,
       expires_at TEXT NOT NULL,
+      validity_years INTEGER NOT NULL DEFAULT 2 CHECK (validity_years BETWEEN 1 AND 10),
       validity_confirmed INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','expired')),
       published_at TEXT,
@@ -55,6 +57,20 @@ function migrate(db: DatabaseSync) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+
+  // Migration cho DB cũ chưa có cột validity_years
+  try {
+    const cols = db.prepare("PRAGMA table_info(certificates)").all() as Array<{ name: string }>;
+    const hasValidity = cols.some((c) => c.name === "validity_years");
+    if (!hasValidity) {
+      db.exec("ALTER TABLE certificates ADD COLUMN validity_years INTEGER NOT NULL DEFAULT 2 CHECK (validity_years BETWEEN 1 AND 10)");
+      // Cập nhật dữ liệu cũ
+      db.exec("UPDATE certificates SET validity_years = 2 WHERE standard='FDA' AND (validity_years IS NULL OR validity_years NOT BETWEEN 1 AND 10)");
+      db.exec("UPDATE certificates SET validity_years = 5 WHERE standard='GACC' AND (validity_years IS NULL OR validity_years NOT BETWEEN 1 AND 10)");
+    }
+  } catch (e) {
+    console.warn("[migrate] Could not add validity_years column:", e);
+  }
 }
 
 function seed(db: DatabaseSync) {
@@ -95,6 +111,7 @@ function seed(db: DatabaseSync) {
       scope: string;
       registered: string;
       published: string;
+      validity: number;
       by: number;
     }> = [
       {
@@ -106,6 +123,7 @@ function seed(db: DatabaseSync) {
         scope: "Food Facility Registration — chế biến thủy sản đông lạnh xuất khẩu sang Hoa Kỳ",
         registered: "2025-01-15",
         published: "2025-01-16",
+        validity: 2,
         by: spec.id,
       },
       {
@@ -117,6 +135,7 @@ function seed(db: DatabaseSync) {
         scope: "Đăng ký doanh nghiệp sản xuất thực phẩm xuất khẩu vào Trung Quốc (GACC Decree 248)",
         registered: "2024-03-20",
         published: "2024-03-22",
+        validity: 5,
         by: spec.id,
       },
       {
@@ -128,6 +147,7 @@ function seed(db: DatabaseSync) {
         scope: "MoCRA facility registration & cosmetic product listing",
         registered: "2026-02-10",
         published: "2026-02-12",
+        validity: 3,
         by: admin.id,
       },
       {
@@ -139,6 +159,7 @@ function seed(db: DatabaseSync) {
         scope: "Cơ sở xay xát, đóng gói gạo xuất khẩu sang thị trường Trung Quốc",
         registered: "2026-06-01",
         published: "2026-06-03",
+        validity: 5,
         by: spec.id,
       },
       {
@@ -150,6 +171,7 @@ function seed(db: DatabaseSync) {
         scope: "FDA Food Facility Registration — thủy sản tươi sống và đông lạnh",
         registered: "2026-08-18",
         published: "2026-08-20",
+        validity: 2,
         by: spec.id,
       },
     ];
@@ -157,9 +179,9 @@ function seed(db: DatabaseSync) {
     const insertCert = db.prepare(`
       INSERT INTO certificates (
         public_code, certificate_no, standard, registration_code, service_price,
-        company_name, scope, registered_at, expires_at, validity_confirmed,
+        company_name, scope, registered_at, expires_at, validity_years, validity_confirmed,
         status, published_at, revenue_recorded, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?, 1, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?, 1, ?)
     `);
 
     for (const s of samples) {
@@ -172,7 +194,8 @@ function seed(db: DatabaseSync) {
         s.company,
         s.scope,
         s.registered,
-        expiryFromStandard(s.registered, s.standard),
+        expiryFromStandard(s.registered, s.standard, s.validity),
+        s.validity,
         `${s.published} 09:30:00`,
         s.by
       );
@@ -238,6 +261,10 @@ function plain<T>(row: T): T {
 function hydrate(row: Certificate): Certificate {
   if (!row) return row;
   const next = plain(row);
+  // Fallback cho dữ liệu cũ chưa có validity_years
+  if (!next.validity_years) {
+    next.validity_years = getValidityYears(next as any);
+  }
   if (next.status === "published" && remainingDays(next.expires_at) < 0) {
     return { ...next, status: "expired" };
   }
@@ -275,6 +302,11 @@ export function getCertificateByPublicCode(code: string) {
   return row ? hydrate(row) : undefined;
 }
 
+function normalizeValidityYears(input: number | undefined, standard: Standard): number {
+  if (input && isValidValidityYears(input)) return Math.round(input);
+  return DEFAULT_VALIDITY[standard] ?? 2;
+}
+
 export function createCertificate(input: {
   standard: Standard;
   registration_code: string;
@@ -282,17 +314,19 @@ export function createCertificate(input: {
   company_name: string;
   scope: string;
   registered_at: string;
+  validity_years?: number;
   created_by: number;
 }) {
-  const expires = expiryFromStandard(input.registered_at, input.standard);
+  const validity = normalizeValidityYears(input.validity_years, input.standard);
+  const expires = expiryFromStandard(input.registered_at, input.standard, validity);
   const no = nextCertificateNo(input.standard);
   const publicCode = randomCode(12);
   const info = db()
     .prepare(
       `INSERT INTO certificates (
         public_code, certificate_no, standard, registration_code, service_price,
-        company_name, scope, registered_at, expires_at, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        company_name, scope, registered_at, expires_at, validity_years, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       publicCode,
@@ -304,6 +338,7 @@ export function createCertificate(input: {
       input.scope.trim(),
       input.registered_at,
       expires,
+      validity,
       input.created_by
     );
   return Number(info.lastInsertRowid);
@@ -318,17 +353,19 @@ export function updateCertificate(
     company_name: string;
     scope: string;
     registered_at: string;
+    validity_years?: number;
   }
 ) {
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  const expires = expiryFromStandard(input.registered_at, input.standard);
+  const validity = normalizeValidityYears(input.validity_years ?? current.validity_years, input.standard);
+  const expires = expiryFromStandard(input.registered_at, input.standard, validity);
   db()
     .prepare(
       `UPDATE certificates SET
         standard = ?, registration_code = ?, service_price = ?, company_name = ?,
-        scope = ?, registered_at = ?, expires_at = ?,
-        validity_confirmed = CASE WHEN registered_at = ? AND standard = ? THEN validity_confirmed ELSE 0 END,
+        scope = ?, registered_at = ?, expires_at = ?, validity_years = ?,
+        validity_confirmed = CASE WHEN registered_at = ? AND standard = ? AND validity_years = ? THEN validity_confirmed ELSE 0 END,
         updated_at = datetime('now')
        WHERE id = ?`
     )
@@ -340,8 +377,10 @@ export function updateCertificate(
       input.scope.trim(),
       input.registered_at,
       expires,
+      validity,
       input.registered_at,
       input.standard,
+      validity,
       id
     );
 }
@@ -379,10 +418,12 @@ export function publishCertificate(id: number) {
 export function renewCertificate(id: number, extraFee = 0) {
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  const nextExpiry = expiryFromStandard(
-    remainingDays(current.expires_at) >= 0 ? current.expires_at : new Date().toISOString().slice(0, 10),
-    current.standard
-  );
+  const validity = getValidityYears(current);
+  const baseDate =
+    remainingDays(current.expires_at) >= 0
+      ? current.expires_at
+      : new Date().toISOString().slice(0, 10);
+  const nextExpiry = expiryFromStandard(baseDate, current.standard, validity);
   const extra = Math.max(0, Math.round(extraFee || 0));
   db()
     .prepare(

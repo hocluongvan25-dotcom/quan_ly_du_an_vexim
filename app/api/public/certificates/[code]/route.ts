@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCertificateByPublicCode } from "@/lib/db";
-import { daysBetween, isValidNow, remainingDays, remainingMs } from "@/lib/utils";
+import { daysBetween, isValidNow, remainingDays, remainingMs, getValidityYears } from "@/lib/utils";
 import { handleApiError } from "@/lib/api-helpers";
 
 export const runtime = "nodejs";
@@ -22,6 +22,7 @@ export async function GET(_: Request, ctx: { params: { code: string } }) {
         scope: item.scope,
         registered_at: item.registered_at,
         expires_at: item.expires_at,
+        validity_years: getValidityYears(item),
         validity_confirmed: Boolean(item.validity_confirmed),
         status: valid ? "published" : "expired",
         remaining_ms: remainingMs(item.expires_at),

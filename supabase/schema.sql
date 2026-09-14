@@ -11,7 +11,7 @@ create table if not exists public.staff_users (
   created_at timestamptz not null default now()
 );
 
--- Tạo bảng certificates
+-- Tạo bảng certificates với validity_years linh hoạt 1-10 năm theo hợp đồng
 create table if not exists public.certificates (
   id bigint generated always as identity primary key,
   public_code text unique not null,
@@ -23,6 +23,7 @@ create table if not exists public.certificates (
   scope text not null default '',
   registered_at date not null,
   expires_at date not null,
+  validity_years int not null default 2 check (validity_years between 1 and 10),
   validity_confirmed boolean not null default false,
   status text not null default 'draft' check (status in ('draft', 'published', 'expired')),
   published_at timestamptz,
@@ -34,11 +35,28 @@ create table if not exists public.certificates (
   updated_at timestamptz not null default now()
 );
 
+-- Migration cho DB cũ chưa có cột validity_years
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns 
+    where table_schema='public' and table_name='certificates' and column_name='validity_years'
+  ) then
+    alter table public.certificates add column validity_years int not null default 2 check (validity_years between 1 and 10);
+  end if;
+end $$;
+
+-- Cập nhật dữ liệu cũ: nếu chưa có validity_years, set theo standard
+-- FDA mặc định 2 năm, GACC 5 năm
+update public.certificates set validity_years = 2 where standard='FDA' and (validity_years is null or validity_years not between 1 and 10);
+update public.certificates set validity_years = 5 where standard='GACC' and (validity_years is null or validity_years not between 1 and 10);
+
 -- Index
 create index if not exists certificates_public_code_idx on public.certificates (public_code);
 create index if not exists certificates_status_idx on public.certificates (status);
 create index if not exists certificates_standard_idx on public.certificates (standard);
 create index if not exists certificates_created_by_idx on public.certificates (created_by);
+create index if not exists certificates_validity_years_idx on public.certificates (validity_years);
 
 -- RLS
 alter table public.staff_users enable row level security;
@@ -46,10 +64,6 @@ alter table public.certificates enable row level security;
 
 -- Không mở SELECT cho anon: giá dịch vụ không được lộ.
 -- Next.js dùng SUPABASE_SERVICE_ROLE_KEY nên không cần policy (service_role bypass RLS).
--- Tuy nhiên để tránh lỗi khi dùng anon key test, tạo policy cho phép service_role (bypass rồi) và authenticated nếu cần:
--- Nếu bạn muốn test bằng anon key, hãy bỏ comment 2 policy dưới:
--- create policy "Allow all for anon and authenticated" on public.staff_users for all using (true) with check (true);
--- create policy "Allow all for anon and authenticated" on public.certificates for all using (true) with check (true);
 
 -- Grants - đảm bảo service_role và postgres có quyền
 grant all on table public.staff_users to service_role;
@@ -60,9 +74,4 @@ grant usage, select on all sequences in schema public to service_role;
 grant usage, select on all sequences in schema public to postgres;
 
 -- Quan trọng: Reload PostgREST schema cache để tránh lỗi PGRST205
--- Sau khi chạy file này, nếu vẫn gặp PGRST205, hãy chạy riêng lệnh dưới trong SQL Editor:
 notify pgrst, 'reload schema';
--- Hoặc: select pg_notify('pgrst', 'reload schema');
-
--- Kiểm tra bảng đã tạo
--- select table_name from information_schema.tables where table_schema='public' and table_name in ('staff_users','certificates');

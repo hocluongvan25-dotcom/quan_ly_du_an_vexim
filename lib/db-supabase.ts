@@ -1,7 +1,8 @@
 import { hashPassword } from "./auth";
 import { supabaseAdmin } from "./supabase";
-import { expiryFromStandard, randomCode, remainingDays } from "./utils";
+import { expiryFromStandard, randomCode, remainingDays, getValidityYears } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
+import { DEFAULT_VALIDITY, isValidValidityYears } from "./types";
 
 function mapUser(row: Record<string, unknown>): User {
   return {
@@ -16,6 +17,7 @@ function mapUser(row: Record<string, unknown>): User {
 function mapCert(row: Record<string, unknown>): Certificate {
   const joined = row.staff_users as { name?: string } | { name?: string }[] | null;
   const name = Array.isArray(joined) ? joined[0]?.name : joined?.name;
+  const validity = Number(row.validity_years || 0);
   const item: Certificate = {
     id: Number(row.id),
     public_code: String(row.public_code),
@@ -27,6 +29,7 @@ function mapCert(row: Record<string, unknown>): Certificate {
     scope: String(row.scope || ""),
     registered_at: String(row.registered_at).slice(0, 10),
     expires_at: String(row.expires_at).slice(0, 10),
+    validity_years: isValidValidityYears(validity) ? validity : DEFAULT_VALIDITY[row.standard as Standard] ?? 2,
     validity_confirmed: row.validity_confirmed ? 1 : 0,
     status: row.status as Certificate["status"],
     published_at: row.published_at ? String(row.published_at) : null,
@@ -46,7 +49,6 @@ function mapCert(row: Record<string, unknown>): Certificate {
 
 function assertNoSupabaseError(error: any, context: string) {
   if (!error) return;
-  // PGRST205 = table not found in schema cache
   if (error.code === "PGRST205" || String(error.message || "").includes("PGRST205") || String(error.message || "").includes("schema cache")) {
     console.error(`[Supabase] ${context} - PGRST205:`, error);
     throw new Error(
@@ -59,6 +61,11 @@ function assertNoSupabaseError(error: any, context: string) {
   throw error;
 }
 
+function normalizeValidityYears(input: number | undefined, standard: Standard): number {
+  if (input && isValidValidityYears(input)) return Math.round(input);
+  return DEFAULT_VALIDITY[standard] ?? 2;
+}
+
 const SAMPLE_CERTS: Array<{
   no: string;
   standard: Standard;
@@ -68,6 +75,7 @@ const SAMPLE_CERTS: Array<{
   scope: string;
   registered: string;
   published: string;
+  validity: number;
 }> = [
   {
     no: "VXM-FDA-2025-0001",
@@ -78,6 +86,7 @@ const SAMPLE_CERTS: Array<{
     scope: "Food Facility Registration — chế biến thủy sản đông lạnh xuất khẩu sang Hoa Kỳ",
     registered: "2025-01-15",
     published: "2025-01-16T09:30:00Z",
+    validity: 2,
   },
   {
     no: "VXM-GACC-2024-0008",
@@ -88,6 +97,7 @@ const SAMPLE_CERTS: Array<{
     scope: "Đăng ký doanh nghiệp sản xuất thực phẩm xuất khẩu vào Trung Quốc (GACC Decree 248)",
     registered: "2024-03-20",
     published: "2024-03-22T09:30:00Z",
+    validity: 5,
   },
   {
     no: "VXM-FDA-2026-0004",
@@ -98,6 +108,7 @@ const SAMPLE_CERTS: Array<{
     scope: "MoCRA facility registration & cosmetic product listing",
     registered: "2026-02-10",
     published: "2026-02-12T09:30:00Z",
+    validity: 3,
   },
   {
     no: "VXM-GACC-2026-0002",
@@ -108,6 +119,7 @@ const SAMPLE_CERTS: Array<{
     scope: "Cơ sở xay xát, đóng gói gạo xuất khẩu sang thị trường Trung Quốc",
     registered: "2026-06-01",
     published: "2026-06-03T09:30:00Z",
+    validity: 5,
   },
   {
     no: "VXM-FDA-2026-0012",
@@ -118,6 +130,7 @@ const SAMPLE_CERTS: Array<{
     scope: "FDA Food Facility Registration — thủy sản tươi sống và đông lạnh",
     registered: "2026-08-18",
     published: "2026-08-20T09:30:00Z",
+    validity: 2,
   },
 ];
 
@@ -158,7 +171,6 @@ export async function ensureSeed() {
     }
     const spec = users?.find((u) => u.email === "chuyenmon@veximglobal.com");
     const admin = users?.find((u) => u.email === "admin@veximglobal.com");
-    const by = (email: string) => (email.includes("Green") ? admin?.id : spec?.id || admin?.id);
 
     const { error: certErr } = await sb.from("certificates").insert(
       SAMPLE_CERTS.map((s) => ({
@@ -170,7 +182,8 @@ export async function ensureSeed() {
         company_name: s.company,
         scope: s.scope,
         registered_at: s.registered,
-        expires_at: expiryFromStandard(s.registered, s.standard),
+        expires_at: expiryFromStandard(s.registered, s.standard, s.validity),
+        validity_years: s.validity,
         validity_confirmed: true,
         status: "published",
         published_at: s.published,
@@ -181,11 +194,9 @@ export async function ensureSeed() {
     if (certErr) {
       assertNoSupabaseError(certErr, "certificates");
     }
-    void by;
     seeded = true;
   } catch (e: any) {
     if (e?.message?.includes("SUPABASE_SCHEMA_MISSING")) throw e;
-    // Also handle thrown object with code PGRST205
     if (e?.code === "PGRST205" || String(e?.message || "").includes("PGRST205")) {
       assertNoSupabaseError(e, "staff_users");
     }
@@ -286,9 +297,11 @@ export async function createCertificate(input: {
   company_name: string;
   scope: string;
   registered_at: string;
+  validity_years?: number;
   created_by: number;
 }) {
-  const expires = expiryFromStandard(input.registered_at, input.standard);
+  const validity = normalizeValidityYears(input.validity_years, input.standard);
+  const expires = expiryFromStandard(input.registered_at, input.standard, validity);
   const no = await nextCertificateNo(input.standard);
   const { data, error } = await supabaseAdmin()
     .from("certificates")
@@ -302,6 +315,7 @@ export async function createCertificate(input: {
       scope: input.scope.trim(),
       registered_at: input.registered_at,
       expires_at: expires,
+      validity_years: validity,
       created_by: input.created_by,
     })
     .select("id")
@@ -319,12 +333,17 @@ export async function updateCertificate(
     company_name: string;
     scope: string;
     registered_at: string;
+    validity_years?: number;
   }
 ) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  const expires = expiryFromStandard(input.registered_at, input.standard);
-  const reset = current.registered_at !== input.registered_at || current.standard !== input.standard;
+  const validity = normalizeValidityYears(input.validity_years ?? current.validity_years, input.standard);
+  const expires = expiryFromStandard(input.registered_at, input.standard, validity);
+  const reset =
+    current.registered_at !== input.registered_at ||
+    current.standard !== input.standard ||
+    current.validity_years !== validity;
   const { error } = await supabaseAdmin()
     .from("certificates")
     .update({
@@ -335,6 +354,7 @@ export async function updateCertificate(
       scope: input.scope.trim(),
       registered_at: input.registered_at,
       expires_at: expires,
+      validity_years: validity,
       validity_confirmed: reset ? false : Boolean(current.validity_confirmed),
       updated_at: new Date().toISOString(),
     })
@@ -374,10 +394,12 @@ export async function publishCertificate(id: number) {
 export async function renewCertificate(id: number, extraFee = 0) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  const nextExpiry = expiryFromStandard(
-    remainingDays(current.expires_at) >= 0 ? current.expires_at : new Date().toISOString().slice(0, 10),
-    current.standard
-  );
+  const validity = getValidityYears(current);
+  const baseDate =
+    remainingDays(current.expires_at) >= 0
+      ? current.expires_at
+      : new Date().toISOString().slice(0, 10);
+  const nextExpiry = expiryFromStandard(baseDate, current.standard, validity);
   const extra = Math.max(0, Math.round(extraFee || 0));
   const { error } = await supabaseAdmin()
     .from("certificates")

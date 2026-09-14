@@ -10,6 +10,7 @@ import {
 } from "@/lib/db";
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
+import { isValidValidityYears } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -47,6 +48,10 @@ export async function PUT(req: Request, ctx: Ctx) {
       return NextResponse.json({ item });
     }
     const standard = body.standard === "GACC" ? "GACC" : "FDA";
+    const validity_years = body.validity_years ? Number(body.validity_years) : undefined;
+    if (validity_years && !isValidValidityYears(validity_years)) {
+      return NextResponse.json({ error: "Thời hạn hợp đồng phải từ 1 đến 10 năm." }, { status: 400 });
+    }
     await updateCertificate(id, {
       standard: standard as Standard,
       registration_code: String(body.registration_code || ""),
@@ -54,6 +59,7 @@ export async function PUT(req: Request, ctx: Ctx) {
       company_name: String(body.company_name || ""),
       scope: String(body.scope || ""),
       registered_at: String(body.registered_at || "").slice(0, 10),
+      validity_years,
     });
     return NextResponse.json({ item: await getCertificate(id) });
   } catch (e) {

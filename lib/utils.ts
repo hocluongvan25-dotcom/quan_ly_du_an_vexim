@@ -1,4 +1,4 @@
-import { STANDARD_YEARS, type Standard } from "./types";
+import { DEFAULT_VALIDITY, STANDARD_YEARS, type Certificate, type Standard } from "./types";
 
 export function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -45,8 +45,35 @@ export function addYears(isoDate: string, years: number) {
   return toIsoDate(d);
 }
 
-export function expiryFromStandard(registeredAt: string, standard: Standard) {
-  return addYears(registeredAt, STANDARD_YEARS[standard]);
+// Hỗ trợ validity_years linh hoạt 1-10 năm theo hợp đồng
+export function expiryFromStandard(
+  registeredAt: string,
+  standard: Standard,
+  validityYears?: number | null
+) {
+  const years =
+    validityYears && Number.isFinite(validityYears) && validityYears >= 1 && validityYears <= 10
+      ? Math.round(validityYears)
+      : STANDARD_YEARS[standard] ?? DEFAULT_VALIDITY[standard] ?? 2;
+  return addYears(registeredAt, years);
+}
+
+export function getValidityYears(cert: {
+  standard: Standard;
+  validity_years?: number | null;
+  expires_at?: string;
+  registered_at?: string;
+}): number {
+  if (cert.validity_years && cert.validity_years >= 1 && cert.validity_years <= 10) {
+    return cert.validity_years;
+  }
+  // Fallback cho dữ liệu cũ chưa có validity_years: tính từ expires_at - registered_at hoặc dùng STANDARD_YEARS
+  if (cert.expires_at && cert.registered_at) {
+    const diff = daysBetween(cert.registered_at, cert.expires_at);
+    const approxYears = Math.round(diff / 365);
+    if (approxYears >= 1 && approxYears <= 10) return approxYears;
+  }
+  return STANDARD_YEARS[cert.standard] ?? DEFAULT_VALIDITY[cert.standard] ?? 2;
 }
 
 export function daysBetween(fromIso: string, toIso: string) {
@@ -110,4 +137,8 @@ export function statusLabel(status: string, remaining: number) {
   if (remaining < 0) return "Hết hạn";
   if (remaining <= 90) return "Sắp hết hạn";
   return "Đã xuất bản";
+}
+
+export function validityLabel(years: number) {
+  return `${years} năm`;
 }

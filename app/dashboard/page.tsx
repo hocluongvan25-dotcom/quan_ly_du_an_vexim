@@ -2,8 +2,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { listCertificates, revenueStats } from "@/lib/db";
-import { formatDate, formatVnd, remainingDays, statusLabel } from "@/lib/utils";
-import { STANDARD_YEARS } from "@/lib/types";
+import { formatDate, formatVnd, remainingDays, statusLabel, getValidityYears } from "@/lib/utils";
+import { VALIDITY_OPTIONS } from "@/lib/types";
 import { AlertTriangle, FileBadge2, ShieldCheck, Wallet } from "lucide-react";
 
 export const runtime = "nodejs";
@@ -21,6 +21,12 @@ export default async function DashboardPage() {
   });
   const stats = user.role === "admin" ? await revenueStats() : null;
 
+  // Thống kê theo thời hạn
+  const validityStats = VALIDITY_OPTIONS.map((y) => ({
+    years: y,
+    count: items.filter((c) => getValidityYears(c) === y).length,
+  })).filter((s) => s.count > 0);
+
   return (
     <div className="space-y-6">
       <div>
@@ -29,8 +35,7 @@ export default async function DashboardPage() {
         </p>
         <h1 className="mt-1 font-display text-3xl font-extrabold text-navy-900">Tổng quan hồ sơ</h1>
         <p className="mt-1 text-sm text-navy-900/60">
-          FDA hiệu lực {STANDARD_YEARS.FDA} năm · GACC hiệu lực {STANDARD_YEARS.GACC} năm · gia hạn 1
-          lần mỗi chu kỳ
+          FDA linh hoạt 1-10 năm theo hợp đồng · GACC mặc định 5 năm (tùy chỉnh 1-10 năm) · gia hạn theo chu kỳ hợp đồng
         </p>
       </div>
 
@@ -76,6 +81,7 @@ export default async function DashboardPage() {
                   <th className="pb-2">Chứng chỉ</th>
                   <th className="pb-2">Công ty</th>
                   <th className="pb-2">Chuẩn</th>
+                  <th className="pb-2">Hạn HĐ</th>
                   <th className="pb-2">Hết hạn</th>
                   <th className="pb-2">Còn lại</th>
                 </tr>
@@ -83,6 +89,7 @@ export default async function DashboardPage() {
               <tbody>
                 {items.slice(0, 8).map((c) => {
                   const left = remainingDays(c.expires_at);
+                  const vy = getValidityYears(c);
                   return (
                     <tr key={c.id} className="border-t border-navy-900/5">
                       <td className="py-3">
@@ -101,6 +108,11 @@ export default async function DashboardPage() {
                           {c.standard}
                         </span>
                       </td>
+                      <td className="py-3">
+                        <span className="rounded-full bg-gold-100 px-2 py-0.5 text-xs font-bold text-gold-700">
+                          {vy} năm
+                        </span>
+                      </td>
                       <td className="py-3">{formatDate(c.expires_at)}</td>
                       <td className={`py-3 font-semibold ${left < 0 ? "text-rose-600" : left <= 90 ? "text-amber-600" : "text-emerald-600"}`}>
                         {left < 0 ? "Hết hạn" : `${left} ngày`}
@@ -113,18 +125,38 @@ export default async function DashboardPage() {
           </div>
         </section>
         <section className="rounded-3xl bg-navy-900 p-5 text-white shadow-card">
-          <h2 className="font-display text-lg font-bold">Quy tắc thời hạn</h2>
+          <h2 className="font-display text-lg font-bold">Quy tắc thời hạn linh hoạt</h2>
           <div className="mt-4 space-y-3">
             <div className="rounded-2xl bg-white/10 p-4">
-              <div className="text-xs uppercase tracking-wider text-teal-300">Mã FDA</div>
-              <div className="mt-1 text-2xl font-extrabold">2 năm</div>
-              <p className="mt-1 text-sm text-white/65">Phải gia hạn 1 lần mỗi chu kỳ 24 tháng.</p>
+              <div className="text-xs uppercase tracking-wider text-teal-300">FDA - Linh hoạt</div>
+              <div className="mt-1 text-2xl font-extrabold">1-10 năm</div>
+              <p className="mt-1 text-sm text-white/65">Theo hợp đồng với khách. Mặc định 2 năm, có thể chọn 1-10 năm.</p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {VALIDITY_OPTIONS.map((y) => (
+                  <span key={y} className="rounded-full bg-white/10 px-2 py-0.5 text-[10px]">
+                    {y}N
+                  </span>
+                ))}
+              </div>
             </div>
             <div className="rounded-2xl bg-white/10 p-4">
-              <div className="text-xs uppercase tracking-wider text-gold-400">Mã GACC</div>
-              <div className="mt-1 text-2xl font-extrabold">5 năm</div>
-              <p className="mt-1 text-sm text-white/65">Phải gia hạn 1 lần mỗi chu kỳ 60 tháng.</p>
+              <div className="text-xs uppercase tracking-wider text-gold-400">GACC - Linh hoạt</div>
+              <div className="mt-1 text-2xl font-extrabold">1-10 năm</div>
+              <p className="mt-1 text-sm text-white/65">Mặc định 5 năm, có thể tùy chỉnh 1-10 năm theo hợp đồng.</p>
             </div>
+            {validityStats.length > 0 && (
+              <div className="rounded-2xl bg-white/10 p-4">
+                <div className="text-xs uppercase tracking-wider text-white/60">Thống kê theo hợp đồng</div>
+                <div className="mt-2 space-y-1">
+                  {validityStats.map((s) => (
+                    <div key={s.years} className="flex justify-between text-sm">
+                      <span>{s.years} năm</span>
+                      <span className="font-bold">{s.count} hồ sơ</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           <Link
             href="/dashboard/ho-so/moi"

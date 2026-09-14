@@ -1,7 +1,7 @@
 "use client";
 
-import { COMPANY, STANDARD_YEARS, type Certificate } from "@/lib/types";
-import { daysBetween, formatDate, isValidNow, remainingDays } from "@/lib/utils";
+import { COMPANY, type Certificate } from "@/lib/types";
+import { daysBetween, formatDate, isValidNow, remainingDays, getValidityYears } from "@/lib/utils";
 import { CountdownRing } from "./CountdownRing";
 import { Logo } from "./Logo";
 import { ValiditySeal } from "./ValiditySeal";
@@ -12,6 +12,7 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
     Boolean(cert.validity_confirmed) && isValidNow(cert.expires_at, cert.registered_at);
   const left = remainingDays(cert.expires_at);
   const total = daysBetween(cert.registered_at, cert.expires_at);
+  const validityYears = getValidityYears(cert as any);
 
   return (
     <div className="min-h-screen bg-[#fff8ec] text-navy-900">
@@ -45,7 +46,7 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
             </div>
             <p className="max-w-xs text-sm leading-relaxed text-navy-900/70">
               {valid
-                ? "Chứng chỉ còn hiệu lực. Thời gian còn lại được đếm từ ngày hết hạn về ngày đăng ký."
+                ? `Chứng chỉ còn hiệu lực ${validityYears} năm theo hợp đồng. Thời gian còn lại được đếm từ ngày hết hạn về ngày đăng ký.`
                 : "Chứng chỉ đã hết hiệu lực. Vui lòng liên hệ Vexim Global để gia hạn."}
             </p>
           </div>
@@ -53,6 +54,7 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
           <div className="relative mt-6 grid grid-cols-2 gap-3">
             <Info label="Standards" value={cert.standard} strong />
             <Info label="Mã số" value={cert.registration_code} mono />
+            <Info label="Thời hạn HĐ" value={`${validityYears} năm`} strong />
             <Info label="Ngày đăng ký" value={formatDate(cert.registered_at)} />
             <Info label="Ngày hết hạn" value={formatDate(cert.expires_at)} />
             <Info
@@ -62,7 +64,11 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
             />
             <Info
               label="Chu kỳ hiệu lực"
-              value={`${STANDARD_YEARS[cert.standard]} năm · ${total} ngày`}
+              value={`${validityYears} năm · ${total} ngày`}
+            />
+            <Info
+              label="Gia hạn"
+              value={`${validityYears} năm/lần`}
             />
           </div>
 
@@ -80,6 +86,9 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
             expiresAt={cert.expires_at}
             running={Boolean(cert.validity_confirmed)}
           />
+          <p className="mt-3 text-center text-xs text-navy-900/50">
+            Hợp đồng {validityYears} năm · {formatDate(cert.registered_at)} → {formatDate(cert.expires_at)}
+          </p>
         </div>
 
         <section className="mt-4 rounded-[32px] bg-navy-900 p-6 text-white shadow-card">

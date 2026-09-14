@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { formatDate, formatVnd, remainingDays, statusLabel } from "@/lib/utils";
+import { formatDate, formatVnd, remainingDays, statusLabel, getValidityYears } from "@/lib/utils";
 import type { Certificate } from "@/lib/types";
 import { Search } from "lucide-react";
 
@@ -34,7 +34,7 @@ export default function CertificatesPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-extrabold text-navy-900">Hồ sơ FDA & GACC</h1>
-          <p className="mt-1 text-sm text-navy-900/55">Bộ phận chuyên môn điền thông tin sau khi đăng ký xong.</p>
+          <p className="mt-1 text-sm text-navy-900/55">FDA 1-10 năm theo hợp đồng · GACC mặc định 5 năm (tùy chỉnh 1-10 năm)</p>
         </div>
         <Link
           href="/dashboard/ho-so/moi"
@@ -69,12 +69,13 @@ export default function CertificatesPage() {
 
       <div className="mt-5 overflow-hidden rounded-3xl bg-white shadow-card">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left text-sm">
+          <table className="w-full min-w-[960px] text-left text-sm">
             <thead className="bg-[#fffaf0] text-[11px] uppercase tracking-wider text-navy-900/45">
               <tr>
                 <th className="px-4 py-3">Certificate No</th>
                 <th className="px-4 py-3">Công ty</th>
                 <th className="px-4 py-3">Standards</th>
+                <th className="px-4 py-3">Hạn HĐ</th>
                 <th className="px-4 py-3">Mã số</th>
                 <th className="px-4 py-3">Ngày ĐK / Hết hạn</th>
                 <th className="px-4 py-3">Còn lại</th>
@@ -85,6 +86,7 @@ export default function CertificatesPage() {
             <tbody>
               {filtered.map((c) => {
                 const left = remainingDays(c.expires_at);
+                const vy = getValidityYears(c);
                 return (
                   <tr key={c.id} className="border-t border-navy-900/5 hover:bg-teal-50/40">
                     <td className="px-4 py-3">
@@ -94,6 +96,11 @@ export default function CertificatesPage() {
                     </td>
                     <td className="px-4 py-3">{c.company_name}</td>
                     <td className="px-4 py-3 font-bold">{c.standard}</td>
+                    <td className="px-4 py-3">
+                      <span className="rounded-full bg-gold-100 px-2 py-0.5 text-xs font-bold text-gold-700">
+                        {vy} năm
+                      </span>
+                    </td>
                     <td className="px-4 py-3 font-mono text-xs">{c.registration_code}</td>
                     <td className="px-4 py-3 text-xs">
                       {formatDate(c.registered_at)}
@@ -125,7 +132,7 @@ export default function CertificatesPage() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-navy-900/45">
+                  <td colSpan={9} className="px-4 py-10 text-center text-navy-900/45">
                     Chưa có hồ sơ phù hợp.
                   </td>
                 </tr>

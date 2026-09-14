@@ -28,6 +28,7 @@ export type Certificate = {
   scope: string;
   registered_at: string;
   expires_at: string;
+  validity_years: number; // 1-10 năm, dựa theo hợp đồng với khách
   validity_confirmed: number;
   status: CertificateStatus;
   published_at: string | null;
@@ -49,6 +50,7 @@ export type PublicCertificate = {
   scope: string;
   registered_at: string;
   expires_at: string;
+  validity_years: number;
   validity_confirmed: boolean;
   status: CertificateStatus;
   remaining_ms: number;
@@ -74,3 +76,20 @@ export const STANDARD_YEARS: Record<Standard, number> = {
   FDA: 2,
   GACC: 5,
 };
+
+// Hỗ trợ 1-10 năm theo hợp đồng
+export const VALIDITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+export type ValidityYears = (typeof VALIDITY_OPTIONS)[number];
+
+export const DEFAULT_VALIDITY: Record<Standard, number> = {
+  FDA: 2,
+  GACC: 5,
+};
+
+export function getDefaultValidity(standard: Standard): number {
+  return DEFAULT_VALIDITY[standard] ?? 2;
+}
+
+export function isValidValidityYears(n: number): boolean {
+  return Number.isInteger(n) && n >= 1 && n <= 10;
+}

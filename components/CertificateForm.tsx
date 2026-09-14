@@ -5,8 +5,8 @@ import { useRouter } from "next/navigation";
 import { CountdownRing } from "./CountdownRing";
 import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
-import { expiryFromStandard, formatDate, remainingDays } from "@/lib/utils";
-import { STANDARD_YEARS, type Certificate, type Standard } from "@/lib/types";
+import { expiryFromStandard, formatDate, remainingDays, getValidityYears } from "@/lib/utils";
+import { VALIDITY_OPTIONS, DEFAULT_VALIDITY, type Certificate, type Standard } from "@/lib/types";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 type FormState = {
@@ -16,6 +16,7 @@ type FormState = {
   company_name: string;
   scope: string;
   registered_at: string;
+  validity_years: number;
 };
 
 export function CertificateForm({ initial }: { initial?: Certificate }) {
@@ -27,6 +28,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     company_name: initial?.company_name || "",
     scope: initial?.scope || "",
     registered_at: initial?.registered_at?.slice(0, 10) || new Date().toISOString().slice(0, 10),
+    validity_years: initial?.validity_years || (initial?.standard ? DEFAULT_VALIDITY[initial.standard] : 2),
   });
   const [item, setItem] = useState<Certificate | undefined>(initial);
   const [msg, setMsg] = useState("");
@@ -37,14 +39,18 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     setOrigin(window.location.origin);
   }, []);
 
+  // Khi đổi standard, nếu validity_years đang là default cũ thì tự đổi sang default mới
+  // Chỉ áp dụng cho hồ sơ mới để tránh ghi đè dữ liệu cũ
+
   const expires = useMemo(
-    () => expiryFromStandard(form.registered_at, form.standard),
-    [form.registered_at, form.standard]
+    () => expiryFromStandard(form.registered_at, form.standard, form.validity_years),
+    [form.registered_at, form.standard, form.validity_years]
   );
   const left = remainingDays(item?.expires_at || expires);
   const confirmed = Boolean(item?.validity_confirmed);
   const published = item?.status === "published" || item?.status === "expired";
   const valid = confirmed && left >= 0;
+  const currentValidity = item ? getValidityYears(item) : form.validity_years;
 
   function patch<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((s) => ({ ...s, [key]: value }));
@@ -56,7 +62,8 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     setMsg("");
     const payload = {
       ...form,
-      service_price: Number(String(form.service_price).replace(/[^\d]/g, "") || 0),
+      service_price: Number(String(form.service_price).replace(/[^\\d]/g, "") || 0),
+      validity_years: Number(form.validity_years),
     };
     const res = await fetch(item ? `/api/certificates/${item.id}` : "/api/certificates", {
       method: item ? "PUT" : "POST",
@@ -74,7 +81,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
       return;
     }
     setItem(data.item);
-    setMsg("Đã lưu hồ sơ.");
+    setMsg(`Đã lưu hồ sơ. Thời hạn ${data.item.validity_years} năm, hết hạn ${formatDate(data.item.expires_at)}`);
   }
 
   async function action(kind: "confirm" | "publish" | "renew") {
@@ -86,7 +93,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     setMsg("");
     const extra =
       kind === "renew"
-        ? Number(prompt("Phí gia hạn (VND), để trống nếu không cộng thêm:", "0") || 0)
+        ? Number(prompt(`Gia hạn thêm ${currentValidity} năm (theo hợp đồng hiện tại). Phí gia hạn (VND), để trống nếu không cộng thêm:`, "0") || 0)
         : 0;
     const res = await fetch(`/api/certificates/${item.id}`, {
       method: "PUT",
@@ -102,7 +109,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     setItem(data.item);
     if (kind === "confirm") setMsg("Đã xác nhận hiệu lực. Biểu tượng VALID đã kích hoạt.");
     if (kind === "publish") setMsg("Đã xuất bản. Doanh thu đã được cộng và mã QR sẵn sàng in.");
-    if (kind === "renew") setMsg("Đã gia hạn thêm một chu kỳ theo tiêu chuẩn.");
+    if (kind === "renew") setMsg(`Đã gia hạn thêm ${getValidityYears(data.item)} năm theo hợp đồng.`);
   }
 
   const qrUrl = item && origin ? `${origin}/verify/${item.public_code}` : "";
@@ -116,7 +123,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               {item ? item.certificate_no : "Hồ sơ mới"}
             </h1>
             <p className="mt-1 text-sm text-navy-900/55">
-              Bộ phận chuyên môn điền sau khi đăng ký xong. Giá dịch vụ chỉ hiển thị nội bộ.
+              Bộ phận chuyên môn điền sau khi đăng ký xong. Giá dịch vụ chỉ hiển thị nội bộ. FDA hỗ trợ 1-10 năm theo hợp đồng.
             </p>
           </div>
           <ValiditySeal valid={valid} confirmed={confirmed} size="sm" />
@@ -126,12 +133,38 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
           <Field label="Standards">
             <select
               value={form.standard}
-              onChange={(e) => patch("standard", e.target.value as Standard)}
+              onChange={(e) => {
+                const newStd = e.target.value as Standard;
+                setForm((s) => ({
+                  ...s,
+                  standard: newStd,
+                  // Nếu là hồ sơ mới, tự set về default của standard mới
+                  validity_years: initial ? s.validity_years : DEFAULT_VALIDITY[newStd] ?? 2,
+                }));
+              }}
               className="input"
             >
-              <option value="FDA">FDA — hiệu lực 2 năm</option>
-              <option value="GACC">GACC — hiệu lực 5 năm</option>
+              <option value="FDA">FDA — Food & Cosmetics</option>
+              <option value="GACC">GACC — Trung Quốc</option>
             </select>
+          </Field>
+          <Field label="Thời hạn hợp đồng (năm)">
+            <select
+              value={form.validity_years}
+              onChange={(e) => patch("validity_years", Number(e.target.value))}
+              className="input font-semibold"
+            >
+              {VALIDITY_OPTIONS.map((y) => (
+                <option key={y} value={y}>
+                  {y} năm {y === DEFAULT_VALIDITY[form.standard] ? `(mặc định ${form.standard})` : ""} {y === 1 ? "- ngắn hạn" : y >= 8 ? "- dài hạn" : ""}
+                </option>
+              ))}
+            </select>
+            <div className="mt-1 text-[11px] text-navy-900/50">
+              {form.standard === "FDA"
+                ? "FDA linh hoạt 1-10 năm theo hợp đồng với khách"
+                : "GACC thường 5 năm, nhưng có thể tùy chỉnh 1-10 năm"}
+            </div>
           </Field>
           <Field label="Certificate No">
             <input
@@ -183,21 +216,24 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               onChange={(e) => patch("registered_at", e.target.value)}
             />
           </Field>
-          <Field label={`Ngày hết hạn (tự tính ${STANDARD_YEARS[form.standard]} năm)`}>
-            <input className="input bg-slate-50" readOnly value={expires} />
+          <Field label={`Ngày hết hạn (tự tính ${form.validity_years} năm)`}>
+            <input className="input bg-slate-50 font-semibold" readOnly value={expires} />
+            <div className="mt-1 text-[11px] text-emerald-700">
+              Hợp đồng {form.validity_years} năm: {formatDate(form.registered_at)} → {formatDate(expires)}
+            </div>
           </Field>
           <Field label="Số ngày còn lại">
             <input
               className="input bg-slate-50"
               readOnly
-              value={left < 0 ? "Đã hết hạn" : `${left} ngày`}
+              value={left < 0 ? "Đã hết hạn" : `${left} ngày (${Math.floor(left / 365)} năm ${left % 365} ngày)`}
             />
           </Field>
           <Field label="Certificate validity">
             <div className="flex h-[42px] items-center text-sm font-semibold">
               {confirmed ? (
                 <span className={valid ? "text-emerald-600" : "text-rose-600"}>
-                  {valid ? "VALID — đồng hồ hiệu lực đang chạy" : "EXPIRED"}
+                  {valid ? `VALID — ${currentValidity} năm — đồng hồ đang chạy` : "EXPIRED"}
                 </span>
               ) : (
                 <span className="text-navy-900/45">Chưa xác nhận</span>
@@ -249,7 +285,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               onClick={() => action("renew")}
               className="rounded-xl bg-gold-500 px-4 py-2.5 text-sm font-semibold text-navy-950"
             >
-              Gia hạn 1 chu kỳ
+              Gia hạn {currentValidity} năm
             </button>
           )}
         </div>
@@ -267,8 +303,14 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
             running={confirmed}
           />
           <p className="mt-4 text-center text-xs text-navy-900/50">
-            Đăng ký {formatDate(form.registered_at)} → hết hạn {formatDate(expires)}
+            Đăng ký {formatDate(form.registered_at)} → hết hạn {formatDate(expires)} ({form.validity_years} năm theo hợp đồng)
           </p>
+          <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs">
+            <div className="font-semibold text-navy-900">Chi tiết hợp đồng:</div>
+            <div className="mt-1 text-navy-900/60">
+              Tiêu chuẩn: <b>{form.standard}</b> · Thời hạn: <b>{form.validity_years} năm</b> · Gia hạn: <b>{form.validity_years} năm/lần</b>
+            </div>
+          </div>
         </div>
         {published && qrUrl ? (
           <QrArtwork url={qrUrl} label={item?.certificate_no} />

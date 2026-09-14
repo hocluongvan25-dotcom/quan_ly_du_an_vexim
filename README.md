@@ -2,7 +2,8 @@
 
 Hệ thống nội bộ của **Công ty TNHH Vexim Global**: quản lý hồ sơ FDA / GACC, xác thực QR, thống kê doanh thu.
 
-- FDA hiệu lực **2 năm**, GACC hiệu lực **5 năm**
+- FDA linh hoạt **1-10 năm** theo hợp đồng với khách (mặc định 2 năm), GACC **1-10 năm** (mặc định 5 năm)
+- Gia hạn theo đúng thời hạn hợp đồng đã ký
 - Vai trò Admin và Bộ phận chuyên môn
 - Landing page quét QR **không hiển thị giá dịch vụ**
 - Dữ liệu quản trị trên **Supabase** (PostgreSQL)
@@ -10,7 +11,22 @@ Hệ thống nội bộ của **Công ty TNHH Vexim Global**: quản lý hồ s�
 
 Font chữ: **Be Vietnam Pro** (hỗ trợ đầy đủ dấu tiếng Việt).
 
-## 1. Supabase
+## 1. Tính năng thời hạn linh hoạt (Mới)
+
+Trước đây FDA cố định 2 năm, GACC cố định 5 năm. Hiện tại đã hỗ trợ **1-10 năm** dựa theo hợp đồng:
+
+- Khi tạo hồ sơ mới, chọn **Thời hạn hợp đồng**: 1 năm, 2 năm, 3 năm, ..., 10 năm
+- FDA: thường 2 năm nhưng có thể ký 1 năm, 3 năm, 5 năm, 10 năm tùy khách
+- GACC: mặc định 5 năm, nhưng vẫn cho phép tùy chỉnh 1-10 năm
+- Ngày hết hạn tự tính: `registered_at + validity_years`
+- Gia hạn: tự động gia hạn thêm đúng số năm của hợp đồng hiện tại (ví dụ hợp đồng 3 năm thì gia hạn thêm 3 năm)
+- Dashboard hiển thị thống kê theo từng mức thời hạn
+
+**Migration:**
+- Chạy lại `supabase/schema.sql` trong Supabase SQL Editor để thêm cột `validity_years`
+- SQLite local sẽ tự migrate khi chạy `npm run dev`
+
+## 2. Supabase
 
 1. Tạo project tại [supabase.com](https://supabase.com)
 2. SQL Editor → dán và chạy `supabase/schema.sql`
@@ -21,7 +37,7 @@ Font chữ: **Be Vietnam Pro** (hỗ trợ đầy đủ dấu tiếng Việt).
 
 Lần đăng nhập đầu tiên hệ thống tự tạo tài khoản demo nếu bảng `staff_users` trống.
 
-## 2. Chạy local
+## 3. Chạy local
 
 ```bash
 cp .env.example .env.local
@@ -32,7 +48,7 @@ npm run dev
 
 Nếu **chưa** có biến Supabase, app tạm dùng SQLite `data/vexim.db` để xem giao diện.
 
-## 3. Deploy Vercel
+## 4. Deploy Vercel
 
 ```bash
 npx vercel
@@ -42,7 +58,7 @@ Trên Vercel → Project → Settings → Environment Variables, thêm đúng 4 
 
 Hoặc kết nối GitHub repo `hocluongvan25-dotcom/quan_ly_du_an_vexim` và Import trên vercel.com.
 
-## 4. Troubleshooting
+## 5. Troubleshooting
 
 ### Lỗi PGRST205: Could not find the table 'public.staff_users' in the schema cache
 

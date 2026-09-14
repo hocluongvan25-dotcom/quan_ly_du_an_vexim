@@ -45,6 +45,7 @@ export async function createCertificate(input: {
   company_name: string;
   scope: string;
   registered_at: string;
+  validity_years?: number;
   created_by: number;
 }) {
   return isSupabaseEnabled() ? cloud.createCertificate(input) : sqlite.createCertificate(input);
@@ -59,6 +60,7 @@ export async function updateCertificate(
     company_name: string;
     scope: string;
     registered_at: string;
+    validity_years?: number;
   }
 ) {
   return isSupabaseEnabled() ? cloud.updateCertificate(id, input) : sqlite.updateCertificate(id, input);
