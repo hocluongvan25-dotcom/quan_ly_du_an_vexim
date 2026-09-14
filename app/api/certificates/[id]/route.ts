@@ -10,7 +10,7 @@ import {
 } from "@/lib/db";
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
-import { isValidValidityYears } from "@/lib/types";
+import { isValidValidityYears, isValidDunsCode, isValidFdaStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -52,9 +52,20 @@ export async function PUT(req: Request, ctx: Ctx) {
     if (validity_years && !isValidValidityYears(validity_years)) {
       return NextResponse.json({ error: "Contract duration must be between 1 and 10 years." }, { status: 400 });
     }
+    if (body.duns_code) {
+      const raw = String(body.duns_code).replace(/\D/g, "");
+      if (raw && !isValidDunsCode(raw)) {
+        return NextResponse.json({ error: "DUNS must be 9 digits (e.g. 12-345-6789)." }, { status: 400 });
+      }
+    }
+    if (body.fda_registration_status && !isValidFdaStatus(body.fda_registration_status)) {
+      return NextResponse.json({ error: "Invalid FDA registration status." }, { status: 400 });
+    }
     await updateCertificate(id, {
       standard: standard as Standard,
       registration_code: String(body.registration_code || ""),
+      duns_code: String(body.duns_code || ""),
+      fda_registration_status: String(body.fda_registration_status || "pending"),
       service_price: Number(body.service_price || 0),
       company_name: String(body.company_name || ""),
       scope: String(body.scope || ""),

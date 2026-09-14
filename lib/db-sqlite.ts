@@ -3,8 +3,8 @@ import fs from "fs";
 import path from "path";
 import { hashPassword } from "./auth";
 import { expiryFromStandard, randomCode, remainingDays, getValidityYears } from "./utils";
-import type { Certificate, Role, Standard, User } from "./types";
-import { DEFAULT_VALIDITY, isValidValidityYears } from "./types";
+import type { Certificate, Role, Standard, User, FdaRegistrationStatus } from "./types";
+import { DEFAULT_VALIDITY, isValidValidityYears, DEFAULT_FDA_STATUS, isValidFdaStatus } from "./types";
 
 const dataDir = path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "vexim.db");
@@ -40,6 +40,8 @@ function migrate(db: DatabaseSync) {
       certificate_no TEXT NOT NULL UNIQUE,
       standard TEXT NOT NULL CHECK (standard IN ('FDA','GACC')),
       registration_code TEXT NOT NULL DEFAULT '',
+      duns_code TEXT NOT NULL DEFAULT '',
+      fda_registration_status TEXT NOT NULL DEFAULT 'pending' CHECK (fda_registration_status IN ('pending','submitted','registered','active','expired','cancelled','suspended','on_hold')),
       service_price INTEGER NOT NULL DEFAULT 0,
       company_name TEXT NOT NULL DEFAULT '',
       scope TEXT NOT NULL DEFAULT '',
@@ -58,18 +60,25 @@ function migrate(db: DatabaseSync) {
     );
   `);
 
-  // Migration for old DB without validity_years column
+  // Migration for old DBs
   try {
     const cols = db.prepare("PRAGMA table_info(certificates)").all() as Array<{ name: string }>;
-    const hasValidity = cols.some((c) => c.name === "validity_years");
-    if (!hasValidity) {
+    const has = (name: string) => cols.some((c) => c.name === name);
+
+    if (!has("validity_years")) {
       db.exec("ALTER TABLE certificates ADD COLUMN validity_years INTEGER NOT NULL DEFAULT 2 CHECK (validity_years BETWEEN 1 AND 10)");
-      // Update old data
-      db.exec("UPDATE certificates SET validity_years = 2 WHERE standard='FDA' AND (validity_years IS NULL OR validity_years NOT BETWEEN 1 AND 10)");
-      db.exec("UPDATE certificates SET validity_years = 5 WHERE standard='GACC' AND (validity_years IS NULL OR validity_years NOT BETWEEN 1 AND 10)");
+      db.exec("UPDATE certificates SET validity_years = 2 WHERE standard='FDA'");
+      db.exec("UPDATE certificates SET validity_years = 5 WHERE standard='GACC'");
+    }
+    if (!has("duns_code")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN duns_code TEXT NOT NULL DEFAULT ''");
+    }
+    if (!has("fda_registration_status")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN fda_registration_status TEXT NOT NULL DEFAULT 'pending' CHECK (fda_registration_status IN ('pending','submitted','registered','active','expired','cancelled','suspended','on_hold'))");
+      db.exec("UPDATE certificates SET fda_registration_status = 'active' WHERE validity_confirmed = 1");
     }
   } catch (e) {
-    console.warn("[migrate] Could not add validity_years column:", e);
+    console.warn("[migrate] Could not add columns:", e);
   }
 }
 
@@ -106,6 +115,8 @@ function seed(db: DatabaseSync) {
       no: string;
       standard: Standard;
       code: string;
+      duns: string;
+      fda_status: FdaRegistrationStatus;
       price: number;
       company: string;
       scope: string;
@@ -118,6 +129,8 @@ function seed(db: DatabaseSync) {
         no: "VXM-FDA-2025-0001",
         standard: "FDA",
         code: "17823456789",
+        duns: "12-345-6789",
+        fda_status: "active",
         price: 18500000,
         company: "An Phat Food JSC",
         scope: "Food Facility Registration — frozen seafood processing for export to USA",
@@ -130,6 +143,8 @@ function seed(db: DatabaseSync) {
         no: "VXM-GACC-2024-0008",
         standard: "GACC",
         code: "VN-GACC-44012345678",
+        duns: "98-765-4321",
+        fda_status: "registered",
         price: 42000000,
         company: "Mekong Agri Products Co., Ltd",
         scope: "Food enterprise registration for export to China (GACC Decree 248)",
@@ -142,6 +157,8 @@ function seed(db: DatabaseSync) {
         no: "VXM-FDA-2026-0004",
         standard: "FDA",
         code: "18900123456",
+        duns: "11-222-3333",
+        fda_status: "submitted",
         price: 21000000,
         company: "Green Leaf Cosmetics JSC",
         scope: "MoCRA facility registration & cosmetic product listing",
@@ -154,6 +171,8 @@ function seed(db: DatabaseSync) {
         no: "VXM-GACC-2026-0002",
         standard: "GACC",
         code: "VN-GACC-33098765432",
+        duns: "44-555-6666",
+        fda_status: "active",
         price: 38500000,
         company: "Viet Phat Rice JSC",
         scope: "Rice milling and packaging facility for export to China market",
@@ -166,6 +185,8 @@ function seed(db: DatabaseSync) {
         no: "VXM-FDA-2026-0012",
         standard: "FDA",
         code: "17200998877",
+        duns: "77-888-9999",
+        fda_status: "pending",
         price: 16500000,
         company: "Binh Minh Seafood Co., Ltd",
         scope: "FDA Food Facility Registration — fresh and frozen seafood",
@@ -178,10 +199,10 @@ function seed(db: DatabaseSync) {
 
     const insertCert = db.prepare(`
       INSERT INTO certificates (
-        public_code, certificate_no, standard, registration_code, service_price,
-        company_name, scope, registered_at, expires_at, validity_years, validity_confirmed,
+        public_code, certificate_no, standard, registration_code, duns_code, fda_registration_status,
+        service_price, company_name, scope, registered_at, expires_at, validity_years, validity_confirmed,
         status, published_at, revenue_recorded, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?, 1, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?, 1, ?)
     `);
 
     for (const s of samples) {
@@ -190,6 +211,8 @@ function seed(db: DatabaseSync) {
         s.no,
         s.standard,
         s.code,
+        s.duns.replace(/\D/g, ""),
+        s.fda_status,
         s.price,
         s.company,
         s.scope,
@@ -261,10 +284,11 @@ function plain<T>(row: T): T {
 function hydrate(row: Certificate): Certificate {
   if (!row) return row;
   const next = plain(row);
-  // Fallback for old data without validity_years
   if (!next.validity_years) {
     next.validity_years = getValidityYears(next as any);
   }
+  if (!next.duns_code) next.duns_code = "";
+  if (!next.fda_registration_status) next.fda_registration_status = DEFAULT_FDA_STATUS;
   if (next.status === "published" && remainingDays(next.expires_at) < 0) {
     return { ...next, status: "expired" };
   }
@@ -307,9 +331,16 @@ function normalizeValidityYears(input: number | undefined, standard: Standard): 
   return DEFAULT_VALIDITY[standard] ?? 2;
 }
 
+function normalizeFdaStatus(input: string | undefined): FdaRegistrationStatus {
+  if (input && isValidFdaStatus(input)) return input as FdaRegistrationStatus;
+  return DEFAULT_FDA_STATUS;
+}
+
 export function createCertificate(input: {
   standard: Standard;
   registration_code: string;
+  duns_code?: string;
+  fda_registration_status?: string;
   service_price: number;
   company_name: string;
   scope: string;
@@ -321,18 +352,22 @@ export function createCertificate(input: {
   const expires = expiryFromStandard(input.registered_at, input.standard, validity);
   const no = nextCertificateNo(input.standard);
   const publicCode = randomCode(12);
+  const duns = (input.duns_code || "").replace(/\D/g, "").slice(0, 9);
+  const fdaStatus = normalizeFdaStatus(input.fda_registration_status);
   const info = db()
     .prepare(
       `INSERT INTO certificates (
-        public_code, certificate_no, standard, registration_code, service_price,
-        company_name, scope, registered_at, expires_at, validity_years, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        public_code, certificate_no, standard, registration_code, duns_code, fda_registration_status,
+        service_price, company_name, scope, registered_at, expires_at, validity_years, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       publicCode,
       no,
       input.standard,
       input.registration_code.trim(),
+      duns,
+      fdaStatus,
       Math.max(0, Math.round(input.service_price || 0)),
       input.company_name.trim(),
       input.scope.trim(),
@@ -349,6 +384,8 @@ export function updateCertificate(
   input: {
     standard: Standard;
     registration_code: string;
+    duns_code?: string;
+    fda_registration_status?: string;
     service_price: number;
     company_name: string;
     scope: string;
@@ -360,10 +397,13 @@ export function updateCertificate(
   if (!current) throw new Error("NOT_FOUND");
   const validity = normalizeValidityYears(input.validity_years ?? current.validity_years, input.standard);
   const expires = expiryFromStandard(input.registered_at, input.standard, validity);
+  const duns = input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
+  const fdaStatus = input.fda_registration_status ? normalizeFdaStatus(input.fda_registration_status) : current.fda_registration_status;
   db()
     .prepare(
       `UPDATE certificates SET
-        standard = ?, registration_code = ?, service_price = ?, company_name = ?,
+        standard = ?, registration_code = ?, duns_code = ?, fda_registration_status = ?,
+        service_price = ?, company_name = ?,
         scope = ?, registered_at = ?, expires_at = ?, validity_years = ?,
         validity_confirmed = CASE WHEN registered_at = ? AND standard = ? AND validity_years = ? THEN validity_confirmed ELSE 0 END,
         updated_at = datetime('now')
@@ -372,6 +412,8 @@ export function updateCertificate(
     .run(
       input.standard,
       input.registration_code.trim(),
+      duns,
+      fdaStatus,
       Math.max(0, Math.round(input.service_price || 0)),
       input.company_name.trim(),
       input.scope.trim(),

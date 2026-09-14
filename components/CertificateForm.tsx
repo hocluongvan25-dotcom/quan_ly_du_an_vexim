@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import { CountdownRing } from "./CountdownRing";
 import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
-import { expiryFromStandard, formatDate, remainingDays, getValidityYears } from "@/lib/utils";
-import { VALIDITY_OPTIONS, DEFAULT_VALIDITY, type Certificate, type Standard } from "@/lib/types";
+import { expiryFromStandard, formatDate, remainingDays, getValidityYears, fdaStatusLabel, formatDuns } from "@/lib/utils";
+import { VALIDITY_OPTIONS, DEFAULT_VALIDITY, FDA_STATUS_OPTIONS, type Certificate, type Standard, type FdaRegistrationStatus, DEFAULT_FDA_STATUS } from "@/lib/types";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 type FormState = {
   standard: Standard;
   registration_code: string;
+  duns_code: string;
+  fda_registration_status: FdaRegistrationStatus;
   service_price: string;
   company_name: string;
   scope: string;
@@ -24,6 +26,8 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
   const [form, setForm] = useState<FormState>({
     standard: initial?.standard || "FDA",
     registration_code: initial?.registration_code || "",
+    duns_code: initial?.duns_code || "",
+    fda_registration_status: initial?.fda_registration_status || DEFAULT_FDA_STATUS,
     service_price: initial ? String(initial.service_price) : "",
     company_name: initial?.company_name || "",
     scope: initial?.scope || "",
@@ -53,14 +57,30 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     setForm((s) => ({ ...s, [key]: value }));
   }
 
+  function handleDunsChange(value: string) {
+    // Allow digits, dashes, spaces; store raw digits but display formatted
+    const digits = value.replace(/\D/g, "").slice(0, 9);
+    setForm((s) => ({ ...s, duns_code: digits }));
+  }
+
   async function save(e?: FormEvent) {
     e?.preventDefault();
     setBusy("save");
     setMsg("");
+    // Validate DUNS if provided
+    if (form.duns_code) {
+      const digits = form.duns_code.replace(/\D/g, "");
+      if (digits.length !== 9) {
+        setBusy("");
+        setMsg("DUNS must be exactly 9 digits (e.g. 12-345-6789).");
+        return;
+      }
+    }
     const payload = {
       ...form,
       service_price: Number(String(form.service_price).replace(/[^\d]/g, "") || 0),
       validity_years: Number(form.validity_years),
+      duns_code: form.duns_code.replace(/\D/g, "").slice(0, 9),
     };
     const res = await fetch(item ? `/api/certificates/${item.id}` : "/api/certificates", {
       method: item ? "PUT" : "POST",
@@ -177,6 +197,45 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               onChange={(e) => patch("registration_code", e.target.value)}
               placeholder="Enter registration code"
             />
+          </Field>
+          <Field label="DUNS Number (9 digits, for FDA)">
+            <input
+              className="input font-mono"
+              value={form.duns_code ? formatDuns(form.duns_code) : ""}
+              onChange={(e) => handleDunsChange(e.target.value)}
+              placeholder="12-345-6789"
+              maxLength={11}
+            />
+            <div className="mt-1 text-[11px] text-navy-900/50">
+              Required for FDA facility registration. Format: XX-XXX-XXXX. {form.duns_code.length === 9 ? "✓ Valid" : form.duns_code ? `${form.duns_code.length}/9 digits` : "Optional"}
+            </div>
+          </Field>
+          <Field label="FDA Registration Status">
+            <select
+              value={form.fda_registration_status}
+              onChange={(e) => patch("fda_registration_status", e.target.value as FdaRegistrationStatus)}
+              className="input"
+            >
+              {FDA_STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label} — {opt.description}
+                </option>
+              ))}
+            </select>
+            <div className="mt-1 flex items-center gap-2">
+              <span
+                className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold"
+                style={{
+                  backgroundColor: `${FDA_STATUS_OPTIONS.find((o) => o.value === form.fda_registration_status)?.color || "#6b7280"}18`,
+                  color: FDA_STATUS_OPTIONS.find((o) => o.value === form.fda_registration_status)?.color || "#6b7280",
+                }}
+              >
+                {fdaStatusLabel(form.fda_registration_status)}
+              </span>
+              <span className="text-[11px] text-navy-900/50">
+                {FDA_STATUS_OPTIONS.find((o) => o.value === form.fda_registration_status)?.description}
+              </span>
+            </div>
           </Field>
           <Field label="Service Fee (hidden from customer QR scan)">
             <input
@@ -306,6 +365,11 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
             <div className="mt-1 text-navy-900/60">
               Standard: <b>{form.standard}</b> · Duration: <b>{form.validity_years} {form.validity_years === 1 ? "year" : "years"}</b> · Renewal: <b>{form.validity_years} {form.validity_years === 1 ? "year" : "years"}/cycle</b>
             </div>
+            {form.duns_code && (
+              <div className="mt-2">
+                DUNS: <b className="font-mono">{formatDuns(form.duns_code)}</b> · FDA Status: <b>{fdaStatusLabel(form.fda_registration_status)}</b>
+              </div>
+            )}
           </div>
         </div>
         {published && qrUrl ? (

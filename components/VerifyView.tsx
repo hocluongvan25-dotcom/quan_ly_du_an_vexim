@@ -1,18 +1,22 @@
 "use client";
 
-import { COMPANY, type Certificate } from "@/lib/types";
-import { daysBetween, formatDate, isValidNow, remainingDays, getValidityYears } from "@/lib/utils";
+import { COMPANY, type Certificate, type FdaRegistrationStatus } from "@/lib/types";
+import { daysBetween, formatDate, isValidNow, remainingDays, getValidityYears, fdaStatusLabel, fdaStatusDescription, formatDuns } from "@/lib/utils";
+import { FDA_STATUS_OPTIONS } from "@/lib/types";
 import { CountdownRing } from "./CountdownRing";
 import { Logo } from "./Logo";
 import { ValiditySeal } from "./ValiditySeal";
-import { Mail, MapPin, Phone, ShieldCheck } from "lucide-react";
+import { Mail, MapPin, Phone, ShieldCheck, Building2, BadgeCheck } from "lucide-react";
 
-export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> }) {
+export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> & { duns_code?: string; fda_registration_status?: FdaRegistrationStatus } }) {
   const valid =
     Boolean(cert.validity_confirmed) && isValidNow(cert.expires_at, cert.registered_at);
   const left = remainingDays(cert.expires_at);
   const total = daysBetween(cert.registered_at, cert.expires_at);
   const validityYears = getValidityYears(cert as any);
+  const duns = (cert as any).duns_code || (cert as any).duns_code === "" ? (cert as any).duns_code : (cert as any).duns_code;
+  const fdaStatus = (cert.fda_registration_status || "pending") as FdaRegistrationStatus;
+  const fdaOpt = FDA_STATUS_OPTIONS.find((o) => o.value === fdaStatus);
 
   return (
     <div className="min-h-screen bg-[#fff8ec] text-navy-900">
@@ -54,6 +58,13 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
           <div className="relative mt-6 grid grid-cols-2 gap-3">
             <Info label="Standard" value={cert.standard} strong />
             <Info label="Code" value={cert.registration_code} mono />
+            <Info label="DUNS Number" value={duns ? formatDuns(duns) : "—"} mono strong={!!duns} />
+            <Info
+              label="FDA Status"
+              value={fdaStatusLabel(fdaStatus)}
+              strong
+              badgeColor={fdaOpt?.color}
+            />
             <Info label="Contract Term" value={`${validityYears} ${validityYears === 1 ? "year" : "years"}`} strong />
             <Info label="Registration Date" value={formatDate(cert.registered_at)} />
             <Info label="Expiry Date" value={formatDate(cert.expires_at)} />
@@ -78,6 +89,34 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
             </div>
             <p className="mt-1 text-sm leading-relaxed">{cert.scope || "—"}</p>
           </div>
+
+          {(duns || fdaStatus !== "pending") && (
+            <div className="relative mt-4 grid gap-3">
+              {duns && (
+                <div className="flex items-center gap-3 rounded-2xl border border-navy-900/10 bg-white px-4 py-3">
+                  <Building2 className="h-5 w-5 shrink-0 text-navy-900/40" />
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-navy-900/40">DUNS Number (Dun & Bradstreet)</div>
+                    <div className="font-mono text-sm font-bold">{formatDuns(duns)}</div>
+                    <div className="text-[11px] text-navy-900/50">Required for FDA facility registration</div>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-3 rounded-2xl border px-4 py-3" style={{ borderColor: `${fdaOpt?.color}30`, backgroundColor: `${fdaOpt?.color}08` }}>
+                <BadgeCheck className="h-5 w-5 shrink-0" style={{ color: fdaOpt?.color }} />
+                <div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wider text-navy-900/40">FDA Registration Status</div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold" style={{ color: fdaOpt?.color }}>{fdaStatusLabel(fdaStatus)}</span>
+                    <span className="rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: `${fdaOpt?.color}18`, color: fdaOpt?.color }}>
+                      {fdaStatus.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-navy-900/60">{fdaStatusDescription(fdaStatus)}</div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="mt-4 rounded-[32px] bg-white p-6 shadow-card">
@@ -135,11 +174,13 @@ function Info({
   value,
   strong,
   mono,
+  badgeColor,
 }: {
   label: string;
   value: string;
   strong?: boolean;
   mono?: boolean;
+  badgeColor?: string;
 }) {
   return (
     <div className="rounded-2xl bg-[#fff6df] px-3 py-3">
@@ -147,11 +188,18 @@ function Info({
         {label}
       </div>
       <div
-        className={`mt-1 text-sm ${strong ? "font-extrabold" : "font-semibold"} ${
+        className={`mt-1 flex items-center gap-1.5 text-sm ${strong ? "font-extrabold" : "font-semibold"} ${
           mono ? "font-mono text-[12px]" : ""
         }`}
+        style={badgeColor && label === "FDA Status" ? { color: badgeColor } : undefined}
       >
-        {value}
+        <span>{value}</span>
+        {badgeColor && label === "FDA Status" && (
+          <span
+            className="h-2 w-2 rounded-full"
+            style={{ backgroundColor: badgeColor }}
+          />
+        )}
       </div>
     </div>
   );

@@ -41,6 +41,8 @@ export async function getCertificateByPublicCode(code: string) {
 export async function createCertificate(input: {
   standard: Standard;
   registration_code: string;
+  duns_code?: string;
+  fda_registration_status?: string;
   service_price: number;
   company_name: string;
   scope: string;
@@ -56,6 +58,8 @@ export async function updateCertificate(
   input: {
     standard: Standard;
     registration_code: string;
+    duns_code?: string;
+    fda_registration_status?: string;
     service_price: number;
     company_name: string;
     scope: string;

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { formatDate, formatVnd, remainingDays, statusLabel, getValidityYears } from "@/lib/utils";
+import { formatDate, formatVnd, remainingDays, statusLabel, getValidityYears, formatDuns, fdaStatusLabel } from "@/lib/utils";
+import { FDA_STATUS_OPTIONS } from "@/lib/types";
 import type { Certificate } from "@/lib/types";
 import { Search } from "lucide-react";
 
@@ -24,7 +25,7 @@ export default function CertificatesPage() {
   const filtered = useMemo(() => {
     return items.filter((c) => {
       if (std !== "ALL" && c.standard !== std) return false;
-      const hay = `${c.certificate_no} ${c.company_name} ${c.registration_code}`.toLowerCase();
+      const hay = `${c.certificate_no} ${c.company_name} ${c.registration_code} ${c.duns_code || ""} ${c.fda_registration_status}`.toLowerCase();
       return hay.includes(q.toLowerCase());
     });
   }, [items, q, std]);
@@ -34,7 +35,7 @@ export default function CertificatesPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="font-display text-3xl font-extrabold text-navy-900">FDA & GACC Records</h1>
-          <p className="mt-1 text-sm text-navy-900/55">FDA 1-10 years per contract · GACC default 5 years (customizable 1-10 years)</p>
+          <p className="mt-1 text-sm text-navy-900/55">FDA 1-10 years per contract · GACC default 5 years (customizable 1-10 years) · DUNS + FDA status tracking</p>
         </div>
         <Link
           href="/dashboard/ho-so/moi"
@@ -50,7 +51,7 @@ export default function CertificatesPage() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search company, certificate no, code..."
+            placeholder="Search company, certificate no, code, DUNS, FDA status..."
             className="w-full rounded-xl border border-navy-900/10 bg-white py-2 pl-9 pr-3 text-sm outline-none"
           />
         </div>
@@ -69,7 +70,7 @@ export default function CertificatesPage() {
 
       <div className="mt-5 overflow-hidden rounded-3xl bg-white shadow-card">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] text-left text-sm">
+          <table className="w-full min-w-[1100px] text-left text-sm">
             <thead className="bg-[#fffaf0] text-[11px] uppercase tracking-wider text-navy-900/45">
               <tr>
                 <th className="px-4 py-3">Certificate No</th>
@@ -77,6 +78,8 @@ export default function CertificatesPage() {
                 <th className="px-4 py-3">Standard</th>
                 <th className="px-4 py-3">Contract</th>
                 <th className="px-4 py-3">Code</th>
+                <th className="px-4 py-3">DUNS</th>
+                <th className="px-4 py-3">FDA Status</th>
                 <th className="px-4 py-3">Reg / Expiry</th>
                 <th className="px-4 py-3">Remaining</th>
                 {role === "admin" && <th className="px-4 py-3">Service Fee</th>}
@@ -87,6 +90,7 @@ export default function CertificatesPage() {
               {filtered.map((c) => {
                 const left = remainingDays(c.expires_at);
                 const vy = getValidityYears(c);
+                const fdaOpt = FDA_STATUS_OPTIONS.find((o) => o.value === c.fda_registration_status);
                 return (
                   <tr key={c.id} className="border-t border-navy-900/5 hover:bg-teal-50/40">
                     <td className="px-4 py-3">
@@ -102,6 +106,21 @@ export default function CertificatesPage() {
                       </span>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs">{c.registration_code}</td>
+                    <td className="px-4 py-3 font-mono text-xs">
+                      {c.duns_code ? formatDuns(c.duns_code) : <span className="text-navy-900/30">—</span>}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold"
+                        style={{
+                          backgroundColor: `${fdaOpt?.color || "#6b7280"}14`,
+                          color: fdaOpt?.color || "#6b7280",
+                        }}
+                      >
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: fdaOpt?.color }} />
+                        {fdaStatusLabel(c.fda_registration_status)}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-xs">
                       {formatDate(c.registered_at)}
                       <div className="text-navy-900/45">→ {formatDate(c.expires_at)}</div>
@@ -132,7 +151,7 @@ export default function CertificatesPage() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-navy-900/45">
+                  <td colSpan={11} className="px-4 py-10 text-center text-navy-900/45">
                     No matching records found.
                   </td>
                 </tr>

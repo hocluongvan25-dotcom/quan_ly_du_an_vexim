@@ -11,13 +11,15 @@ create table if not exists public.staff_users (
   created_at timestamptz not null default now()
 );
 
--- Create certificates table with flexible validity_years 1-10 years per contract
+-- Create certificates table with flexible validity and DUNS + FDA status
 create table if not exists public.certificates (
   id bigint generated always as identity primary key,
   public_code text unique not null,
   certificate_no text unique not null,
   standard text not null check (standard in ('FDA', 'GACC')),
   registration_code text not null default '',
+  duns_code text not null default '',
+  fda_registration_status text not null default 'pending' check (fda_registration_status in ('pending','submitted','registered','active','expired','cancelled','suspended','on_hold')),
   service_price bigint not null default 0,
   company_name text not null default '',
   scope text not null default '',
@@ -35,7 +37,7 @@ create table if not exists public.certificates (
   updated_at timestamptz not null default now()
 );
 
--- Migration for old DB without validity_years column
+-- Migration for old DB without validity_years
 do $$
 begin
   if not exists (
@@ -46,10 +48,35 @@ begin
   end if;
 end $$;
 
+-- Migration for old DB without duns_code
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns 
+    where table_schema='public' and table_name='certificates' and column_name='duns_code'
+  ) then
+    alter table public.certificates add column duns_code text not null default '';
+  end if;
+end $$;
+
+-- Migration for old DB without fda_registration_status
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns 
+    where table_schema='public' and table_name='certificates' and column_name='fda_registration_status'
+  ) then
+    alter table public.certificates add column fda_registration_status text not null default 'pending' check (fda_registration_status in ('pending','submitted','registered','active','expired','cancelled','suspended','on_hold'));
+  end if;
+end $$;
+
 -- Update old data: set validity_years per standard if missing
--- FDA default 2 years, GACC default 5 years
 update public.certificates set validity_years = 2 where standard='FDA' and (validity_years is null or validity_years not between 1 and 10);
 update public.certificates set validity_years = 5 where standard='GACC' and (validity_years is null or validity_years not between 1 and 10);
+
+-- Update old data: set FDA status based on validity
+update public.certificates set fda_registration_status = 'active' where validity_confirmed = true and expires_at > current_date and fda_registration_status = 'pending';
+update public.certificates set fda_registration_status = 'expired' where expires_at <= current_date and fda_registration_status in ('pending','active','registered');
 
 -- Indexes
 create index if not exists certificates_public_code_idx on public.certificates (public_code);
@@ -57,15 +84,14 @@ create index if not exists certificates_status_idx on public.certificates (statu
 create index if not exists certificates_standard_idx on public.certificates (standard);
 create index if not exists certificates_created_by_idx on public.certificates (created_by);
 create index if not exists certificates_validity_years_idx on public.certificates (validity_years);
+create index if not exists certificates_duns_code_idx on public.certificates (duns_code);
+create index if not exists certificates_fda_status_idx on public.certificates (fda_registration_status);
 
 -- RLS
 alter table public.staff_users enable row level security;
 alter table public.certificates enable row level security;
 
--- Do not expose SELECT to anon: service fees should not be public.
--- Next.js uses SUPABASE_SERVICE_ROLE_KEY so no policy needed (service_role bypasses RLS).
-
--- Grants - ensure service_role and postgres have permissions
+-- Grants
 grant all on table public.staff_users to service_role;
 grant all on table public.certificates to service_role;
 grant all on table public.staff_users to postgres;

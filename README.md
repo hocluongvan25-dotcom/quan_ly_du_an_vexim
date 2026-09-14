@@ -11,9 +11,9 @@ Internal system of **Vexim Global Co., Ltd**: FDA / GACC record management, QR v
 
 Font: **Be Vietnam Pro** (full Vietnamese diacritics support, but UI is English).
 
-## 1. Flexible Validity Feature (New)
+## 1. Flexible Validity + DUNS & FDA Status (New)
 
-Previously FDA fixed 2 years, GACC fixed 5 years. Now supports **1-10 years** per contract:
+**Flexible Validity:** Previously FDA fixed 2 years, GACC fixed 5 years. Now supports **1-10 years** per contract:
 
 - When creating a new record, select **Contract Duration**: 1 year, 2 years, 3 years, ..., 10 years
 - FDA: typically 2 years but can be 1, 3, 5, 10 years per client
@@ -22,8 +22,23 @@ Previously FDA fixed 2 years, GACC fixed 5 years. Now supports **1-10 years** pe
 - Renewal: automatically extends by contract duration (e.g., 3-year contract renews +3 years)
 - Dashboard shows stats per validity duration
 
+**DUNS Number & FDA Registration Status:**
+
+- **DUNS Number** (Data Universal Numbering System): 9-digit unique identifier issued by Dun & Bradstreet, required for FDA facility registration. Format `12-345-6789`, stored as 9 digits, displayed formatted. Validated on create/update.
+- **FDA Registration Status**: Tracks FDA registration lifecycle:
+  - `Pending` — initial state, application not yet submitted
+  - `Submitted` — submitted to FDA, awaiting review
+  - `Registered` — FDA acknowledged, pending activation
+  - `Active` — active and valid in FDA system
+  - `Expired` — registration expired
+  - `Cancelled` — cancelled by facility or FDA
+  - `Suspended` — suspended by FDA
+  - `On Hold` — temporarily on hold
+- UI: Form has DUNS input (with XX-XXX-XXXX formatting + 9-digit validation) and FDA status dropdown with color badges. Dashboard table shows DUNS column + FDA status badge with dot indicator. Verification page shows DUNS card + FDA status card with description.
+- Public API `/api/public/certificates/[code]` now returns `duns_code` and `fda_registration_status`.
+
 **Migration:**
-- Re-run `supabase/schema.sql` in Supabase SQL Editor to add `validity_years` column
+- Re-run `supabase/schema.sql` in Supabase SQL Editor to add `validity_years`, `duns_code`, `fda_registration_status` columns
 - Local SQLite will auto-migrate on `npm run dev`
 
 ## 2. Supabase Setup
