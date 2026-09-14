@@ -282,7 +282,7 @@ export function VerifyView({ cert }: Props) {
                       <div className="text-[12px] font-semibold text-slate-900">{formatDate(cert.expires_at)}</div>
                     </div>
                     <div className="flex items-center justify-between py-2.5">
-                      <div className="text-[11px] font-medium text-slate-500 flex items-center gap-2"><i className="fa-solid fa-building-columns text-slate-400 w-4"></i> Cấp Bởi</div>
+                      <div className="text-[11px] font-medium text-slate-500 flex items-center gap-2"><i className="fa-solid fa-building-columns text-slate-400 w-4"></i> Đơn vị thực hiện</div>
                       <div className="text-[11px] font-bold text-slate-700">{COMPANY.legal}</div>
                     </div>
                   </div>
@@ -297,10 +297,10 @@ export function VerifyView({ cert }: Props) {
                 </div>
               </div>
 
-              {/* Issuing Authority */}
+              {/* Registration Service Provider */}
               <div className="bg-white rounded-[20px] border border-slate-200 p-4">
                 <div className="text-[11px] font-extrabold uppercase tracking-[0.16em] text-slate-900 flex items-center gap-2">
-                  <span className="w-1.5 h-6 bg-slate-900 rounded-full"></span> Cơ Quan Cấp Chứng Nhận
+                  <span className="w-1.5 h-6 bg-slate-900 rounded-full"></span> Đơn vị thực hiện đăng ký
                 </div>
                 <div className="mt-3">
                   <div className="font-bold text-[13px] text-slate-900">{COMPANY.legal}</div>
