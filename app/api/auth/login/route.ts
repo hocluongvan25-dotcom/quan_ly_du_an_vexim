@@ -8,7 +8,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const email = String(body.email || "").toLowerCase().trim();
   const password = String(body.password || "");
-  const user = findUserByEmail(email);
+  const user = await findUserByEmail(email);
   if (!user || !verifyPassword(password, user.password_hash)) {
     return NextResponse.json({ error: "Email hoặc mật khẩu không đúng." }, { status: 401 });
   }

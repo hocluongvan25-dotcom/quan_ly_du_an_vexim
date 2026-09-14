@@ -10,7 +10,7 @@ export async function GET() {
   if (!user || user.role !== "admin") {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
-  return NextResponse.json({ items: listUsers() });
+  return NextResponse.json({ items: await listUsers() });
 }
 
 export async function POST(req: Request) {
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Thiếu thông tin hoặc mật khẩu quá ngắn." }, { status: 400 });
   }
   try {
-    const id = createUser({ email, name, password, role });
+    const id = await createUser({ email, name, password, role });
     return NextResponse.json({ id });
   } catch {
     return NextResponse.json({ error: "Email đã tồn tại." }, { status: 400 });

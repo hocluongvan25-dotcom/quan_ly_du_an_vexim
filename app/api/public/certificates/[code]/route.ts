@@ -5,7 +5,7 @@ import { daysBetween, isValidNow, remainingDays, remainingMs } from "@/lib/utils
 export const runtime = "nodejs";
 
 export async function GET(_: Request, ctx: { params: { code: string } }) {
-  const item = getCertificateByPublicCode(ctx.params.code);
+  const item = await getCertificateByPublicCode(ctx.params.code);
   if (!item || item.status === "draft") {
     return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
   }

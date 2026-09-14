@@ -3,7 +3,7 @@ import { Logo } from "@/components/Logo";
 
 export default function NotFoundCert() {
   return (
-    <div className="grid min-h-screen place-items-center bg-[#eef6f6] px-6">
+    <div className="grid min-h-screen place-items-center bg-[#fff8ec] px-6">
       <div className="max-w-sm text-center">
         <Logo className="justify-center" />
         <h1 className="mt-6 font-display text-2xl font-extrabold text-navy-900">

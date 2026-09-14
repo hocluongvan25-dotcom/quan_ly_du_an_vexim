@@ -1,14 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 88" fill="none">
   <defs>
     <linearGradient id="g" x1="12" y1="8" x2="68" y2="80" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#128C86"/>
-      <stop offset="1" stop-color="#0C6E6A"/>
+      <stop stop-color="#F6D36B"/>
+      <stop offset="1" stop-color="#E0A824"/>
     </linearGradient>
   </defs>
-  <path d="M40 4L72 22.5V57.5L40 76L8 57.5V22.5L40 4Z" fill="#0A2F4A"/>
-  <path d="M40 10.2L66.2 25.2V54.8L40 69.8L13.8 54.8V25.2L40 10.2Z" stroke="#C9A227" stroke-width="2.2" fill="url(#g)"/>
-  <ellipse cx="40" cy="40" rx="16.5" ry="16.5" fill="none" stroke="#0A2F4A" stroke-width="1.4" opacity=".35"/>
-  <path d="M24.5 40h31M40 24.5v31M27 30.5c8 6 18 6 26 0M27 49.5c8-6 18-6 26 0" stroke="#0A2F4A" stroke-width="1.15" opacity=".28"/>
-  <path d="M28 26L40 58L52 26" stroke="#0A2F4A" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M28 26L40 58L52 26" stroke="#0E3D5E" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M40 4L72 22.5V57.5L40 76L8 57.5V22.5L40 4Z" fill="#24180C"/>
+  <path d="M40 10.2L66.2 25.2V54.8L40 69.8L13.8 54.8V25.2L40 10.2Z" stroke="#F3C85A" stroke-width="2.2" fill="url(#g)"/>
+  <ellipse cx="40" cy="40" rx="16.5" ry="16.5" fill="none" stroke="#24180C" stroke-width="1.4" opacity=".28"/>
+  <path d="M24.5 40h31M40 24.5v31M27 30.5c8 6 18 6 26 0M27 49.5c8-6 18-6 26 0" stroke="#24180C" stroke-width="1.15" opacity=".22"/>
+  <path d="M28 26L40 58L52 26" stroke="#24180C" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

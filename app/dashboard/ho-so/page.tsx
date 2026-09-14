@@ -70,7 +70,7 @@ export default function CertificatesPage() {
       <div className="mt-5 overflow-hidden rounded-3xl bg-white shadow-card">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] text-left text-sm">
-            <thead className="bg-[#f7fafb] text-[11px] uppercase tracking-wider text-navy-900/45">
+            <thead className="bg-[#fffaf0] text-[11px] uppercase tracking-wider text-navy-900/45">
               <tr>
                 <th className="px-4 py-3">Certificate No</th>
                 <th className="px-4 py-3">Công ty</th>

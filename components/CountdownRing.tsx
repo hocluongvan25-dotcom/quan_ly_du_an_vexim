@@ -48,13 +48,13 @@ export function CountdownRing({
     <div className="flex flex-col items-center gap-5">
       <div className="relative h-36 w-36">
         <svg viewBox="0 0 128 128" className="h-full w-full -rotate-90">
-          <circle cx="64" cy="64" r={r} fill="none" stroke="#e6eef2" strokeWidth="10" />
+          <circle cx="64" cy="64" r={r} fill="none" stroke="#f3e6c2" strokeWidth="10" />
           <circle
             cx="64"
             cy="64"
             r={r}
             fill="none"
-            stroke={pct > 0.15 ? "#128C86" : "#e11d48"}
+            stroke={pct > 0.15 ? "#E8B22A" : "#e11d48"}
             strokeWidth="10"
             strokeLinecap="round"
             strokeDasharray={`${dash} ${c}`}

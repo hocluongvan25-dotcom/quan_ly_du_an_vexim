@@ -9,16 +9,17 @@ import { AlertTriangle, FileBadge2, ShieldCheck, Wallet } from "lucide-react";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export default function DashboardPage() {
-  const user = getSession()!;
-  const items = listCertificates();
+export default async function DashboardPage() {
+  const user = getSession();
+  if (!user) redirect("/login");
+  const items = await listCertificates();
   const published = items.filter((i) => i.status !== "draft");
   const valid = published.filter((i) => remainingDays(i.expires_at) >= 0);
   const expiring = published.filter((i) => {
     const d = remainingDays(i.expires_at);
     return d >= 0 && d <= 90;
   });
-  const stats = user.role === "admin" ? revenueStats() : null;
+  const stats = user.role === "admin" ? await revenueStats() : null;
 
   return (
     <div className="space-y-6">

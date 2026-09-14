@@ -27,27 +27,27 @@ export function QrArtwork({
 
     const pad = 90;
     roundRect(ctx, 50, 50, 1300, 1500, 48);
-    ctx.fillStyle = "#0A2F4A";
+    ctx.fillStyle = "#24180C";
     ctx.fill();
     roundRect(ctx, 70, 70, 1260, 1460, 40);
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = "#FFFCF5";
     ctx.fill();
 
-    ctx.fillStyle = "#0A2F4A";
-    ctx.font = "800 42px Plus Jakarta Sans, sans-serif";
+    ctx.fillStyle = "#24180C";
+    ctx.font = "800 42px Be Vietnam Pro, sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("VEXIM GLOBAL", 700, 160);
-    ctx.fillStyle = "#128C86";
+    ctx.fillStyle = "#C48912";
     ctx.font = "600 20px Be Vietnam Pro, sans-serif";
     ctx.fillText("XÁC THỰC CHỨNG CHỈ FDA / GACC", 700, 198);
 
     const img = new Image();
     img.onload = () => {
       ctx.drawImage(img, 250, 250, 900, 900);
-      ctx.fillStyle = "#0A2F4A";
+      ctx.fillStyle = "#24180C";
       ctx.font = "600 22px Be Vietnam Pro, sans-serif";
       ctx.fillText(label || "Quét mã để xác thực hiệu lực", 700, 1240);
-      ctx.fillStyle = "#5b7384";
+      ctx.fillStyle = "#8a7040";
       ctx.font = "500 16px Be Vietnam Pro, sans-serif";
       ctx.fillText("www.veximglobal.com  ·  0373 685 634", 700, 1288);
       ctx.fillText("Số 25/6/51 Ngọa Long, Bắc Từ Liêm, Hà Nội", 700, 1320);
@@ -88,7 +88,7 @@ export function QrArtwork({
             size={220}
             level="H"
             bgColor="#ffffff"
-            fgColor="#0A2F4A"
+            fgColor="#24180C"
             imageSettings={{
               src: "/logo-mark.png",
               height: 44,
@@ -104,7 +104,7 @@ export function QrArtwork({
           size={900}
           level="H"
           bgColor="#ffffff"
-          fgColor="#0A2F4A"
+          fgColor="#24180C"
           includeMargin
           imageSettings={{
             src: "/logo-mark.png",

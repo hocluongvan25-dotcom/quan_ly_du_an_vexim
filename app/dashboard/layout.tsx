@@ -10,7 +10,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) redirect("/login");
 
   return (
-    <div className="flex min-h-screen bg-[#eef3f6]">
+    <div className="flex min-h-screen bg-[#fff8ec]">
       <div className="sticky top-0 hidden h-screen md:block">
         <Sidebar user={user} />
       </div>

@@ -6,8 +6,8 @@ import type { Metadata } from "next";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export function generateMetadata({ params }: { params: { code: string } }): Metadata {
-  const item = getCertificateByPublicCode(params.code);
+export async function generateMetadata({ params }: { params: { code: string } }): Promise<Metadata> {
+  const item = await getCertificateByPublicCode(params.code);
   return {
     title: item
       ? `${item.certificate_no} · ${item.company_name} | Vexim Global`
@@ -16,8 +16,8 @@ export function generateMetadata({ params }: { params: { code: string } }): Meta
   };
 }
 
-export default function VerifyPage({ params }: { params: { code: string } }) {
-  const item = getCertificateByPublicCode(params.code);
+export default async function VerifyPage({ params }: { params: { code: string } }) {
+  const item = await getCertificateByPublicCode(params.code);
   if (!item || item.status === "draft") notFound();
   const { service_price: _hidden, ...publicCert } = item;
   void _hidden;

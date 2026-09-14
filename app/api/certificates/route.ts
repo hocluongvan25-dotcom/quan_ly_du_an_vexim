@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export async function GET() {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  return NextResponse.json({ items: listCertificates() });
+  return NextResponse.json({ items: await listCertificates() });
 }
 
 export async function POST(req: Request) {
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   if (!body.company_name || !body.registered_at || !body.registration_code) {
     return NextResponse.json({ error: "Vui lòng điền đủ thông tin bắt buộc." }, { status: 400 });
   }
-  const id = createCertificate({
+  const id = await createCertificate({
     standard: standard as Standard,
     registration_code: String(body.registration_code),
     service_price: Number(body.service_price || 0),

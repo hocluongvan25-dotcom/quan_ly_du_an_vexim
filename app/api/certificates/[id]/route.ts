@@ -17,7 +17,7 @@ type Ctx = { params: { id: string } };
 export async function GET(_: Request, ctx: Ctx) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  const item = getCertificate(Number(ctx.params.id));
+  const item = await getCertificate(Number(ctx.params.id));
   if (!item) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
   return NextResponse.json({ item });
 }
@@ -30,19 +30,19 @@ export async function PUT(req: Request, ctx: Ctx) {
   const id = Number(ctx.params.id);
   try {
     if (action === "confirm") {
-      confirmValidity(id);
-      return NextResponse.json({ item: getCertificate(id) });
+      await confirmValidity(id);
+      return NextResponse.json({ item: await getCertificate(id) });
     }
     if (action === "publish") {
-      const item = publishCertificate(id);
+      const item = await publishCertificate(id);
       return NextResponse.json({ item });
     }
     if (action === "renew") {
-      const item = renewCertificate(id, Number(body.extra_fee || 0));
+      const item = await renewCertificate(id, Number(body.extra_fee || 0));
       return NextResponse.json({ item });
     }
     const standard = body.standard === "GACC" ? "GACC" : "FDA";
-    updateCertificate(id, {
+    await updateCertificate(id, {
       standard: standard as Standard,
       registration_code: String(body.registration_code || ""),
       service_price: Number(body.service_price || 0),
@@ -50,7 +50,7 @@ export async function PUT(req: Request, ctx: Ctx) {
       scope: String(body.scope || ""),
       registered_at: String(body.registered_at || "").slice(0, 10),
     });
-    return NextResponse.json({ item: getCertificate(id) });
+    return NextResponse.json({ item: await getCertificate(id) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "ERROR";
     const map: Record<string, string> = {
@@ -68,7 +68,7 @@ export async function DELETE(_: Request, ctx: Ctx) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
   try {
-    deleteCertificate(Number(ctx.params.id));
+    await deleteCertificate(Number(ctx.params.id));
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "ERROR";

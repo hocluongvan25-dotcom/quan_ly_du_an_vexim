@@ -95,8 +95,8 @@ export default function RevenuePage() {
               <YAxis tickFormatter={(v) => `${Math.round(v / 1e6)}tr`} tick={{ fontSize: 12 }} />
               <Tooltip formatter={(v: number) => formatVnd(v)} />
               <Legend />
-              <Bar dataKey="FDA" fill="#0A2F4A" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="GACC" fill="#128C86" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="FDA" fill="#24180C" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="GACC" fill="#E8B22A" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

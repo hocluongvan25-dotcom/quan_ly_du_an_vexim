@@ -14,7 +14,7 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
   const total = daysBetween(cert.registered_at, cert.expires_at);
 
   return (
-    <div className="min-h-screen bg-[#eef6f6] text-navy-900">
+    <div className="min-h-screen bg-[#fff8ec] text-navy-900">
       <header className="bg-navy-900 text-white">
         <div className="mx-auto flex max-w-lg items-center justify-between px-5 py-4">
           <Logo invert markClassName="h-11 w-11" />
@@ -66,7 +66,7 @@ export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> 
             />
           </div>
 
-          <div className="relative mt-4 rounded-2xl bg-[#f4fbfb] p-4">
+          <div className="relative mt-4 rounded-2xl bg-[#fff6df] p-4">
             <div className="text-[11px] font-semibold uppercase tracking-wider text-navy-900/45">
               Scope
             </div>
@@ -133,7 +133,7 @@ function Info({
   mono?: boolean;
 }) {
   return (
-    <div className="rounded-2xl bg-[#f4f8fa] px-3 py-3">
+    <div className="rounded-2xl bg-[#fff6df] px-3 py-3">
       <div className="text-[10px] font-semibold uppercase tracking-wider text-navy-900/40">
         {label}
       </div>

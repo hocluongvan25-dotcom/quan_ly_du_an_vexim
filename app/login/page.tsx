@@ -33,7 +33,7 @@ export default function LoginPage() {
 
   return (
     <div className="mesh min-h-screen px-4 py-10">
-      <div className="mx-auto grid max-w-5xl overflow-hidden rounded-[32px] bg-white shadow-lift md:grid-cols-2">
+      <div className="mx-auto grid max-w-5xl overflow-hidden rounded-[32px] border border-gold-400/30 bg-white shadow-lift md:grid-cols-2">
         <div className="relative hidden flex-col justify-between bg-navy-900 p-10 text-white md:flex">
           <Logo invert />
           <div>
@@ -74,7 +74,7 @@ export default function LoginPage() {
             Email
           </label>
           <input
-            className="mt-1.5 w-full rounded-xl border border-navy-900/10 bg-[#f7fafb] px-3 py-2.5 text-sm outline-none ring-teal-500/30 focus:ring-4"
+            className="mt-1.5 w-full rounded-xl border border-navy-900/10 bg-[#fffaf0] px-3 py-2.5 text-sm outline-none ring-gold-400/40 focus:ring-4"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             type="email"
@@ -84,7 +84,7 @@ export default function LoginPage() {
             Mật khẩu
           </label>
           <input
-            className="mt-1.5 w-full rounded-xl border border-navy-900/10 bg-[#f7fafb] px-3 py-2.5 text-sm outline-none ring-teal-500/30 focus:ring-4"
+            className="mt-1.5 w-full rounded-xl border border-navy-900/10 bg-[#fffaf0] px-3 py-2.5 text-sm outline-none ring-gold-400/40 focus:ring-4"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             type="password"
@@ -93,7 +93,7 @@ export default function LoginPage() {
           {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
           <button
             disabled={loading}
-            className="mt-6 w-full rounded-xl bg-navy-900 py-3 text-sm font-semibold text-white hover:bg-navy-800 disabled:opacity-60"
+            className="mt-6 w-full rounded-xl bg-gradient-to-r from-gold-400 to-teal-500 py-3 text-sm font-bold text-navy-950 hover:opacity-95 disabled:opacity-60"
           >
             {loading ? "Đang xác thực..." : "Vào hệ thống"}
           </button>
