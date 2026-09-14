@@ -13,18 +13,21 @@ import {
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/types";
-
-const NAV = [
-  { href: "/dashboard", label: "Overview", icon: LayoutDashboard, adminOnly: false },
-  { href: "/dashboard/ho-so", label: "FDA / GACC Records", icon: FileBadge2, adminOnly: false },
-  { href: "/dashboard/ho-so/moi", label: "New Record", icon: Plus, adminOnly: false },
-  { href: "/dashboard/doanh-thu", label: "Revenue", icon: BarChart3, adminOnly: true },
-  { href: "/dashboard/nguoi-dung", label: "Users & Roles", icon: Users, adminOnly: true },
-];
+import { useI18n } from "@/lib/i18n/context";
+import { LanguageSwitcherCompact } from "./LanguageSwitcher";
 
 export function Sidebar({ user }: { user: SessionUser }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { t } = useI18n();
+
+  const NAV = [
+    { href: "/dashboard", labelKey: "nav.overview", icon: LayoutDashboard, adminOnly: false },
+    { href: "/dashboard/ho-so", labelKey: "nav.records", icon: FileBadge2, adminOnly: false },
+    { href: "/dashboard/ho-so/moi", labelKey: "nav.newRecord", icon: Plus, adminOnly: false },
+    { href: "/dashboard/doanh-thu", labelKey: "nav.revenue", icon: BarChart3, adminOnly: true },
+    { href: "/dashboard/nguoi-dung", labelKey: "nav.users", icon: Users, adminOnly: true },
+  ];
 
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -36,8 +39,11 @@ export function Sidebar({ user }: { user: SessionUser }) {
       <div className="border-b border-white/10 px-5 py-5">
         <Logo invert />
         <p className="mt-3 text-[11px] leading-relaxed text-white/55">
-          FDA · GACC Record Management
+          {t("nav.fdaGaccManagement")}
         </p>
+        <div className="mt-3">
+          <LanguageSwitcherCompact className="bg-white/10" />
+        </div>
       </div>
       <nav className="flex-1 space-y-1 px-3 py-4">
         {NAV.filter((i) => !i.adminOnly || user.role === "admin").map((item) => {
@@ -61,7 +67,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
               )}
             >
               <Icon className="h-4 w-4 text-teal-400" />
-              {item.label}
+              {t(item.labelKey)}
             </Link>
           );
         })}
@@ -70,14 +76,14 @@ export function Sidebar({ user }: { user: SessionUser }) {
         <div className="mb-3 rounded-2xl bg-white/5 px-3 py-2.5">
           <div className="text-sm font-semibold">{user.name}</div>
           <div className="text-[11px] text-teal-300">
-            {user.role === "admin" ? "Administrator" : "Specialist"}
+            {user.role === "admin" ? t("nav.admin") : t("nav.specialist")}
           </div>
         </div>
         <button
           onClick={logout}
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/15"
         >
-          <LogOut className="h-4 w-4" /> Logout
+          <LogOut className="h-4 w-4" /> {t("nav.logout")}
         </button>
       </div>
     </aside>

@@ -5,8 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { formatDate, formatVnd, remainingDays, statusLabel, getValidityYears, formatDuns } from "@/lib/utils";
 import type { Certificate } from "@/lib/types";
 import { Search } from "lucide-react";
+import { useI18n } from "@/lib/i18n/context";
 
 export default function CertificatesPage() {
+  const { t } = useI18n();
   const [items, setItems] = useState<Certificate[]>([]);
   const [q, setQ] = useState("");
   const [std, setStd] = useState("ALL");
@@ -33,14 +35,14 @@ export default function CertificatesPage() {
     <div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl font-extrabold text-navy-900">FDA & GACC Records</h1>
-          <p className="mt-1 text-sm text-navy-900/55">FDA 1-10 years per contract · GACC default 5 years (customizable 1-10 years) · DUNS tracking · Renewal follows contract</p>
+          <h1 className="font-display text-3xl font-extrabold text-navy-900">{t("records.title")}</h1>
+          <p className="mt-1 text-sm text-navy-900/55">{t("records.subtitle")}</p>
         </div>
         <Link
           href="/dashboard/ho-so/moi"
           className="rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white"
         >
-          Create Record
+          {t("records.createRecord")}
         </Link>
       </div>
 
@@ -50,7 +52,7 @@ export default function CertificatesPage() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search company, certificate no, code, DUNS..."
+            placeholder={t("records.searchPlaceholder")}
             className="w-full rounded-xl border border-navy-900/10 bg-white py-2 pl-9 pr-3 text-sm outline-none"
           />
         </div>
@@ -62,7 +64,7 @@ export default function CertificatesPage() {
               std === s ? "bg-navy-900 text-white" : "bg-white text-navy-900"
             }`}
           >
-            {s === "ALL" ? "All" : s}
+            {s === "ALL" ? t("records.all") : s}
           </button>
         ))}
       </div>
@@ -72,16 +74,16 @@ export default function CertificatesPage() {
           <table className="w-full min-w-[1000px] text-left text-sm">
             <thead className="bg-[#fffaf0] text-[11px] uppercase tracking-wider text-navy-900/45">
               <tr>
-                <th className="px-4 py-3">Certificate No</th>
-                <th className="px-4 py-3">Company</th>
-                <th className="px-4 py-3">Standard</th>
-                <th className="px-4 py-3">Contract</th>
-                <th className="px-4 py-3">Code</th>
-                <th className="px-4 py-3">DUNS</th>
-                <th className="px-4 py-3">Reg / Expiry</th>
-                <th className="px-4 py-3">Remaining</th>
-                {role === "admin" && <th className="px-4 py-3">Service Fee</th>}
-                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">{t("records.certificateNo")}</th>
+                <th className="px-4 py-3">{t("records.company")}</th>
+                <th className="px-4 py-3">{t("records.standard")}</th>
+                <th className="px-4 py-3">{t("records.contract")}</th>
+                <th className="px-4 py-3">{t("records.code")}</th>
+                <th className="px-4 py-3">{t("records.duns")}</th>
+                <th className="px-4 py-3">{t("records.regExpiry")}</th>
+                <th className="px-4 py-3">{t("records.remaining")}</th>
+                {role === "admin" && <th className="px-4 py-3">{t("records.serviceFee")}</th>}
+                <th className="px-4 py-3">{t("records.status")}</th>
               </tr>
             </thead>
             <tbody>
@@ -99,7 +101,7 @@ export default function CertificatesPage() {
                     <td className="px-4 py-3 font-bold">{c.standard}</td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-gold-100 px-2 py-0.5 text-xs font-bold text-gold-700">
-                        {vy} {vy === 1 ? "year" : "years"}
+                        {vy} {vy === 1 ? t("common.year") : t("common.years")}
                       </span>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs">{c.registration_code}</td>
@@ -110,7 +112,7 @@ export default function CertificatesPage() {
                       {formatDate(c.registered_at)}
                       <div className="text-navy-900/45">→ {formatDate(c.expires_at)}</div>
                     </td>
-                    <td className="px-4 py-3 font-semibold">{left < 0 ? "—" : `${left} days`}</td>
+                    <td className="px-4 py-3 font-semibold">{left < 0 ? "—" : `${left} ${t("common.days")}`}</td>
                     {role === "admin" && (
                       <td className="px-4 py-3 text-xs">{formatVnd(c.service_price)}</td>
                     )}
@@ -137,7 +139,7 @@ export default function CertificatesPage() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={10} className="px-4 py-10 text-center text-navy-900/45">
-                    No matching records found.
+                    {t("records.noRecords")}
                   </td>
                 </tr>
               )}

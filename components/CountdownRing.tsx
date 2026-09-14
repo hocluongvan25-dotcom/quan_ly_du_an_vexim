@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { remainingMs, splitCountdown } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/context";
+
 export function CountdownRing({
   registeredAt,
   expiresAt,
@@ -11,6 +13,7 @@ export function CountdownRing({
   expiresAt: string;
   running: boolean;
 }) {
+  const { t } = useI18n();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -37,10 +40,10 @@ export function CountdownRing({
   const dash = c * pct;
 
   const items = [
-    { label: "Days", value: parts.days },
-    { label: "Hours", value: parts.hours },
-    { label: "Minutes", value: parts.minutes },
-    { label: "Seconds", value: parts.seconds },
+    { label: t("countdown.days"), value: parts.days },
+    { label: t("countdown.hours"), value: parts.hours },
+    { label: t("countdown.minutes"), value: parts.minutes },
+    { label: t("countdown.seconds"), value: parts.seconds },
   ];
 
   return (
@@ -65,7 +68,7 @@ export function CountdownRing({
               {Math.ceil(remain / 86400000)}
             </div>
             <div className="text-[10px] font-semibold uppercase tracking-widest text-navy-900/50">
-              days remaining
+              {t("countdown.days")} {t("common.days") === "ngày" ? "còn lại" : "remaining"}
             </div>
           </div>
         </div>
@@ -84,7 +87,7 @@ export function CountdownRing({
         ))}
       </div>
       <p className="max-w-xs text-center text-[11px] leading-relaxed text-navy-900/55">
-        Validity clock counts from expiry date back to registration date — remaining time of the certificate.
+        {t("countdown.remaining", { days: Math.ceil(remain / 86400000) })}
       </p>
     </div>
   );

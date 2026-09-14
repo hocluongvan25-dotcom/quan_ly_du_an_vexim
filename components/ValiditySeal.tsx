@@ -2,6 +2,7 @@
 
 import { Check, ShieldAlert, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/context";
 
 export function ValiditySeal({
   valid,
@@ -14,6 +15,7 @@ export function ValiditySeal({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
+  const { t } = useI18n();
   const dims =
     size === "lg"
       ? "h-28 w-28 text-[15px]"
@@ -46,7 +48,7 @@ export function ValiditySeal({
       >
         <div className="flex flex-col items-center">
           <ShieldAlert className="mb-0.5 h-6 w-6" />
-          <span className="font-display font-extrabold tracking-[0.18em]">EXPIRED</span>
+          <span className="font-display font-extrabold tracking-[0.18em]">{t("status.expired")}</span>
         </div>
       </div>
     );
@@ -62,7 +64,7 @@ export function ValiditySeal({
     >
       <div className="flex flex-col items-center">
         {size === "lg" ? <ShieldCheck className="mb-1 h-8 w-8" /> : <Check className="mb-0.5 h-5 w-5" strokeWidth={3} />}
-        <span className="font-display font-extrabold tracking-[0.22em]">VALID</span>
+        <span className="font-display font-extrabold tracking-[0.22em]">{t("status.valid")}</span>
       </div>
     </div>
   );

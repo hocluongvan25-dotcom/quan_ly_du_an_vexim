@@ -5,9 +5,12 @@ import { useRouter } from "next/navigation";
 import { Logo } from "@/components/Logo";
 import { COMPANY } from "@/lib/types";
 import { ShieldCheck } from "lucide-react";
+import { useI18n } from "@/lib/i18n/context";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useI18n();
   const [email, setEmail] = useState("admin@veximglobal.com");
   const [password, setPassword] = useState("Vexim@Admin2026");
   const [error, setError] = useState("");
@@ -25,7 +28,7 @@ export default function LoginPage() {
     const data = await res.json();
     setLoading(false);
     if (!res.ok) {
-      setError(data.error || "Login failed");
+      setError(data.error || t("login.invalidCredentials"));
       return;
     }
     router.replace("/dashboard");
@@ -33,6 +36,9 @@ export default function LoginPage() {
 
   return (
     <div className="mesh min-h-screen px-4 py-10">
+      <div className="absolute right-4 top-4">
+        <LanguageSwitcher />
+      </div>
       <div className="mx-auto grid max-w-5xl overflow-hidden rounded-[32px] border border-gold-400/30 bg-white shadow-lift md:grid-cols-2">
         <div className="relative hidden flex-col justify-between bg-navy-900 p-10 text-white md:flex">
           <Logo invert />
@@ -51,9 +57,9 @@ export default function LoginPage() {
                 "FDA flexible 1-10 years per contract",
                 "GACC flexible 1-10 years per contract",
                 "Mobile-optimized verification landing page",
-              ].map((t) => (
-                <li key={t} className="flex items-center gap-2">
-                  <ShieldCheck className="h-4 w-4 text-teal-400" /> {t}
+              ].map((txt) => (
+                <li key={txt} className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-teal-400" /> {txt}
                 </li>
               ))}
             </ul>
@@ -65,13 +71,13 @@ export default function LoginPage() {
             <Logo />
           </div>
           <h2 className="mt-6 font-display text-2xl font-bold text-navy-900 md:mt-2">
-            Internal Login
+            {t("login.title")}
           </h2>
           <p className="mt-1 text-sm text-navy-900/55">
-            For administrators and specialists.
+            {t("login.subtitle")}
           </p>
           <label className="mt-8 block text-xs font-semibold uppercase tracking-wider text-navy-900/60">
-            Email
+            {t("login.email")}
           </label>
           <input
             className="mt-1.5 w-full rounded-xl border border-navy-900/10 bg-[#fffaf0] px-3 py-2.5 text-sm outline-none ring-gold-400/40 focus:ring-4"
@@ -81,7 +87,7 @@ export default function LoginPage() {
             required
           />
           <label className="mt-4 block text-xs font-semibold uppercase tracking-wider text-navy-900/60">
-            Password
+            {t("login.password")}
           </label>
           <input
             className="mt-1.5 w-full rounded-xl border border-navy-900/10 bg-[#fffaf0] px-3 py-2.5 text-sm outline-none ring-gold-400/40 focus:ring-4"
@@ -95,10 +101,10 @@ export default function LoginPage() {
             disabled={loading}
             className="mt-6 w-full rounded-xl bg-gradient-to-r from-gold-400 to-teal-500 py-3 text-sm font-bold text-navy-950 hover:opacity-95 disabled:opacity-60"
           >
-            {loading ? "Authenticating..." : "Enter System"}
+            {loading ? t("login.loggingIn") : t("login.loginButton")}
           </button>
           <div className="mt-6 rounded-2xl bg-teal-50 p-4 text-xs leading-relaxed text-navy-900/70">
-            <div className="font-semibold text-navy-900">Demo Accounts</div>
+            <div className="font-semibold text-navy-900">{t("login.demoAccounts")}</div>
             <p className="mt-1">Admin: admin@veximglobal.com / Vexim@Admin2026</p>
             <p>Specialist: chuyenmon@veximglobal.com / Vexim@CM2026</p>
           </div>

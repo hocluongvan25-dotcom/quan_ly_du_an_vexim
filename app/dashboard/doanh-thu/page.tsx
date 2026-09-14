@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useI18n } from "@/lib/i18n/context";
 
 type Stats = {
   total: number;
@@ -31,6 +32,7 @@ type Stats = {
 };
 
 export default function RevenuePage() {
+  const { t } = useI18n();
   const [stats, setStats] = useState<Stats | null>(null);
   const [tab, setTab] = useState<"month" | "quarter" | "year">("month");
   const [err, setErr] = useState("");
@@ -48,7 +50,7 @@ export default function RevenuePage() {
   if (err) {
     return <div className="rounded-3xl bg-white p-8 text-navy-900/60">{err}</div>;
   }
-  if (!stats) return <div className="text-sm text-navy-900/50">Loading statistics...</div>;
+  if (!stats) return <div className="text-sm text-navy-900/50">{t("common.loading")}</div>;
 
   const data =
     tab === "month" ? stats.months : tab === "quarter" ? stats.quarters : stats.years;
@@ -57,23 +59,21 @@ export default function RevenuePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-extrabold text-navy-900">FDA & GACC Revenue</h1>
-        <p className="mt-1 text-sm text-navy-900/55">
-          Revenue is recorded when a record is published. Not displayed on customer-facing verification page.
-        </p>
+        <h1 className="font-display text-3xl font-extrabold text-navy-900">{t("revenue.title")}</h1>
+        <p className="mt-1 text-sm text-navy-900/55">{t("revenue.subtitle")}</p>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        <Card label="Total Revenue" value={formatVnd(stats.total)} hint={`${stats.count} published records`} />
-        <Card label="FDA" value={formatVnd(stats.fda)} hint="Flexible 1-10 years" />
-        <Card label="GACC" value={formatVnd(stats.gacc)} hint="Flexible 1-10 years" />
+        <Card label={t("revenue.totalRevenue")} value={formatVnd(stats.total)} hint={`${stats.count} ${t("revenue.publishedCount")}`} />
+        <Card label={t("revenue.fdaRevenue")} value={formatVnd(stats.fda)} hint="Flexible 1-10 years" />
+        <Card label={t("revenue.gaccRevenue")} value={formatVnd(stats.gacc)} hint="Flexible 1-10 years" />
       </div>
       <section className="rounded-3xl bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-wrap gap-2">
           {(
             [
-              ["month", "By Month"],
-              ["quarter", "By Quarter"],
-              ["year", "By Year"],
+              ["month", t("revenue.monthly")],
+              ["quarter", t("revenue.quarterly")],
+              ["year", t("revenue.yearly")],
             ] as const
           ).map(([k, label]) => (
             <button
@@ -102,7 +102,7 @@ export default function RevenuePage() {
         </div>
       </section>
       <section className="rounded-3xl bg-white p-5 shadow-card">
-        <h2 className="font-display text-lg font-bold">Revenue Records</h2>
+        <h2 className="font-display text-lg font-bold">{t("revenue.recent")}</h2>
         <div className="mt-3 divide-y divide-navy-900/5">
           {stats.recent.map((r) => (
             <div key={r.certificate_no} className="flex items-center justify-between py-3 text-sm">
