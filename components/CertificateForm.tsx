@@ -58,11 +58,17 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     () => expiryFromStandard(form.registered_at, form.standard, form.validity_years),
     [form.registered_at, form.standard, form.validity_years]
   );
-  const left = remainingDays(item?.expires_at || expires);
+  const previewLeft = remainingDays(expires);
+  const savedLeft = item ? remainingDays(item.expires_at) : previewLeft;
+  const left = previewLeft; // dynamic, follows selected years
   const confirmed = Boolean(item?.validity_confirmed);
   const published = item?.status === "published" || item?.status === "expired";
-  const valid = confirmed && left >= 0;
-  const currentValidity = item ? getValidityYears(item) : form.validity_years;
+  const valid = confirmed && savedLeft >= 0; // validity badge based on saved expiry
+  // displayValidity follows the selected years in the form (dynamic), savedValidity is the persisted contract
+  const displayValidity = form.validity_years;
+  const savedValidity = item ? getValidityYears(item) : form.validity_years;
+  // Keep currentValidity alias for backward compat in renew logic (saved value)
+  const currentValidity = savedValidity;
 
   // Renew preview calculation
   const renewBaseDate = useMemo(() => {
@@ -316,8 +322,8 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                 <span className={valid ? "text-emerald-600" : "text-rose-600"}>
                   {valid
                     ? t("form.validRunning", {
-                        years: currentValidity,
-                        yearLabel: currentValidity === 1 ? t("common.year") : t("common.years"),
+                        years: displayValidity,
+                        yearLabel: displayValidity === 1 ? t("common.year") : t("common.years"),
                       })
                     : t("form.expiredStatus")}
                 </span>
