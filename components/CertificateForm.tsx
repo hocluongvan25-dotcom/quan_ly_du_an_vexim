@@ -7,7 +7,7 @@ import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
 import { expiryFromStandard, formatDate, remainingDays, getValidityYears, formatDuns } from "@/lib/utils";
 import { VALIDITY_OPTIONS, DEFAULT_VALIDITY, type Certificate, type Standard } from "@/lib/types";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2, X } from "lucide-react";
 
 type FormState = {
   standard: Standard;
@@ -37,9 +37,20 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
   const [busy, setBusy] = useState("");
   const [origin, setOrigin] = useState("");
 
+  // Renew dialog state
+  const [showRenewDialog, setShowRenewDialog] = useState(false);
+  const [renewYears, setRenewYears] = useState<number>(initial?.validity_years || 2);
+  const [renewFee, setRenewFee] = useState<string>("0");
+
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
+
+  useEffect(() => {
+    if (item) {
+      setRenewYears(getValidityYears(item));
+    }
+  }, [item?.id]);
 
   const expires = useMemo(
     () => expiryFromStandard(form.registered_at, form.standard, form.validity_years),
@@ -50,6 +61,17 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
   const published = item?.status === "published" || item?.status === "expired";
   const valid = confirmed && left >= 0;
   const currentValidity = item ? getValidityYears(item) : form.validity_years;
+
+  // Renew preview calculation
+  const renewBaseDate = useMemo(() => {
+    if (!item) return new Date().toISOString().slice(0, 10);
+    return remainingDays(item.expires_at) >= 0 ? item.expires_at : new Date().toISOString().slice(0, 10);
+  }, [item?.expires_at]);
+
+  const renewNewExpiry = useMemo(() => {
+    if (!item) return "";
+    return expiryFromStandard(renewBaseDate, item.standard, renewYears);
+  }, [renewBaseDate, item?.standard, renewYears]);
 
   function patch<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((s) => ({ ...s, [key]: value }));
@@ -97,21 +119,17 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     setMsg(`Saved. Validity ${data.item.validity_years} ${data.item.validity_years === 1 ? "year" : "years"}, expires ${formatDate(data.item.expires_at)}`);
   }
 
-  async function action(kind: "confirm" | "publish" | "renew") {
+  async function action(kind: "confirm" | "publish") {
     if (!item) {
       await save();
       return;
     }
     setBusy(kind);
     setMsg("");
-    const extra =
-      kind === "renew"
-        ? Number(prompt(`Renew for additional ${currentValidity} ${currentValidity === 1 ? "year" : "years"} per contract (follows contract duration). Extra fee (VND), leave empty if none:`, "0") || 0)
-        : 0;
     const res = await fetch(`/api/certificates/${item.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: kind, extra_fee: extra }),
+      body: JSON.stringify({ action: kind }),
     });
     const data = await res.json();
     setBusy("");
@@ -122,7 +140,32 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     setItem(data.item);
     if (kind === "confirm") setMsg("Validity confirmed. VALID badge is now active.");
     if (kind === "publish") setMsg("Published. Revenue recorded and QR code ready to print.");
-    if (kind === "renew") setMsg(`Renewed for additional ${getValidityYears(data.item)} ${getValidityYears(data.item) === 1 ? "year" : "years"} per contract (follows contract duration).`);
+  }
+
+  async function doRenew() {
+    if (!item) return;
+    setBusy("renew");
+    setMsg("");
+    const payload = {
+      action: "renew",
+      validity_years: renewYears,
+      renew_years: renewYears,
+      extra_fee: Number(String(renewFee).replace(/[^\d]/g, "") || 0),
+    };
+    const res = await fetch(`/api/certificates/${item.id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json();
+    setBusy("");
+    if (!res.ok) {
+      setMsg(data.error || "Renew failed");
+      return;
+    }
+    setItem(data.item);
+    setShowRenewDialog(false);
+    setMsg(`Renewed for ${getValidityYears(data.item)} ${getValidityYears(data.item) === 1 ? "year" : "years"}: new expiry ${formatDate(data.item.expires_at)} (renewal #${data.item.renewal_count}).`);
   }
 
   const qrUrl = item && origin ? `${origin}/verify/${item.public_code}` : "";
@@ -136,7 +179,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               {item ? item.certificate_no : "New Record"}
             </h1>
             <p className="mt-1 text-sm text-navy-900/55">
-              Specialists fill after registration is complete. Service fee is internal only. Contract duration 1-10 years. Renewal follows contract duration.
+              Specialists fill after registration is complete. Service fee is internal only. Contract duration 1-10 years. Renewal allows custom years + fee.
             </p>
           </div>
           <ValiditySeal valid={valid} confirmed={confirmed} size="sm" />
@@ -264,6 +307,16 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               )}
             </div>
           </Field>
+          {item && item.renewal_count > 0 && (
+            <>
+              <Field label="Renewal Count">
+                <input className="input bg-slate-50" readOnly value={`${item.renewal_count} times`} />
+              </Field>
+              <Field label="Last Renewed At">
+                <input className="input bg-slate-50" readOnly value={item.last_renewed_at ? formatDate(item.last_renewed_at) : "—"} />
+              </Field>
+            </>
+          )}
         </div>
 
         {msg && (
@@ -306,10 +359,14 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
             <button
               type="button"
               disabled={!!busy}
-              onClick={() => action("renew")}
+              onClick={() => {
+                setRenewYears(currentValidity);
+                setRenewFee("0");
+                setShowRenewDialog(true);
+              }}
               className="rounded-xl bg-gold-500 px-4 py-2.5 text-sm font-semibold text-navy-950"
             >
-              Renew {currentValidity} {currentValidity === 1 ? "year" : "years"} (per contract)
+              Renew
             </button>
           )}
         </div>
@@ -332,11 +389,16 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
           <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs">
             <div className="font-semibold text-navy-900">Contract Details:</div>
             <div className="mt-1 text-navy-900/60">
-              Standard: <b>{form.standard}</b> · Duration: <b>{form.validity_years} {form.validity_years === 1 ? "year" : "years"}</b> · Renewal: <b>{form.validity_years} {form.validity_years === 1 ? "year" : "years"}/cycle (follows contract)</b>
+              Standard: <b>{form.standard}</b> · Duration: <b>{form.validity_years} {form.validity_years === 1 ? "year" : "years"}</b> · Renewal: selectable 1-10 years + fee
             </div>
             {form.duns_code && (
               <div className="mt-2">
                 DUNS: <b className="font-mono">{formatDuns(form.duns_code)}</b>
+              </div>
+            )}
+            {item && item.renewal_count > 0 && (
+              <div className="mt-2 text-navy-900/60">
+                Renewed <b>{item.renewal_count}</b> times · Last: {item.last_renewed_at ? formatDate(item.last_renewed_at) : "—"} · Current term: <b>{currentValidity} {currentValidity === 1 ? "year" : "years"}</b>
               </div>
             )}
           </div>
@@ -349,6 +411,97 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
           </div>
         )}
       </aside>
+
+      {/* Renew Dialog */}
+      {showRenewDialog && item && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-display text-xl font-bold text-navy-900">Renew Certificate</h3>
+              <button onClick={() => setShowRenewDialog(false)} className="rounded-full p-1 hover:bg-slate-100">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="mt-2 text-sm text-navy-900/60">
+              {item.certificate_no} · {item.company_name}
+            </p>
+            <div className="mt-1 text-xs text-navy-900/50">
+              Current expiry: <b>{formatDate(item.expires_at)}</b> · Base date for renewal: <b>{formatDate(renewBaseDate)}</b> ({remainingDays(item.expires_at) >= 0 ? "from current expiry" : "from today (expired)"})
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <label>
+                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-navy-900/50">
+                  Renewal Duration (years) — 1 to 10
+                </div>
+                <select
+                  value={renewYears}
+                  onChange={(e) => setRenewYears(Number(e.target.value))}
+                  className="input font-semibold"
+                >
+                  {VALIDITY_OPTIONS.map((y) => (
+                    <option key={y} value={y}>
+                      {y} {y === 1 ? "year" : "years"} {y === currentValidity ? "(current contract)" : ""} {y === 1 ? "- 1 year renewal" : y === 2 ? "- 2 years" : y >= 5 ? "- multi-year" : ""}
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-1 text-[11px] text-navy-900/50">
+                  Example: contract renew 1 year, or choose multi-year package (3,5,10 years). Expiry will be extended by selected years.
+                </div>
+              </label>
+
+              <label>
+                <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-navy-900/50">
+                  Renewal Fee (VND) — extra service fee
+                </div>
+                <input
+                  className="input"
+                  inputMode="numeric"
+                  value={renewFee}
+                  onChange={(e) => setRenewFee(e.target.value)}
+                  placeholder="0"
+                />
+                <div className="mt-1 text-[11px] text-navy-900/50">
+                  Leave 0 if no extra fee. This amount will be added to service_price and counted in revenue if already published.
+                </div>
+              </label>
+
+              <div className="rounded-xl bg-emerald-50 p-3 text-sm">
+                <div className="font-semibold text-emerald-900">Preview new expiry:</div>
+                <div className="mt-1 text-emerald-800">
+                  {formatDate(renewBaseDate)} + {renewYears} {renewYears === 1 ? "year" : "years"} → <b>{formatDate(renewNewExpiry)}</b>
+                </div>
+                <div className="mt-1 text-xs text-emerald-700/70">
+                  Renewal count will become {item.renewal_count + 1}, validity_years updated to {renewYears} {renewYears === 1 ? "year" : "years"}.
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                onClick={() => setShowRenewDialog(false)}
+                disabled={!!busy}
+                className="rounded-xl border border-navy-900/10 px-4 py-2.5 text-sm font-semibold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={doRenew}
+                disabled={!!busy}
+                className="rounded-xl bg-gold-500 px-5 py-2.5 text-sm font-bold text-navy-950 disabled:opacity-50"
+              >
+                {busy === "renew" ? (
+                  <span className="inline-flex items-center gap-1">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Renewing...
+                  </span>
+                ) : (
+                  `Renew ${renewYears} ${renewYears === 1 ? "year" : "years"}`
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

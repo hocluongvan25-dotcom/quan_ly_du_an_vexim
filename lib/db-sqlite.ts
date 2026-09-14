@@ -443,11 +443,16 @@ export function publishCertificate(id: number) {
   return getCertificate(id)!;
 }
 
-export function renewCertificate(id: number, extraFee = 0) {
+export function renewCertificate(id: number, extraFee = 0, renewalYears?: number) {
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  // Renewal must follow contract duration, not fixed 2 years
-  const validity = getValidityYears(current);
+  // Renewal can be custom years (1-10) selected by user, otherwise follow current contract
+  let validity: number;
+  if (renewalYears && isValidValidityYears(renewalYears)) {
+    validity = Math.round(renewalYears);
+  } else {
+    validity = getValidityYears(current);
+  }
   const baseDate =
     remainingDays(current.expires_at) >= 0
       ? current.expires_at
@@ -458,6 +463,7 @@ export function renewCertificate(id: number, extraFee = 0) {
     .prepare(
       `UPDATE certificates SET
         expires_at = ?,
+        validity_years = ?,
         renewal_count = renewal_count + 1,
         last_renewed_at = datetime('now'),
         service_price = service_price + ?,
@@ -466,7 +472,7 @@ export function renewCertificate(id: number, extraFee = 0) {
         updated_at = datetime('now')
        WHERE id = ?`
     )
-    .run(nextExpiry, extra, id);
+    .run(nextExpiry, validity, extra, id);
   return getCertificate(id)!;
 }
 

@@ -76,8 +76,10 @@ export async function publishCertificate(id: number) {
   return isSupabaseEnabled() ? cloud.publishCertificate(id) : sqlite.publishCertificate(id);
 }
 
-export async function renewCertificate(id: number, extraFee = 0) {
-  return isSupabaseEnabled() ? cloud.renewCertificate(id, extraFee) : sqlite.renewCertificate(id, extraFee);
+export async function renewCertificate(id: number, extraFee = 0, renewalYears?: number) {
+  return isSupabaseEnabled()
+    ? cloud.renewCertificate(id, extraFee, renewalYears)
+    : sqlite.renewCertificate(id, extraFee, renewalYears);
 }
 
 export async function deleteCertificate(id: number) {

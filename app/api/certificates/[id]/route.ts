@@ -44,7 +44,13 @@ export async function PUT(req: Request, ctx: Ctx) {
       return NextResponse.json({ item });
     }
     if (action === "renew") {
-      const item = await renewCertificate(id, Number(body.extra_fee || 0));
+      const extraFee = Number(body.extra_fee || body.renew_fee || 0);
+      const renewalYearsRaw = body.validity_years ?? body.renew_years ?? body.years;
+      const renewalYears = renewalYearsRaw ? Number(renewalYearsRaw) : undefined;
+      if (renewalYears !== undefined && !isValidValidityYears(renewalYears)) {
+        return NextResponse.json({ error: "Renewal duration must be between 1 and 10 years." }, { status: 400 });
+      }
+      const item = await renewCertificate(id, extraFee, renewalYears);
       return NextResponse.json({ item });
     }
     const standard = body.standard === "GACC" ? "GACC" : "FDA";

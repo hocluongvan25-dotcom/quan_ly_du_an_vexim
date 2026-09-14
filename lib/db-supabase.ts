@@ -405,11 +405,16 @@ export async function publishCertificate(id: number) {
   return (await getCertificate(id))!;
 }
 
-export async function renewCertificate(id: number, extraFee = 0) {
+export async function renewCertificate(id: number, extraFee = 0, renewalYears?: number) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  // Renewal must follow contract duration (validity_years), not fixed 2 years
-  const validity = getValidityYears(current);
+  // Renewal can be custom years (1-10) selected by user, otherwise follow current contract
+  let validity: number;
+  if (renewalYears && isValidValidityYears(renewalYears)) {
+    validity = Math.round(renewalYears);
+  } else {
+    validity = getValidityYears(current);
+  }
   const baseDate =
     remainingDays(current.expires_at) >= 0
       ? current.expires_at
@@ -420,6 +425,7 @@ export async function renewCertificate(id: number, extraFee = 0) {
     .from("certificates")
     .update({
       expires_at: nextExpiry,
+      validity_years: validity,
       renewal_count: current.renewal_count + 1,
       last_renewed_at: new Date().toISOString(),
       service_price: current.service_price + extra,
