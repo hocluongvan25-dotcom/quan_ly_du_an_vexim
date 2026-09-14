@@ -32,16 +32,21 @@ export async function POST(req: Request) {
     } else if (validity_years && !isValidValidityYearsForStandard(validity_years, standard as Standard)) {
       return NextResponse.json({ error: "FDA contract duration must be between 1 and 10 years." }, { status: 400 });
     }
-    if (body.duns_code) {
+    const isGacc = standard === "GACC";
+    if (!isGacc && body.duns_code) {
       const raw = String(body.duns_code).replace(/\D/g, "");
       if (raw && !isValidDunsCode(raw)) {
         return NextResponse.json({ error: "DUNS must be 9 digits (e.g. 12-345-6789)." }, { status: 400 });
       }
     }
+    // GACC does not have DUNS or US Agent
+    const dunsCode = isGacc ? "" : String(body.duns_code || "");
+    const usAgent = isGacc ? "" : String(body.us_agent || "").slice(0, 200);
     const id = await createCertificate({
       standard: standard as Standard,
       registration_code: String(body.registration_code),
-      duns_code: String(body.duns_code || ""),
+      duns_code: dunsCode,
+      us_agent: usAgent,
       service_price: Number(body.service_price || 0),
       company_name: String(body.company_name),
       scope: String(body.scope || ""),

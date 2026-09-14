@@ -18,19 +18,21 @@ function mapCert(row: Record<string, unknown>): Certificate {
   const joined = row.staff_users as { name?: string } | { name?: string }[] | null;
   const name = Array.isArray(joined) ? joined[0]?.name : joined?.name;
   const validity = Number(row.validity_years || 0);
+  const std = row.standard as Standard;
   const item: Certificate = {
     id: Number(row.id),
     public_code: String(row.public_code),
     certificate_no: String(row.certificate_no),
-    standard: row.standard as Standard,
+    standard: std,
     registration_code: String(row.registration_code || ""),
-    duns_code: String(row.duns_code || ""),
+    duns_code: std === "GACC" ? "" : String(row.duns_code || ""),
+    us_agent: std === "GACC" ? "" : String(row.us_agent || ""),
     service_price: Number(row.service_price || 0),
     company_name: String(row.company_name || ""),
     scope: String(row.scope || ""),
     registered_at: String(row.registered_at).slice(0, 10),
     expires_at: String(row.expires_at).slice(0, 10),
-    validity_years: isValidValidityYears(validity) ? validity : DEFAULT_VALIDITY[row.standard as Standard] ?? 2,
+    validity_years: isValidValidityYears(validity) ? validity : DEFAULT_VALIDITY[std] ?? 2,
     validity_confirmed: row.validity_confirmed ? 1 : 0,
     status: row.status as Certificate["status"],
     published_at: row.published_at ? String(row.published_at) : null,
@@ -73,6 +75,7 @@ const SAMPLE_CERTS: Array<{
   standard: Standard;
   code: string;
   duns: string;
+  us_agent: string;
   price: number;
   company: string;
   scope: string;
@@ -85,6 +88,7 @@ const SAMPLE_CERTS: Array<{
     standard: "FDA",
     code: "17823456789",
     duns: "123456789",
+    us_agent: "Vexim US Compliance LLC",
     price: 18500000,
     company: "An Phat Food JSC",
     scope: "Food Facility Registration — frozen seafood processing for export to USA",
@@ -96,7 +100,8 @@ const SAMPLE_CERTS: Array<{
     no: "VXM-GACC-2024-0008",
     standard: "GACC",
     code: "VN-GACC-44012345678",
-    duns: "987654321",
+    duns: "",
+    us_agent: "",
     price: 42000000,
     company: "Mekong Agri Products Co., Ltd",
     scope: "Food enterprise registration for export to China (GACC Decree 248)",
@@ -109,6 +114,7 @@ const SAMPLE_CERTS: Array<{
     standard: "FDA",
     code: "18900123456",
     duns: "112223333",
+    us_agent: "Liberty FDA Services Inc.",
     price: 21000000,
     company: "Green Leaf Cosmetics JSC",
     scope: "MoCRA facility registration & cosmetic product listing",
@@ -120,7 +126,8 @@ const SAMPLE_CERTS: Array<{
     no: "VXM-GACC-2026-0002",
     standard: "GACC",
     code: "VN-GACC-33098765432",
-    duns: "445556666",
+    duns: "",
+    us_agent: "",
     price: 38500000,
     company: "Viet Phat Rice JSC",
     scope: "Rice milling and packaging facility for export to China market",
@@ -133,6 +140,7 @@ const SAMPLE_CERTS: Array<{
     standard: "FDA",
     code: "17200998877",
     duns: "778889999",
+    us_agent: "Vexim US Compliance LLC",
     price: 16500000,
     company: "Binh Minh Seafood Co., Ltd",
     scope: "FDA Food Facility Registration — fresh and frozen seafood",
@@ -186,7 +194,8 @@ export async function ensureSeed() {
         certificate_no: s.no,
         standard: s.standard,
         registration_code: s.code,
-        duns_code: s.duns,
+        duns_code: s.standard === "GACC" ? "" : s.duns,
+        us_agent: s.standard === "GACC" ? "" : s.us_agent,
         service_price: s.price,
         company_name: s.company,
         scope: s.scope,
@@ -303,6 +312,7 @@ export async function createCertificate(input: {
   standard: Standard;
   registration_code: string;
   duns_code?: string;
+  us_agent?: string;
   service_price: number;
   company_name: string;
   scope: string;
@@ -313,7 +323,9 @@ export async function createCertificate(input: {
   const validity = normalizeValidityYears(input.validity_years, input.standard);
   const expires = expiryFromStandard(input.registered_at, input.standard, validity);
   const no = await nextCertificateNo(input.standard);
-  const duns = (input.duns_code || "").replace(/\D/g, "").slice(0, 9);
+  const isGacc = input.standard === "GACC";
+  const duns = isGacc ? "" : (input.duns_code || "").replace(/\D/g, "").slice(0, 9);
+  const usAgent = isGacc ? "" : (input.us_agent || "").trim().slice(0, 200);
   const { data, error } = await supabaseAdmin()
     .from("certificates")
     .insert({
@@ -322,6 +334,7 @@ export async function createCertificate(input: {
       standard: input.standard,
       registration_code: input.registration_code.trim(),
       duns_code: duns,
+      us_agent: usAgent,
       service_price: Math.max(0, Math.round(input.service_price || 0)),
       company_name: input.company_name.trim(),
       scope: input.scope.trim(),
@@ -342,6 +355,7 @@ export async function updateCertificate(
     standard: Standard;
     registration_code: string;
     duns_code?: string;
+    us_agent?: string;
     service_price: number;
     company_name: string;
     scope: string;
@@ -357,13 +371,16 @@ export async function updateCertificate(
     current.registered_at !== input.registered_at ||
     current.standard !== input.standard ||
     current.validity_years !== validity;
-  const duns = input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
+  const isGacc = input.standard === "GACC";
+  const duns = isGacc ? "" : input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
+  const usAgent = isGacc ? "" : input.us_agent !== undefined ? input.us_agent.trim().slice(0, 200) : current.us_agent;
   const { error } = await supabaseAdmin()
     .from("certificates")
     .update({
       standard: input.standard,
       registration_code: input.registration_code.trim(),
       duns_code: duns,
+      us_agent: usAgent,
       service_price: Math.max(0, Math.round(input.service_price || 0)),
       company_name: input.company_name.trim(),
       scope: input.scope.trim(),

@@ -12,7 +12,7 @@ import {
 } from "@/lib/utils";
 
 type Props = {
-  cert: Omit<Certificate, "service_price"> & { duns_code?: string };
+  cert: Omit<Certificate, "service_price"> & { duns_code?: string; us_agent?: string };
 };
 
 export function VerifyView({ cert }: Props) {
@@ -28,12 +28,15 @@ export function VerifyView({ cert }: Props) {
   const left = remainingDays(cert.expires_at);
   const total = daysBetween(cert.registered_at, cert.expires_at);
   const validityYears = getValidityYears(cert as any);
-  const duns = (cert as any).duns_code || "";
+  const isGacc = cert.standard === "GACC";
+  const isFda = cert.standard === "FDA";
+  const duns = isFda ? ((cert as any).duns_code || "") : "";
+  const usAgent = isFda ? ((cert as any).us_agent || "") : "";
   const expiryYear = new Date(cert.expires_at).getFullYear();
-  const ffrn = cert.registration_code || "—";
+  const regCode = cert.registration_code || "—";
   const scope = cert.scope || "";
 
-  // Load FontAwesome for B2B icons (spec requirement)
+  // Load FontAwesome for B2B icons
   useEffect(() => {
     if (!document.querySelector('link[href*="font-awesome"]')) {
       const link = document.createElement("link");
@@ -158,10 +161,16 @@ export function VerifyView({ cert }: Props) {
           </div>
 
           <h1 className="relative mt-6 font-extrabold text-[22px] leading-[1.15] tracking-tight">
-            Xác Thực Cơ Sở<br />FDA Hợp Lệ
+            {isGacc ? (
+              <>Xác Thực Cơ Sở<br />GACC Hợp Lệ</>
+            ) : (
+              <>Xác Thực Cơ Sở<br />FDA Hợp Lệ</>
+            )}
           </h1>
           <p className="relative mt-2.5 text-[12.5px] leading-[1.6] text-white/80 max-w-[300px]">
-            Xác minh đăng ký cơ sở FDA & mã FFRN. Hồ sơ chính thức được đồng bộ từ hệ thống Vexim Global.
+            {isGacc
+              ? "Xác minh đăng ký doanh nghiệp xuất khẩu thực phẩm sang Trung Quốc (GACC Decree 248). Hồ sơ chính thức được đồng bộ từ hệ thống Vexim Global."
+              : "Xác minh đăng ký cơ sở FDA & mã FFRN. Hồ sơ chính thức được đồng bộ từ hệ thống Vexim Global."}
           </p>
 
           <div className="relative mt-6 grid grid-cols-2 gap-2 bg-black/20 backdrop-blur p-1.5 rounded-2xl border border-white/10">
@@ -184,16 +193,18 @@ export function VerifyView({ cert }: Props) {
           {/* TAB 1 */}
           {activeTab === "facility" && (
             <div className="p-4 space-y-4">
-              {/* FDA Registration Card - Registration Details + Scope merged */}
+              {/* Registration Card - Registration Details + Scope merged */}
               <div className="bg-white rounded-[20px] border border-slate-200 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 flex items-center justify-between border-b border-slate-100 bg-[#fcfdfc]">
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600">
-                      <i className="fa-solid fa-file-shield text-[14px]"></i>
+                      <i className={`fa-solid ${isGacc ? "fa-globe" : "fa-file-shield"} text-[14px]`}></i>
                     </div>
                     <div>
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">FDA Registration</div>
-                      <div className="text-[13px] font-bold text-slate-900">Hồ sơ FDA</div>
+                      <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                        {isGacc ? "GACC Registration" : "FDA Registration"}
+                      </div>
+                      <div className="text-[13px] font-bold text-slate-900">{isGacc ? "Hồ sơ GACC" : "Hồ sơ FDA"}</div>
                     </div>
                   </div>
                   <div className={`px-3 py-1 rounded-full text-[11px] font-extrabold tracking-wider flex items-center gap-1 ${valid ? "bg-emerald-600 text-white" : "bg-red-50 text-red-700 border border-red-200"}`}>
@@ -203,12 +214,14 @@ export function VerifyView({ cert }: Props) {
 
                 <div className="p-5 space-y-4">
                   <div>
-                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Mã Đăng Ký FDA (FFRN)</div>
+                    <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">
+                      {isGacc ? "Mã Đăng Ký GACC (China Customs)" : "Mã Đăng Ký FDA (FFRN)"}
+                    </div>
                     <div className="mt-1.5 flex items-center justify-between bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-3 hover:border-amber-300 transition-colors">
-                      <div className="font-mono text-[15px] font-bold tracking-wide text-slate-900">{ffrn}</div>
+                      <div className="font-mono text-[15px] font-bold tracking-wide text-slate-900 break-all">{regCode}</div>
                       <button
-                        onClick={() => copyToClipboard(ffrn)}
-                        className="bg-white border border-slate-200 w-8 h-8 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all shadow-sm"
+                        onClick={() => copyToClipboard(regCode)}
+                        className="bg-white border border-slate-200 w-8 h-8 rounded-full flex items-center justify-center text-slate-600 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all shadow-sm shrink-0 ml-2"
                       >
                         <i className="fa-regular fa-copy text-[12px]"></i>
                       </button>
@@ -224,33 +237,46 @@ export function VerifyView({ cert }: Props) {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#f8fafc] border border-slate-200 rounded-xl p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Mã Số DUNS®</div>
-                      <div className="mt-1 font-mono text-[13px] font-bold text-slate-900">{duns ? formatDuns(duns) : "—"}</div>
-                      <div className="mt-1 text-[10px] text-slate-500">Dun & Bradstreet</div>
+                  {/* FDA only: DUNS + Status */}
+                  {isFda ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-[#f8fafc] border border-slate-200 rounded-xl p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Mã Số DUNS®</div>
+                        <div className="mt-1 font-mono text-[13px] font-bold text-slate-900">{duns ? formatDuns(duns) : "—"}</div>
+                        <div className="mt-1 text-[10px] text-slate-500">Dun & Bradstreet</div>
+                      </div>
+                      <div className="bg-[#f8fafc] border border-slate-200 rounded-xl p-3">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Trạng Thái Đăng Ký</div>
+                        <div className={`mt-1 flex items-center gap-1.5 text-[12px] font-bold ${valid ? "text-emerald-700" : "text-red-600"}`}>
+                          <span className={`w-2 h-2 rounded-full ${valid ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`}></span> {valid ? "Active" : "Expired"}
+                        </div>
+                        <div className="mt-1 text-[10px] text-slate-500">{valid ? "Đang Hoạt Động" : "Hết hạn"} · {left < 0 ? "0" : left} ngày còn lại</div>
+                      </div>
                     </div>
+                  ) : (
                     <div className="bg-[#f8fafc] border border-slate-200 rounded-xl p-3">
                       <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Trạng Thái Đăng Ký</div>
-                      <div className={`mt-1 flex items-center gap-1.5 text-[12px] font-bold ${valid ? "text-emerald-700" : "text-red-600"}`}>
-                        <span className={`w-2 h-2 rounded-full ${valid ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`}></span> {valid ? "Active" : "Expired"}
+                      <div className={`mt-1 flex items-center gap-1.5 text-[13px] font-bold ${valid ? "text-emerald-700" : "text-red-600"}`}>
+                        <span className={`w-2 h-2 rounded-full ${valid ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`}></span> {valid ? "Active — GACC Certified" : "Expired"} · {left < 0 ? "0" : left} ngày còn lại
                       </div>
-                      <div className="mt-1 text-[10px] text-slate-500">{valid ? "Đang Hoạt Động" : "Hết hạn"} · {left < 0 ? "0" : left} ngày còn lại</div>
+                      <div className="mt-1 text-[10px] text-slate-500">GACC Decree 248 · Fixed 5-year validity · {formatDate(cert.registered_at)} → {formatDate(cert.expires_at)}</div>
                     </div>
-                  </div>
+                  )}
 
                   {/* Scope - part of merged frame */}
-                  <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-3.5">
-                    <div className="text-[10px] font-bold uppercase tracking-wider text-amber-700/70">Ngành Hàng Đăng Ký</div>
+                  <div className={`rounded-xl p-3.5 border ${isGacc ? "bg-blue-50/60 border-blue-200" : "bg-amber-50/60 border-amber-200"}`}>
+                    <div className={`text-[10px] font-bold uppercase tracking-wider ${isGacc ? "text-blue-700/70" : "text-amber-700/70"}`}>Ngành Hàng Đăng Ký</div>
                     <div className="mt-1 text-[13px] font-semibold leading-[1.5] text-slate-900">{scope || "—"}</div>
                     <div className="mt-1 text-[11px] leading-[1.5] text-slate-600">Kỳ hạn: {validityYears} năm ({total} ngày) · {formatDate(cert.registered_at)} → {formatDate(cert.expires_at)}</div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-1">
-                    <div className="flex items-center justify-between py-2.5 border-b border-slate-100">
-                      <div className="text-[11px] font-medium text-slate-500 flex items-center gap-2"><i className="fa-solid fa-user-tie text-slate-400 w-4"></i> Đại Diện US Agent</div>
-                      <div className="text-[12px] font-semibold text-slate-900">Vexim US Compliance LLC</div>
-                    </div>
+                    {isFda && usAgent && (
+                      <div className="flex items-center justify-between py-2.5 border-b border-slate-100">
+                        <div className="text-[11px] font-medium text-slate-500 flex items-center gap-2"><i className="fa-solid fa-user-tie text-slate-400 w-4"></i> Đại Diện US Agent</div>
+                        <div className="text-[12px] font-semibold text-slate-900 text-right max-w-[60%] truncate">{usAgent}</div>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between py-2.5 border-b border-slate-100">
                       <div className="text-[11px] font-medium text-slate-500 flex items-center gap-2"><i className="fa-regular fa-calendar text-slate-400 w-4"></i> Kỳ Gia Hạn Tiếp Theo</div>
                       <div className="text-[12px] font-semibold text-slate-900">{formatDate(cert.expires_at)}</div>
@@ -294,8 +320,8 @@ export function VerifyView({ cert }: Props) {
                     <div className="inline-flex items-center gap-2 bg-amber-400 text-slate-900 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider">
                       <i className="fa-solid fa-bolt"></i> Growth
                     </div>
-                    <h3 className="mt-3 font-bold text-[15px] leading-[1.3] text-white">Giải Pháp Tăng Trưởng Cho Nhà Máy Sau FDA</h3>
-                    <p className="mt-1.5 text-[11.5px] leading-[1.6] text-white/60">FDA chỉ là vé vào cửa. Vexim giúp bạn bán được hàng tại Mỹ với 2 dịch vụ cốt lõi.</p>
+                    <h3 className="mt-3 font-bold text-[15px] leading-[1.3] text-white">Giải Pháp Tăng Trưởng Cho Nhà Máy Sau {isGacc ? "GACC" : "FDA"}</h3>
+                    <p className="mt-1.5 text-[11.5px] leading-[1.6] text-white/60">{isGacc ? "GACC là vé vào Trung Quốc, FDA là vé vào Mỹ. Vexim giúp bạn bán được hàng tại Mỹ với 2 dịch vụ cốt lõi." : "FDA chỉ là vé vào cửa. Vexim giúp bạn bán được hàng tại Mỹ với 2 dịch vụ cốt lõi."}</p>
                     <div className="mt-4 grid grid-cols-2 gap-2.5">
                       <button onClick={() => setModal("sales")} className="bg-white text-slate-900 rounded-xl py-3 px-3 text-left hover:bg-amber-50 transition-colors border border-white">
                         <div className="w-8 h-8 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700"><i className="fa-solid fa-handshake text-[13px]"></i></div>

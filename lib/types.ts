@@ -24,6 +24,7 @@ export type Certificate = {
   standard: Standard;
   registration_code: string;
   duns_code: string; // DUNS number - 9-digit business identifier required for FDA
+  us_agent: string; // US Agent - required for FDA, not applicable for GACC
   service_price: number;
   company_name: string;
   scope: string;
@@ -48,6 +49,7 @@ export type PublicCertificate = {
   standard: Standard;
   registration_code: string;
   duns_code: string;
+  us_agent: string;
   company_name: string;
   scope: string;
   registered_at: string;

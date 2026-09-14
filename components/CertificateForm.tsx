@@ -14,6 +14,7 @@ type FormState = {
   standard: Standard;
   registration_code: string;
   duns_code: string;
+  us_agent: string;
   service_price: string;
   company_name: string;
   scope: string;
@@ -27,7 +28,8 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
   const [form, setForm] = useState<FormState>({
     standard: initial?.standard || "FDA",
     registration_code: initial?.registration_code || "",
-    duns_code: initial?.duns_code || "",
+    duns_code: initial?.standard === "GACC" ? "" : initial?.duns_code || "",
+    us_agent: initial?.standard === "GACC" ? "" : initial?.us_agent || "Vexim US Compliance LLC",
     service_price: initial ? String(initial.service_price) : "",
     company_name: initial?.company_name || "",
     scope: initial?.scope || "",
@@ -54,10 +56,12 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     }
   }, [item?.id]);
 
-  // When standard changes to GACC, force 5 years
+  // When standard changes to GACC, force 5 years and clear FDA-only fields
   useEffect(() => {
-    if (form.standard === "GACC" && form.validity_years !== GACC_FIXED_YEARS) {
-      setForm((s) => ({ ...s, validity_years: GACC_FIXED_YEARS }));
+    if (form.standard === "GACC") {
+      if (form.validity_years !== GACC_FIXED_YEARS || form.duns_code || form.us_agent) {
+        setForm((s) => ({ ...s, validity_years: GACC_FIXED_YEARS, duns_code: "", us_agent: "" }));
+      }
     }
   }, [form.standard]);
 
@@ -67,17 +71,13 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
   );
   const previewLeft = remainingDays(expires);
   const savedLeft = item ? remainingDays(item.expires_at) : previewLeft;
-  const left = previewLeft; // dynamic, follows selected years
+  const left = previewLeft;
   const confirmed = Boolean(item?.validity_confirmed);
   const published = item?.status === "published" || item?.status === "expired";
-  const valid = confirmed && savedLeft >= 0; // validity badge based on saved expiry
-  // displayValidity follows the selected years in the form (dynamic), savedValidity is the persisted contract
+  const valid = confirmed && savedLeft >= 0;
   const displayValidity = form.standard === "GACC" ? GACC_FIXED_YEARS : form.validity_years;
   const savedValidity = item ? getValidityYears(item) : form.validity_years;
-  // Keep currentValidity alias for backward compat in renew logic (saved value)
-  const currentValidity = savedValidity;
 
-  // Renew preview calculation
   const renewBaseDate = useMemo(() => {
     if (!item) return new Date().toISOString().slice(0, 10);
     return remainingDays(item.expires_at) >= 0 ? item.expires_at : new Date().toISOString().slice(0, 10);
@@ -101,7 +101,8 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     e?.preventDefault();
     setBusy("save");
     setMsg("");
-    if (form.duns_code) {
+    // DUNS only for FDA
+    if (form.standard === "FDA" && form.duns_code) {
       const digits = form.duns_code.replace(/\D/g, "");
       if (digits.length !== 9) {
         setBusy("");
@@ -110,11 +111,13 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
       }
     }
     const finalValidity = form.standard === "GACC" ? GACC_FIXED_YEARS : Number(form.validity_years);
+    const isGacc = form.standard === "GACC";
     const payload = {
       ...form,
       service_price: Number(String(form.service_price).replace(/[^\d]/g, "") || 0),
       validity_years: finalValidity,
-      duns_code: form.duns_code.replace(/\D/g, "").slice(0, 9),
+      duns_code: isGacc ? "" : form.duns_code.replace(/\D/g, "").slice(0, 9),
+      us_agent: isGacc ? "" : form.us_agent.trim().slice(0, 200),
     };
     const res = await fetch(item ? `/api/certificates/${item.id}` : "/api/certificates", {
       method: item ? "PUT" : "POST",
@@ -201,6 +204,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
   const qrUrl = item && origin ? `${origin}/verify/${item.public_code}` : "";
 
   const isGacc = form.standard === "GACC";
+  const isFda = form.standard === "FDA";
 
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
@@ -225,6 +229,8 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                   ...s,
                   standard: newStd,
                   validity_years: newStd === "GACC" ? GACC_FIXED_YEARS : s.validity_years,
+                  duns_code: newStd === "GACC" ? "" : s.duns_code,
+                  us_agent: newStd === "GACC" ? "" : s.us_agent || "Vexim US Compliance LLC",
                 }));
               }}
               className="input"
@@ -270,19 +276,40 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               placeholder={t("form.registrationCodePlaceholder")}
             />
           </Field>
-          <Field label={t("form.dunsNumber")}>
-            <input
-              className="input font-mono"
-              value={form.duns_code ? formatDuns(form.duns_code) : ""}
-              onChange={(e) => handleDunsChange(e.target.value)}
-              placeholder={t("form.dunsPlaceholder")}
-              maxLength={11}
-            />
-            <div className="mt-1 text-[11px] text-navy-900/50">
-              {t("form.dunsHelp")}{" "}
-              {form.duns_code.length === 9 ? t("form.dunsValid") : form.duns_code ? t("form.dunsDigits", { count: form.duns_code.length }) : t("form.dunsOptional")}
+          {/* DUNS and US Agent - FDA only, side by side */}
+          {isFda ? (
+            <>
+              <Field label={t("form.dunsNumber")}>
+                <input
+                  className="input font-mono"
+                  value={form.duns_code ? formatDuns(form.duns_code) : ""}
+                  onChange={(e) => handleDunsChange(e.target.value)}
+                  placeholder={t("form.dunsPlaceholder")}
+                  maxLength={11}
+                />
+                <div className="mt-1 text-[11px] text-navy-900/50">
+                  {t("form.dunsHelp")}{" "}
+                  {form.duns_code.length === 9 ? t("form.dunsValid") : form.duns_code ? t("form.dunsDigits", { count: form.duns_code.length }) : t("form.dunsOptional")}
+                </div>
+              </Field>
+              <Field label={t("form.usAgent") || "US Agent"}>
+                <input
+                  className="input"
+                  value={form.us_agent}
+                  onChange={(e) => patch("us_agent", e.target.value)}
+                  placeholder={t("form.usAgentPlaceholder") || "Vexim US Compliance LLC"}
+                  maxLength={200}
+                />
+                <div className="mt-1 text-[11px] text-navy-900/50">
+                  {t("form.usAgentHelp") || "Đại diện US Agent bắt buộc cho đăng ký FDA."}
+                </div>
+              </Field>
+            </>
+          ) : (
+            <div className="md:col-span-2 rounded-xl bg-slate-50 border border-slate-200 px-3 py-2.5 text-xs text-slate-500">
+              GACC không yêu cầu DUNS và US Agent. Chỉ áp dụng cho FDA.
             </div>
-          </Field>
+          )}
           <Field label={t("form.serviceFee")}>
             <input
               className="input"
@@ -438,9 +465,14 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               · {t("form.renewal")}:{" "}
               <b>{isGacc ? `5 ${t("common.years")} fixed` : t("form.selectable")}</b>
             </div>
-            {form.duns_code && (
+            {isFda && form.duns_code && (
               <div className="mt-2">
                 {t("form.dunsLabel")}: <b className="font-mono">{formatDuns(form.duns_code)}</b>
+              </div>
+            )}
+            {isFda && form.us_agent && (
+              <div className="mt-2">
+                US Agent: <b>{form.us_agent}</b>
               </div>
             )}
             {item && item.renewal_count > 0 && (

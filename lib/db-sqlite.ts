@@ -41,6 +41,7 @@ function migrate(db: DatabaseSync) {
       standard TEXT NOT NULL CHECK (standard IN ('FDA','GACC')),
       registration_code TEXT NOT NULL DEFAULT '',
       duns_code TEXT NOT NULL DEFAULT '',
+      us_agent TEXT NOT NULL DEFAULT '',
       service_price INTEGER NOT NULL DEFAULT 0,
       company_name TEXT NOT NULL DEFAULT '',
       scope TEXT NOT NULL DEFAULT '',
@@ -88,6 +89,9 @@ function migrate(db: DatabaseSync) {
     }
     if (!has("duns_code")) {
       db.exec("ALTER TABLE certificates ADD COLUMN duns_code TEXT NOT NULL DEFAULT ''");
+    }
+    if (!has("us_agent")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN us_agent TEXT NOT NULL DEFAULT ''");
     }
     // Remove fda_registration_status if it exists (feature removed)
     if (has("fda_registration_status")) {
@@ -138,6 +142,7 @@ function seed(db: DatabaseSync) {
       standard: Standard;
       code: string;
       duns: string;
+      us_agent: string;
       price: number;
       company: string;
       scope: string;
@@ -151,6 +156,7 @@ function seed(db: DatabaseSync) {
         standard: "FDA",
         code: "17823456789",
         duns: "12-345-6789",
+        us_agent: "Vexim US Compliance LLC",
         price: 18500000,
         company: "An Phat Food JSC",
         scope: "Food Facility Registration — frozen seafood processing for export to USA",
@@ -163,7 +169,8 @@ function seed(db: DatabaseSync) {
         no: "VXM-GACC-2024-0008",
         standard: "GACC",
         code: "VN-GACC-44012345678",
-        duns: "98-765-4321",
+        duns: "",
+        us_agent: "",
         price: 42000000,
         company: "Mekong Agri Products Co., Ltd",
         scope: "Food enterprise registration for export to China (GACC Decree 248)",
@@ -177,6 +184,7 @@ function seed(db: DatabaseSync) {
         standard: "FDA",
         code: "18900123456",
         duns: "11-222-3333",
+        us_agent: "Liberty FDA Services Inc.",
         price: 21000000,
         company: "Green Leaf Cosmetics JSC",
         scope: "MoCRA facility registration & cosmetic product listing",
@@ -189,7 +197,8 @@ function seed(db: DatabaseSync) {
         no: "VXM-GACC-2026-0002",
         standard: "GACC",
         code: "VN-GACC-33098765432",
-        duns: "44-555-6666",
+        duns: "",
+        us_agent: "",
         price: 38500000,
         company: "Viet Phat Rice JSC",
         scope: "Rice milling and packaging facility for export to China market",
@@ -203,6 +212,7 @@ function seed(db: DatabaseSync) {
         standard: "FDA",
         code: "17200998877",
         duns: "77-888-9999",
+        us_agent: "Vexim US Compliance LLC",
         price: 16500000,
         company: "Binh Minh Seafood Co., Ltd",
         scope: "FDA Food Facility Registration — fresh and frozen seafood",
@@ -215,10 +225,10 @@ function seed(db: DatabaseSync) {
 
     const insertCert = db.prepare(`
       INSERT INTO certificates (
-        public_code, certificate_no, standard, registration_code, duns_code,
+        public_code, certificate_no, standard, registration_code, duns_code, us_agent,
         service_price, company_name, scope, registered_at, expires_at, validity_years, validity_confirmed,
         status, published_at, revenue_recorded, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?, 1, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?, 1, ?)
     `);
 
     for (const s of samples) {
@@ -228,6 +238,7 @@ function seed(db: DatabaseSync) {
         s.standard,
         s.code,
         s.duns.replace(/\D/g, ""),
+        s.us_agent,
         s.price,
         s.company,
         s.scope,
@@ -303,6 +314,12 @@ function hydrate(row: Certificate): Certificate {
     next.validity_years = getValidityYears(next as any);
   }
   if (!next.duns_code) next.duns_code = "";
+  if (!next.us_agent) next.us_agent = "";
+  // GACC does not have DUNS or US Agent - clear if present
+  if (next.standard === "GACC") {
+    next.duns_code = "";
+    next.us_agent = "";
+  }
   if (next.status === "published" && remainingDays(next.expires_at) < 0) {
     return { ...next, status: "expired" };
   }
@@ -350,6 +367,7 @@ export function createCertificate(input: {
   standard: Standard;
   registration_code: string;
   duns_code?: string;
+  us_agent?: string;
   service_price: number;
   company_name: string;
   scope: string;
@@ -361,13 +379,16 @@ export function createCertificate(input: {
   const expires = expiryFromStandard(input.registered_at, input.standard, validity);
   const no = nextCertificateNo(input.standard);
   const publicCode = randomCode(12);
-  const duns = (input.duns_code || "").replace(/\D/g, "").slice(0, 9);
+  // DUNS and US Agent only for FDA, GACC has none
+  const isGacc = input.standard === "GACC";
+  const duns = isGacc ? "" : (input.duns_code || "").replace(/\D/g, "").slice(0, 9);
+  const usAgent = isGacc ? "" : (input.us_agent || "").trim().slice(0, 200);
   const info = db()
     .prepare(
       `INSERT INTO certificates (
-        public_code, certificate_no, standard, registration_code, duns_code,
+        public_code, certificate_no, standard, registration_code, duns_code, us_agent,
         service_price, company_name, scope, registered_at, expires_at, validity_years, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       publicCode,
@@ -375,6 +396,7 @@ export function createCertificate(input: {
       input.standard,
       input.registration_code.trim(),
       duns,
+      usAgent,
       Math.max(0, Math.round(input.service_price || 0)),
       input.company_name.trim(),
       input.scope.trim(),
@@ -392,6 +414,7 @@ export function updateCertificate(
     standard: Standard;
     registration_code: string;
     duns_code?: string;
+    us_agent?: string;
     service_price: number;
     company_name: string;
     scope: string;
@@ -403,11 +426,13 @@ export function updateCertificate(
   if (!current) throw new Error("NOT_FOUND");
   const validity = normalizeValidityYears(input.validity_years ?? current.validity_years, input.standard);
   const expires = expiryFromStandard(input.registered_at, input.standard, validity);
-  const duns = input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
+  const isGacc = input.standard === "GACC";
+  const duns = isGacc ? "" : input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
+  const usAgent = isGacc ? "" : input.us_agent !== undefined ? input.us_agent.trim().slice(0, 200) : current.us_agent;
   db()
     .prepare(
       `UPDATE certificates SET
-        standard = ?, registration_code = ?, duns_code = ?,
+        standard = ?, registration_code = ?, duns_code = ?, us_agent = ?,
         service_price = ?, company_name = ?,
         scope = ?, registered_at = ?, expires_at = ?, validity_years = ?,
         validity_confirmed = CASE WHEN registered_at = ? AND standard = ? AND validity_years = ? THEN validity_confirmed ELSE 0 END,
@@ -418,6 +443,7 @@ export function updateCertificate(
       input.standard,
       input.registration_code.trim(),
       duns,
+      usAgent,
       Math.max(0, Math.round(input.service_price || 0)),
       input.company_name.trim(),
       input.scope.trim(),

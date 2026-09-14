@@ -11,14 +11,16 @@ export async function GET(_: Request, ctx: { params: { code: string } }) {
     if (!item || item.status === "draft") {
       return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
     }
-    const valid = item.validity_confirmed === 1 && isValidNow(item.expires_at, item.registered_at);
+    const isFda = item.standard === "FDA";
+    const valid = Boolean(item.validity_confirmed) && isValidNow(item.expires_at, item.registered_at);
     return NextResponse.json({
       item: {
         public_code: item.public_code,
         certificate_no: item.certificate_no,
         standard: item.standard,
         registration_code: item.registration_code,
-        duns_code: item.duns_code || "",
+        duns_code: isFda ? item.duns_code || "" : "",
+        us_agent: isFda ? (item as any).us_agent || "" : "",
         company_name: item.company_name,
         scope: item.scope,
         registered_at: item.registered_at,

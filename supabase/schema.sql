@@ -11,7 +11,7 @@ create table if not exists public.staff_users (
   created_at timestamptz not null default now()
 );
 
--- Create certificates table with flexible validity and DUNS
+-- Create certificates table with flexible validity, DUNS and US Agent (FDA only, GACC has none)
 create table if not exists public.certificates (
   id bigint generated always as identity primary key,
   public_code text unique not null,
@@ -19,6 +19,7 @@ create table if not exists public.certificates (
   standard text not null check (standard in ('FDA', 'GACC')),
   registration_code text not null default '',
   duns_code text not null default '',
+  us_agent text not null default '',
   service_price bigint not null default 0,
   company_name text not null default '',
   scope text not null default '',
@@ -57,6 +58,21 @@ begin
     alter table public.certificates add column duns_code text not null default '';
   end if;
 end $$;
+
+-- Migration for old DB without us_agent (FDA only)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns 
+    where table_schema='public' and table_name='certificates' and column_name='us_agent'
+  ) then
+    alter table public.certificates add column us_agent text not null default '';
+  end if;
+end $$;
+
+-- Cleanup: GACC does not have DUNS or US Agent - clear old data
+update public.certificates set duns_code = '' where standard='GACC';
+update public.certificates set us_agent = '' where standard='GACC';
 
 -- Cleanup: drop fda_registration_status if it exists (feature removed per user request)
 do $$
@@ -98,6 +114,7 @@ create index if not exists certificates_standard_idx on public.certificates (sta
 create index if not exists certificates_created_by_idx on public.certificates (created_by);
 create index if not exists certificates_validity_years_idx on public.certificates (validity_years);
 create index if not exists certificates_duns_code_idx on public.certificates (duns_code);
+create index if not exists certificates_us_agent_idx on public.certificates (us_agent);
 create index if not exists consultation_leads_service_type_idx on public.consultation_leads (service_type);
 create index if not exists consultation_leads_status_idx on public.consultation_leads (status);
 create index if not exists consultation_leads_created_at_idx on public.consultation_leads (created_at desc);
