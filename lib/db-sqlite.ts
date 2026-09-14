@@ -449,24 +449,20 @@ export function revenueStats() {
     if (r.standard === "FDA") fda += amt;
     else gacc += amt;
 
-    const bump = (
-      map: Map<string, { FDA: number; GACC: number; total: number } & Record<string, string>>,
-      key: string,
-      labelKey: string
-    ) => {
+    const bump = (map: Map<string, any>, key: string, labelKey: string) => {
       const cur = map.get(key) || { [labelKey]: key, FDA: 0, GACC: 0, total: 0 };
-      cur[r.standard] += amt;
-      cur.total += amt;
+      cur[r.standard] = (cur[r.standard] || 0) + amt;
+      cur.total = (cur.total || 0) + amt;
       map.set(key, cur);
     };
-    bump(monthMap as never, monthKey, "month");
-    bump(quarterMap as never, quarterKey, "quarter");
-    bump(yearMap as never, yearKey, "year");
+    bump(monthMap, monthKey, "month");
+    bump(quarterMap, quarterKey, "quarter");
+    bump(yearMap, yearKey, "year");
   }
 
-  const months = [...monthMap.values()].sort((a, b) => a.month.localeCompare(b.month));
-  const quarters = [...quarterMap.values()].sort((a, b) => a.quarter.localeCompare(b.quarter));
-  const years = [...yearMap.values()].sort((a, b) => a.year.localeCompare(b.year));
+  const months = Array.from(monthMap.values()).sort((a, b) => a.month.localeCompare(b.month));
+  const quarters = Array.from(quarterMap.values()).sort((a, b) => a.quarter.localeCompare(b.quarter));
+  const years = Array.from(yearMap.values()).sort((a, b) => a.year.localeCompare(b.year));
 
   return {
     total,

@@ -408,19 +408,15 @@ export async function revenueStats() {
     total += amt;
     if (r.standard === "FDA") fda += amt;
     else gacc += amt;
-    const bump = (
-      map: Map<string, { FDA: number; GACC: number; total: number } & Record<string, string>>,
-      key: string,
-      labelKey: string
-    ) => {
+    const bump = (map: Map<string, any>, key: string, labelKey: string) => {
       const cur = map.get(key) || { [labelKey]: key, FDA: 0, GACC: 0, total: 0 };
-      cur[r.standard as Standard] += amt;
-      cur.total += amt;
+      cur[r.standard as Standard] = (cur[r.standard as Standard] || 0) + amt;
+      cur.total = (cur.total || 0) + amt;
       map.set(key, cur);
     };
-    bump(monthMap as never, `${y}-${String(m).padStart(2, "0")}`, "month");
-    bump(quarterMap as never, `${y}-Q${q}`, "quarter");
-    bump(yearMap as never, String(y), "year");
+    bump(monthMap, `${y}-${String(m).padStart(2, "0")}`, "month");
+    bump(quarterMap, `${y}-Q${q}`, "quarter");
+    bump(yearMap, String(y), "year");
   }
 
   return {
@@ -428,9 +424,9 @@ export async function revenueStats() {
     fda,
     gacc,
     count: rows.length,
-    months: [...monthMap.values()].sort((a, b) => a.month.localeCompare(b.month)),
-    quarters: [...quarterMap.values()].sort((a, b) => a.quarter.localeCompare(b.quarter)),
-    years: [...yearMap.values()].sort((a, b) => a.year.localeCompare(b.year)),
+    months: Array.from(monthMap.values()).sort((a, b) => a.month.localeCompare(b.month)),
+    quarters: Array.from(quarterMap.values()).sort((a, b) => a.quarter.localeCompare(b.quarter)),
+    years: Array.from(yearMap.values()).sort((a, b) => a.year.localeCompare(b.year)),
     recent: rows
       .slice()
       .sort((a, b) => (String(a.published_at) < String(b.published_at) ? 1 : -1))
