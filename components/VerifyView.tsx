@@ -78,7 +78,9 @@ export function VerifyView({ cert }: Props) {
     }
   };
 
-  const submitConsultation = (serviceName: "sales" | "amazon") => {
+  const [submitting, setSubmitting] = useState(false);
+
+  const submitConsultation = async (serviceName: "sales" | "amazon") => {
     const form = serviceName === "sales" ? salesForm : amazonForm;
     if (!form.name.trim() || !form.phone.trim()) {
       showToast("Vui lòng nhập đủ Họ tên và SĐT/Zalo");
@@ -88,12 +90,34 @@ export function VerifyView({ cert }: Props) {
       showToast("SĐT không hợp lệ");
       return;
     }
-    showToast(
-      `Đã gửi yêu cầu tư vấn ${serviceName === "sales" ? "Phòng Sale Xuất Khẩu Mỹ" : "Vận Hành Amazon US"}! Vexim sẽ liên hệ trong 24h.`
-    );
-    if (serviceName === "sales") setSalesForm({ name: "", phone: "" });
-    else setAmazonForm({ name: "", phone: "" });
-    setTimeout(() => setModal(null), 1500);
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/consultation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          service_type: serviceName,
+          name: form.name.trim(),
+          phone: form.phone.trim(),
+          company_name: cert.company_name,
+          certificate_no: cert.certificate_no,
+          public_code: cert.public_code,
+          source_url: typeof window !== "undefined" ? window.location.href : "",
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gửi thất bại");
+      showToast(
+        `Đã gửi yêu cầu tư vấn ${serviceName === "sales" ? "Phòng Sale Xuất Khẩu Mỹ" : "Vận Hành Amazon US"}! Vexim sẽ liên hệ trong 24h.`
+      );
+      if (serviceName === "sales") setSalesForm({ name: "", phone: "" });
+      else setAmazonForm({ name: "", phone: "" });
+      setTimeout(() => setModal(null), 1500);
+    } catch (err: any) {
+      showToast(err.message || "Có lỗi xảy ra, vui lòng thử lại");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const switchTab = (tab: "facility" | "services") => setActiveTab(tab);
@@ -372,7 +396,7 @@ export function VerifyView({ cert }: Props) {
                   <div className="mt-3 space-y-3">
                     <input value={salesForm.name} onChange={(e)=>setSalesForm({...salesForm, name: e.target.value})} placeholder="Họ tên / Tên nhà máy" className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
                     <input value={salesForm.phone} onChange={(e)=>setSalesForm({...salesForm, phone: e.target.value})} placeholder="SĐT / Zalo" className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
-                    <button onClick={()=>submitConsultation("sales")} className="w-full bg-slate-900 text-white rounded-xl py-3 text-[13px] font-bold hover:bg-black">Gửi Yêu Cầu Tư Vấn <i className="fa-solid fa-paper-plane ml-1.5"></i></button>
+                    <button disabled={submitting} onClick={()=>submitConsultation("sales")} className="w-full bg-slate-900 text-white rounded-xl py-3 text-[13px] font-bold hover:bg-black disabled:opacity-60">{submitting ? "Đang gửi..." : <>Gửi Yêu Cầu Tư Vấn <i className="fa-solid fa-paper-plane ml-1.5"></i></>}</button>
                     <a href="https://veximtrade.com" target="_blank" className="block text-center text-[11px] font-bold text-slate-600 hover:text-slate-900 underline">Hoặc truy cập veximtrade.com <i className="fa-solid fa-external-link ml-1"></i></a>
                   </div>
                 </div>
@@ -402,7 +426,7 @@ export function VerifyView({ cert }: Props) {
                   <div className="mt-3 space-y-3">
                     <input value={amazonForm.name} onChange={(e)=>setAmazonForm({...amazonForm, name: e.target.value})} placeholder="Họ tên / Tên nhà máy" className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
                     <input value={amazonForm.phone} onChange={(e)=>setAmazonForm({...amazonForm, phone: e.target.value})} placeholder="SĐT / Zalo" className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
-                    <button onClick={()=>submitConsultation("amazon")} className="w-full bg-slate-900 text-white rounded-xl py-3 text-[13px] font-bold hover:bg-black">Gửi Yêu Cầu Tư Vấn <i className="fa-solid fa-paper-plane ml-1.5"></i></button>
+                    <button disabled={submitting} onClick={()=>submitConsultation("amazon")} className="w-full bg-slate-900 text-white rounded-xl py-3 text-[13px] font-bold hover:bg-black disabled:opacity-60">{submitting ? "Đang gửi..." : <>Gửi Yêu Cầu Tư Vấn <i className="fa-solid fa-paper-plane ml-1.5"></i></>}</button>
                     <a href="https://veximops.com" target="_blank" className="block text-center text-[11px] font-bold text-slate-600 hover:text-slate-900 underline">Hoặc truy cập veximops.com <i className="fa-solid fa-external-link ml-1"></i></a>
                   </div>
                 </div>

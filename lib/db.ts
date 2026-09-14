@@ -89,3 +89,36 @@ export async function deleteCertificate(id: number) {
 export async function revenueStats() {
   return isSupabaseEnabled() ? cloud.revenueStats() : sqlite.revenueStats();
 }
+
+export type ConsultationLead = sqlite.ConsultationLead;
+
+export async function createLead(input: {
+  service_type: "sales" | "amazon";
+  name: string;
+  phone: string;
+  email?: string;
+  company_name?: string;
+  certificate_no?: string;
+  public_code?: string;
+  message?: string;
+  source_url?: string;
+  ip?: string;
+}) {
+  return isSupabaseEnabled() ? cloud.createLead(input) : sqlite.createLead(input);
+}
+
+export async function listLeads() {
+  return isSupabaseEnabled() ? cloud.listLeads() : sqlite.listLeads();
+}
+
+export async function getLead(id: number) {
+  return isSupabaseEnabled() ? cloud.getLead(id) : sqlite.getLead(id);
+}
+
+export async function updateLeadStatus(id: number, status: ConsultationLead["status"]) {
+  return isSupabaseEnabled() ? cloud.updateLeadStatus(id, status) : sqlite.updateLeadStatus(id, status);
+}
+
+export async function deleteLead(id: number) {
+  return isSupabaseEnabled() ? cloud.deleteLead(id) : sqlite.deleteLead(id);
+}

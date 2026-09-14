@@ -73,6 +73,24 @@ end $$;
 update public.certificates set validity_years = 2 where standard='FDA' and (validity_years is null or validity_years not between 1 and 10);
 update public.certificates set validity_years = 5 where standard='GACC' and (validity_years is null or validity_years not between 1 and 10);
 
+-- Consultation Leads (B2B marketing from verify page)
+create table if not exists public.consultation_leads (
+  id bigint generated always as identity primary key,
+  service_type text not null check (service_type in ('sales','amazon')),
+  name text not null,
+  phone text not null,
+  email text not null default '',
+  company_name text not null default '',
+  certificate_no text not null default '',
+  public_code text not null default '',
+  message text not null default '',
+  source_url text not null default '',
+  ip text not null default '',
+  status text not null default 'new' check (status in ('new','contacted','converted','closed')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- Indexes
 create index if not exists certificates_public_code_idx on public.certificates (public_code);
 create index if not exists certificates_status_idx on public.certificates (status);
@@ -80,16 +98,22 @@ create index if not exists certificates_standard_idx on public.certificates (sta
 create index if not exists certificates_created_by_idx on public.certificates (created_by);
 create index if not exists certificates_validity_years_idx on public.certificates (validity_years);
 create index if not exists certificates_duns_code_idx on public.certificates (duns_code);
+create index if not exists consultation_leads_service_type_idx on public.consultation_leads (service_type);
+create index if not exists consultation_leads_status_idx on public.consultation_leads (status);
+create index if not exists consultation_leads_created_at_idx on public.consultation_leads (created_at desc);
 
 -- RLS
 alter table public.staff_users enable row level security;
 alter table public.certificates enable row level security;
+alter table public.consultation_leads enable row level security;
 
 -- Grants
 grant all on table public.staff_users to service_role;
 grant all on table public.certificates to service_role;
+grant all on table public.consultation_leads to service_role;
 grant all on table public.staff_users to postgres;
 grant all on table public.certificates to postgres;
+grant all on table public.consultation_leads to postgres;
 grant usage, select on all sequences in schema public to service_role;
 grant usage, select on all sequences in schema public to postgres;
 

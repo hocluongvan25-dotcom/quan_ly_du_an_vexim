@@ -451,6 +451,106 @@ export async function deleteCertificate(id: number) {
   if (error) assertNoSupabaseError(error, "certificates");
 }
 
+export type ConsultationLead = {
+  id: number;
+  service_type: "sales" | "amazon";
+  name: string;
+  phone: string;
+  email: string;
+  company_name: string;
+  certificate_no: string;
+  public_code: string;
+  message: string;
+  source_url: string;
+  ip: string;
+  status: "new" | "contacted" | "converted" | "closed";
+  created_at: string;
+  updated_at: string;
+};
+
+function mapLead(row: Record<string, unknown>): ConsultationLead {
+  return {
+    id: Number(row.id),
+    service_type: row.service_type as ConsultationLead["service_type"],
+    name: String(row.name || ""),
+    phone: String(row.phone || ""),
+    email: String(row.email || ""),
+    company_name: String(row.company_name || ""),
+    certificate_no: String(row.certificate_no || ""),
+    public_code: String(row.public_code || ""),
+    message: String(row.message || ""),
+    source_url: String(row.source_url || ""),
+    ip: String(row.ip || ""),
+    status: (row.status as ConsultationLead["status"]) || "new",
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  };
+}
+
+export async function createLead(input: {
+  service_type: "sales" | "amazon";
+  name: string;
+  phone: string;
+  email?: string;
+  company_name?: string;
+  certificate_no?: string;
+  public_code?: string;
+  message?: string;
+  source_url?: string;
+  ip?: string;
+}) {
+  const { data, error } = await supabaseAdmin()
+    .from("consultation_leads")
+    .insert({
+      service_type: input.service_type,
+      name: input.name.trim(),
+      phone: input.phone.trim(),
+      email: (input.email || "").trim(),
+      company_name: (input.company_name || "").trim(),
+      certificate_no: (input.certificate_no || "").trim(),
+      public_code: (input.public_code || "").trim(),
+      message: (input.message || "").trim(),
+      source_url: (input.source_url || "").trim(),
+      ip: (input.ip || "").trim(),
+    })
+    .select("id")
+    .single();
+  if (error) assertNoSupabaseError(error, "consultation_leads");
+  return Number((data as any)?.id ?? 0);
+}
+
+export async function listLeads(): Promise<ConsultationLead[]> {
+  const { data, error } = await supabaseAdmin()
+    .from("consultation_leads")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (error) assertNoSupabaseError(error, "consultation_leads");
+  return (data || []).map(mapLead);
+}
+
+export async function getLead(id: number) {
+  const { data, error } = await supabaseAdmin()
+    .from("consultation_leads")
+    .select("*")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) assertNoSupabaseError(error, "consultation_leads");
+  return data ? mapLead(data) : undefined;
+}
+
+export async function updateLeadStatus(id: number, status: ConsultationLead["status"]) {
+  const { error } = await supabaseAdmin()
+    .from("consultation_leads")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) assertNoSupabaseError(error, "consultation_leads");
+}
+
+export async function deleteLead(id: number) {
+  const { error } = await supabaseAdmin().from("consultation_leads").delete().eq("id", id);
+  if (error) assertNoSupabaseError(error, "consultation_leads");
+}
+
 export async function revenueStats() {
   const { data, error } = await supabaseAdmin()
     .from("certificates")

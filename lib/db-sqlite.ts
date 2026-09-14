@@ -57,6 +57,23 @@ function migrate(db: DatabaseSync) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS consultation_leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      service_type TEXT NOT NULL CHECK (service_type IN ('sales','amazon')),
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      email TEXT NOT NULL DEFAULT '',
+      company_name TEXT NOT NULL DEFAULT '',
+      certificate_no TEXT NOT NULL DEFAULT '',
+      public_code TEXT NOT NULL DEFAULT '',
+      message TEXT NOT NULL DEFAULT '',
+      source_url TEXT NOT NULL DEFAULT '',
+      ip TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','contacted','converted','closed')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migration for old DBs
@@ -486,6 +503,77 @@ export function deleteCertificate(id: number) {
     throw new Error("PUBLISHED");
   }
   db().prepare("DELETE FROM certificates WHERE id = ?").run(id);
+}
+
+export type ConsultationLead = {
+  id: number;
+  service_type: "sales" | "amazon";
+  name: string;
+  phone: string;
+  email: string;
+  company_name: string;
+  certificate_no: string;
+  public_code: string;
+  message: string;
+  source_url: string;
+  ip: string;
+  status: "new" | "contacted" | "converted" | "closed";
+  created_at: string;
+  updated_at: string;
+};
+
+export function createLead(input: {
+  service_type: "sales" | "amazon";
+  name: string;
+  phone: string;
+  email?: string;
+  company_name?: string;
+  certificate_no?: string;
+  public_code?: string;
+  message?: string;
+  source_url?: string;
+  ip?: string;
+}) {
+  const info = db()
+    .prepare(
+      `INSERT INTO consultation_leads (service_type, name, phone, email, company_name, certificate_no, public_code, message, source_url, ip)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      input.service_type,
+      input.name.trim(),
+      input.phone.trim(),
+      (input.email || "").trim(),
+      (input.company_name || "").trim(),
+      (input.certificate_no || "").trim(),
+      (input.public_code || "").trim(),
+      (input.message || "").trim(),
+      (input.source_url || "").trim(),
+      (input.ip || "").trim()
+    );
+  return Number(info.lastInsertRowid);
+}
+
+export function listLeads(): ConsultationLead[] {
+  return plain(
+    db()
+      .prepare(`SELECT * FROM consultation_leads ORDER BY created_at DESC, id DESC`)
+      .all()
+  ) as ConsultationLead[];
+}
+
+export function getLead(id: number) {
+  return plain(
+    db().prepare(`SELECT * FROM consultation_leads WHERE id = ?`).get(id)
+  ) as ConsultationLead | undefined;
+}
+
+export function updateLeadStatus(id: number, status: ConsultationLead["status"]) {
+  db().prepare(`UPDATE consultation_leads SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(status, id);
+}
+
+export function deleteLead(id: number) {
+  db().prepare(`DELETE FROM consultation_leads WHERE id = ?`).run(id);
 }
 
 export function revenueStats() {
