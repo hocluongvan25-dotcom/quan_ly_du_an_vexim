@@ -1,130 +1,87 @@
 "use client";
 
 import Link from "next/link";
+import { Logo } from "@/components/Logo";
 import { COMPANY } from "@/lib/types";
+import { ArrowRight, QrCode, ShieldCheck } from "lucide-react";
+import { useI18n } from "@/lib/i18n/context";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 export default function HomePage() {
+  const { t } = useI18n();
   return (
-    <div className="min-h-screen bg-[#f1f3f6] text-slate-900 antialiased">
-      <header className="border-b-[4px] border-[#0a1931] bg-white">
-        <div className="mx-auto flex max-w-[860px] items-center justify-between px-6 py-5 sm:px-8">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.28em] text-slate-500">
-              {COMPANY.legal}
-            </div>
-            <div className="mt-1 font-serif text-[14px] font-bold uppercase tracking-[0.04em] text-[#0a1931]">
-              Official Certificate Verification Portal
-            </div>
-          </div>
+    <div className="mesh min-h-screen text-navy-900">
+      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-6">
+        <Logo />
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher />
           <Link
             href="/login"
-            className="border border-[#0a1931] px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-[#0a1931] hover:bg-[#0a1931] hover:text-white"
+            className="rounded-full bg-navy-900 px-4 py-2 text-sm font-semibold text-gold-400 hover:bg-navy-800"
           >
-            Internal Login
+            {t("home.internalLogin")}
           </Link>
         </div>
       </header>
-
-      <main className="mx-auto max-w-[860px] px-4 py-10 sm:px-6">
-        <div className="border border-slate-300 bg-white">
-          <div className="border-b border-slate-200 px-6 py-8 sm:px-10 sm:py-10">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-slate-500">
-              Vexim Certificate Network
-            </div>
-            <h1 className="mt-3 max-w-[560px] font-serif text-[28px] font-bold leading-[1.15] text-[#0a1931] sm:text-[36px]">
-              Verify FDA & GACC Certificates Issued by Vexim Global
-            </h1>
-            <p className="mt-4 max-w-[560px] text-[14px] leading-[1.7] text-slate-600">
-              This portal allows importers, partners, and regulatory authorities to verify the authenticity and
-              validity of FDA and GACC certificates issued by {COMPANY.legal}. Scan the QR code printed on the
-              certificate to access the official verification record. Service fees are not disclosed on the public
-              verification page.
-            </p>
-            <div className="mt-6 flex gap-3">
-              <Link
-                href="/login"
-                className="bg-[#0a1931] px-6 py-2.5 text-[12px] font-bold uppercase tracking-wider text-white hover:bg-black"
-              >
-                Go to Management System
-              </Link>
-              <a
-                href={COMPANY.website}
-                className="border border-slate-300 bg-white px-6 py-2.5 text-[12px] font-bold uppercase tracking-wider text-slate-700 hover:bg-slate-50"
-              >
-                veximglobal.com
-              </a>
-            </div>
-          </div>
-
-          <div className="grid divide-y divide-slate-200 sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-            <div className="px-6 py-6 sm:px-8">
-              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
-                01 — Standard Validity
-              </div>
-              <p className="mt-3 text-[13px] leading-[1.6] text-slate-600">
-                FDA: Flexible 1-10 years per client contract (default 2 years). GACC: Fixed 5 years, not selectable.
-                Validity is counted from registration date to expiry date.
-              </p>
-            </div>
-            <div className="px-6 py-6 sm:px-8">
-              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
-                02 — QR on Certificate
-              </div>
-              <p className="mt-3 text-[13px] leading-[1.6] text-slate-600">
-                Each published record generates a unique verification code and QR. The QR links directly to the
-                official verification page at veximglobal.com/verify/[code].
-              </p>
-            </div>
-            <div className="px-6 py-6 sm:px-8">
-              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
-                03 — Roles
-              </div>
-              <p className="mt-3 text-[13px] leading-[1.6] text-slate-600">
-                Administrator manages system and revenue. Specialists fill records after registration is complete.
-                All actions are logged internally.
-              </p>
-            </div>
-          </div>
-
-          <div className="border-t border-slate-200 bg-[#fafaf9] px-6 py-6 sm:px-10">
-            <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
-              How Verification Works
-            </div>
-            <div className="mt-4 grid gap-4 text-[12.5px] leading-[1.7] text-slate-700 sm:grid-cols-2">
-              <div className="border border-slate-200 bg-white px-4 py-3">
-                <span className="font-bold">Step 1:</span> Locate the QR code printed on the bottom right of the
-                certificate issued by Vexim Global.
-              </div>
-              <div className="border border-slate-200 bg-white px-4 py-3">
-                <span className="font-bold">Step 2:</span> Scan with any camera app. You will be redirected to
-                /verify/[code] — no login required.
-              </div>
-              <div className="border border-slate-200 bg-white px-4 py-3">
-                <span className="font-bold">Step 3:</span> Check VALID / EXPIRED status, registration details, scope,
-                and remaining days.
-              </div>
-              <div className="border border-slate-200 bg-white px-4 py-3">
-                <span className="font-bold">Step 4:</span> For renewal or discrepancy, contact {COMPANY.legal} with
-                certificate number.
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between border-t border-slate-200 px-6 py-4 sm:px-10">
-            <div className="text-[11px] text-slate-500">
-              <span className="font-bold text-slate-700">{COMPANY.legal}</span> · {COMPANY.address} · {COMPANY.phone}{" "}
-              · {COMPANY.email}
-            </div>
-            <div className="hidden font-mono text-[10px] text-slate-400 sm:block">
-              OFFICIAL PORTAL · SERVICE FEES HIDDEN FROM PUBLIC
-            </div>
-          </div>
+      <main className="mx-auto max-w-6xl px-5 pb-20 pt-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.32em] text-teal-700">
+          {t("home.network")}
+        </p>
+        <h1 className="mt-4 max-w-3xl font-display text-4xl font-extrabold leading-tight md:text-6xl">
+          {t("home.title")}
+        </h1>
+        <p className="mt-5 max-w-xl text-base text-navy-900/70 md:text-lg">
+          {t("home.description")}
+        </p>
+        <div className="mt-8 flex flex-wrap gap-3">
+          <Link
+            href="/login"
+            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-gold-400 to-teal-500 px-5 py-3 text-sm font-bold text-navy-950 shadow-lift"
+          >
+            {t("home.goToSystem")} <ArrowRight className="h-4 w-4" />
+          </Link>
+          <a
+            href={COMPANY.website}
+            className="inline-flex items-center gap-2 rounded-full border border-navy-900/15 bg-white/70 px-5 py-3 text-sm font-semibold"
+          >
+            veximglobal.com
+          </a>
         </div>
-
-        <div className="mt-6 text-center text-[11px] leading-[1.6] text-slate-500">
-          This is the official verification portal. The public page displays only non-sensitive information. Internal
-          service fees and revenue data are restricted to authorized personnel.
+        <div className="mt-14 grid gap-4 md:grid-cols-3">
+          {[
+            {
+              icon: ShieldCheck,
+              titleKey: "home.features.validity.title",
+              descKey: "home.features.validity.desc",
+            },
+            {
+              icon: QrCode,
+              titleKey: "home.features.qr.title",
+              descKey: "home.features.qr.desc",
+            },
+            {
+              icon: ArrowRight,
+              titleKey: "home.features.roles.title",
+              descKey: "home.features.roles.desc",
+            },
+          ].map((c) => (
+            <div
+              key={c.titleKey}
+              className="rounded-3xl border border-gold-400/40 bg-white/80 p-6 shadow-card"
+            >
+              <c.icon className="h-6 w-6 text-teal-600" />
+              <h3 className="mt-4 font-display text-lg font-bold">{t(c.titleKey)}</h3>
+              <p className="mt-2 text-sm text-navy-900/65">{t(c.descKey)}</p>
+            </div>
+          ))}
         </div>
+        <footer className="mt-16 border-t border-navy-900/10 pt-6 text-sm text-navy-900/60">
+          <div className="font-semibold text-navy-900">{COMPANY.legal}</div>
+          <div>{COMPANY.address}</div>
+          <div>
+            Hotline {COMPANY.phone} · {COMPANY.email}
+          </div>
+        </footer>
       </main>
     </div>
   );

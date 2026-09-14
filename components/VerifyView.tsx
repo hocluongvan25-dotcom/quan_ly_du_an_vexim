@@ -76,9 +76,9 @@ export function VerifyView({
           </div>
         </div>
 
-        {/* Main Document */}
+        {/* Main Document - Merged 1+3 in one frame */}
         <div className="overflow-hidden border border-slate-300 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
-          {/* Certificate Header */}
+          {/* Certificate Holder */}
           <div className="border-b border-slate-200 bg-[#fafaf9] px-6 py-5 sm:px-8">
             <div className="flex flex-col gap-1">
               <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -95,114 +95,77 @@ export function VerifyView({
             </div>
           </div>
 
-          {/* Data Grid */}
-          <div className="divide-y divide-slate-200">
-            {/* Section 1 */}
-            <section className="px-6 py-6 sm:px-8">
-              <h2 className="mb-4 border-l-[3px] border-[#0a1931] pl-3 text-[12px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
-                1. Registration Details
-              </h2>
-              <div className="grid grid-cols-1 gap-y-5 sm:grid-cols-3 sm:gap-x-8">
-                <Field label="Standard" value={cert.standard} />
-                <Field label="Registration Code" value={cert.registration_code || "—"} mono />
-                <Field label="DUNS Number" value={duns ? formatDuns(duns) : "—"} mono />
-                <Field label="Registration Date" value={formatDate(cert.registered_at)} />
-                <Field label="Expiry Date" value={formatDate(cert.expires_at)} />
-                <Field
-                  label="Contract Term"
-                  value={`${validityYears} ${validityYears === 1 ? "Year" : "Years"} (${total} days)`}
-                />
-              </div>
-            </section>
+          {/* Merged Registration + Scope in ONE frame */}
+          <div className="px-6 py-6 sm:px-8">
+            <h2 className="mb-5 border-l-[3px] border-[#0a1931] pl-3 text-[12px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
+              Registration Details
+            </h2>
+            <div className="grid grid-cols-1 gap-y-5 sm:grid-cols-3 sm:gap-x-8">
+              <Field label="Standard" value={cert.standard} />
+              <Field label="Registration Code" value={cert.registration_code || "—"} mono />
+              <Field label="DUNS Number" value={duns ? formatDuns(duns) : "—"} mono />
+              <Field label="Registration Date" value={formatDate(cert.registered_at)} />
+              <Field label="Expiry Date" value={formatDate(cert.expires_at)} />
+              <Field
+                label="Contract Term"
+                value={`${validityYears} ${validityYears === 1 ? "Year" : "Years"} (${total} days)`}
+              />
+            </div>
 
-            {/* Section 2 */}
-            <section className="px-6 py-6 sm:px-8">
-              <h2 className="mb-4 border-l-[3px] border-[#0a1931] pl-3 text-[12px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
-                2. Validity Information
-              </h2>
-              <div className="grid grid-cols-1 gap-y-5 sm:grid-cols-3 sm:gap-x-8">
-                <Field
-                  label="Validity Status"
-                  value={valid ? `VALID — ${validityYears} Years — Active` : valid ? "VALID" : "EXPIRED / NOT CONFIRMED"}
-                />
-                <Field
-                  label="Days Remaining"
-                  value={left < 0 ? "0 (Expired)" : `${left} days`}
-                />
-                <Field
-                  label="Validity Cycle"
-                  value={`${validityYears} Years / ${total} days — Renewal per ${validityYears} Year${validityYears > 1 ? "s" : ""}`}
-                />
-                <Field
-                  label="Registered Period"
-                  value={`${formatDate(cert.registered_at)} → ${formatDate(cert.expires_at)}`}
-                  full
-                />
-              </div>
-              <div className="mt-5 border border-slate-200 bg-[#f8fafc] px-4 py-3 text-[12px] leading-[1.6] text-slate-600">
-                <span className="font-bold text-slate-800">Note:</span> The validity period is calculated from the
-                registration date. For FDA, the term is flexible 1-10 years per client contract (default 2 years).
-                For GACC, the term is fixed at 5 years. Renewal extends the expiry date by the selected term.
-              </div>
-            </section>
-
-            {/* Section 3 */}
-            <section className="px-6 py-6 sm:px-8">
-              <h2 className="mb-4 border-l-[3px] border-[#0a1931] pl-3 text-[12px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
-                3. Scope of Registration
-              </h2>
-              <div className="min-h-[56px] border border-slate-200 bg-white px-4 py-3 text-[13.5px] leading-[1.7] text-slate-800">
+            {/* Scope inside same frame - divider */}
+            <div className="mt-7 border-t border-slate-200 pt-6">
+              <h3 className="mb-3 border-l-[3px] border-[#0a1931] pl-3 text-[12px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
+                Scope of Registration
+              </h3>
+              <div className="min-h-[64px] border border-slate-200 bg-[#fcfcfc] px-4 py-3.5 text-[13.5px] leading-[1.7] text-slate-800">
                 {cert.scope || "— No scope information provided —"}
               </div>
               {duns && cert.standard === "FDA" && (
-                <div className="mt-4 border border-slate-200 px-4 py-3">
+                <div className="mt-4 border border-slate-200 bg-white px-4 py-3">
                   <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                     DUNS Number (Dun & Bradstreet) — Required for FDA Facility Registration
                   </div>
                   <div className="mt-1 font-mono text-[14px] font-bold text-slate-900">{formatDuns(duns)}</div>
                 </div>
               )}
-            </section>
+            </div>
+          </div>
 
-            {/* Section 4 */}
-            <section className="bg-[#fafaf9] px-6 py-6 sm:px-8">
-              <h2 className="mb-4 border-l-[3px] border-[#0a1931] pl-3 text-[12px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
-                4. Issuing Authority
-              </h2>
-              <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-                <div>
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    Issued By
-                  </div>
-                  <div className="mt-1 font-serif text-[14px] font-bold text-[#0a1931]">{COMPANY.legal}</div>
-                  <div className="mt-3 space-y-1.5 text-[12.5px] leading-[1.6] text-slate-700">
-                    <div>{COMPANY.address}</div>
-                    <div>Phone: {COMPANY.phone}</div>
-                    <div>Email: {COMPANY.email}</div>
-                    <div>Website: {COMPANY.website.replace("https://", "")}</div>
-                  </div>
+          {/* Issuing Authority - moved to bottom */}
+          <div className="border-t border-slate-200 bg-[#fafaf9] px-6 py-6 sm:px-8">
+            <h2 className="mb-4 border-l-[3px] border-[#0a1931] pl-3 text-[12px] font-bold uppercase tracking-[0.16em] text-[#0a1931]">
+              Issuing Authority
+            </h2>
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Issued By</div>
+                <div className="mt-1 font-serif text-[14px] font-bold text-[#0a1931]">{COMPANY.legal}</div>
+                <div className="mt-3 space-y-1.5 text-[12.5px] leading-[1.6] text-slate-700">
+                  <div>{COMPANY.address}</div>
+                  <div>Phone: {COMPANY.phone}</div>
+                  <div>Email: {COMPANY.email}</div>
+                  <div>Website: {COMPANY.website.replace("https://", "")}</div>
                 </div>
-                <div className="border border-slate-200 bg-white px-4 py-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    Verification Statement
+              </div>
+              <div className="border border-slate-200 bg-white px-4 py-4">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                  Verification Statement
+                </div>
+                <p className="mt-2 text-[12px] leading-[1.6] text-slate-600">
+                  This document was generated electronically through the official verification portal of{" "}
+                  {COMPANY.legal}. The public verification page does not display service fees. For any discrepancy,
+                  please contact the issuing authority with the certificate number and verification code.
+                </p>
+                <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3">
+                  <div className="font-mono text-[10px] uppercase tracking-wider text-slate-400">
+                    Verification Code
                   </div>
-                  <p className="mt-2 text-[12px] leading-[1.6] text-slate-600">
-                    This document was generated electronically through the official verification portal of{" "}
-                    {COMPANY.legal}. The public verification page does not display service fees. For any
-                    discrepancy, please contact the issuing authority with the certificate number and verification
-                    code.
-                  </p>
-                  <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3">
-                    <div className="font-mono text-[10px] uppercase tracking-wider text-slate-400">
-                      Verification Code
-                    </div>
-                    <div className="font-mono text-[12px] font-bold tracking-wide text-[#0a1931]">
-                      {cert.public_code}
-                    </div>
+                  <div className="font-mono text-[12px] font-bold tracking-wide text-[#0a1931]">
+                    {cert.public_code}
                   </div>
                 </div>
               </div>
-            </section>
+            </div>
           </div>
 
           {/* Footer Strip */}
@@ -228,15 +191,13 @@ function Field({
   label,
   value,
   mono,
-  full,
 }: {
   label: string;
   value: string;
   mono?: boolean;
-  full?: boolean;
 }) {
   return (
-    <div className={full ? "sm:col-span-3" : ""}>
+    <div>
       <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">{label}</div>
       <div
         className={`mt-1 text-[13.5px] leading-[1.5] text-slate-900 ${mono ? "font-mono text-[13px]" : "font-medium"}`}
