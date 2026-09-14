@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatDate, formatVnd, remainingDays, statusLabel, getValidityYears } from "@/lib/utils";
 import { FDA_VALIDITY_OPTIONS, GACC_FIXED_YEARS } from "@/lib/types";
-import { AlertTriangle, FileBadge2, ShieldCheck, Wallet } from "lucide-react";
+import { AlertTriangle, FileBadge2, ShieldCheck, Wallet, MessageSquare } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
 import type { Certificate } from "@/lib/types";
 
@@ -19,6 +19,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [role, setRole] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
+  const [leadsCount, setLeadsCount] = useState<number>(0);
 
   useEffect(() => {
     fetch("/api/certificates")
@@ -36,6 +37,10 @@ export default function DashboardPage() {
         setRole(d.user?.role || "");
         setUserName(d.user?.name || "");
       });
+    fetch("/api/consultation")
+      .then((r) => r.json())
+      .then((d) => setLeadsCount(d.count || 0))
+      .catch(() => {});
   }, []);
 
   const published = items.filter((i) => i.status !== "draft");
@@ -63,6 +68,21 @@ export default function DashboardPage() {
         <h1 className="mt-1 font-display text-3xl font-extrabold text-navy-900">{t("dashboard.overview")}</h1>
         <p className="mt-1 text-sm text-navy-900/60">{t("dashboard.flexibleDesc")}</p>
       </div>
+
+      <Link href="/dashboard/leads" className="block rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-[1px] shadow-card hover:shadow-lg transition-shadow">
+        <div className="rounded-[22px] bg-gradient-to-br from-slate-900 to-slate-800 px-5 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center text-slate-900">
+              <MessageSquare className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-white">Leads Tư Vấn - 2 Dịch Vụ Xuất Khẩu Mỹ {leadsCount > 0 ? `(${leadsCount})` : ""}</div>
+              <div className="text-xs text-white/60">Dữ liệu từ form verify B2B đổ về contact@veximglobal.com + DB + veximtrade.com / veximops.com</div>
+            </div>
+          </div>
+          <div className="text-xs font-bold text-amber-300">Xem ngay →</div>
+        </div>
+      </Link>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
@@ -200,6 +220,9 @@ export default function DashboardPage() {
             className="mt-5 block rounded-2xl bg-teal-500 py-3 text-center text-sm font-bold text-navy-950"
           >
             {t("dashboard.createNew")}
+          </Link>
+          <Link href="/dashboard/leads" className="mt-3 block rounded-2xl bg-amber-400 py-3 text-center text-sm font-bold text-slate-900">
+            Leads Tư Vấn ({leadsCount})
           </Link>
         </section>
       </div>
