@@ -1,4 +1,4 @@
-import { DEFAULT_VALIDITY, STANDARD_YEARS, type Certificate, type Standard, type FdaRegistrationStatus, FDA_STATUS_OPTIONS } from "./types";
+import { DEFAULT_VALIDITY, STANDARD_YEARS, type Certificate, type Standard } from "./types";
 
 export function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -141,14 +141,6 @@ export function statusLabel(status: string, remaining: number) {
 
 export function validityLabel(years: number) {
   return `${years} ${years === 1 ? "year" : "years"}`;
-}
-
-export function fdaStatusLabel(status: string) {
-  return FDA_STATUS_OPTIONS.find((o) => o.value === status)?.label || status;
-}
-
-export function fdaStatusDescription(status: string) {
-  return FDA_STATUS_OPTIONS.find((o) => o.value === status)?.description || "";
 }
 
 export function formatDuns(code: string | null | undefined) {

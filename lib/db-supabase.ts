@@ -1,8 +1,8 @@
 import { hashPassword } from "./auth";
 import { supabaseAdmin } from "./supabase";
 import { expiryFromStandard, randomCode, remainingDays, getValidityYears } from "./utils";
-import type { Certificate, Role, Standard, User, FdaRegistrationStatus } from "./types";
-import { DEFAULT_VALIDITY, isValidValidityYears, DEFAULT_FDA_STATUS, isValidFdaStatus } from "./types";
+import type { Certificate, Role, Standard, User } from "./types";
+import { DEFAULT_VALIDITY, isValidValidityYears } from "./types";
 
 function mapUser(row: Record<string, unknown>): User {
   return {
@@ -18,7 +18,6 @@ function mapCert(row: Record<string, unknown>): Certificate {
   const joined = row.staff_users as { name?: string } | { name?: string }[] | null;
   const name = Array.isArray(joined) ? joined[0]?.name : joined?.name;
   const validity = Number(row.validity_years || 0);
-  const fdaStatus = String(row.fda_registration_status || DEFAULT_FDA_STATUS) as FdaRegistrationStatus;
   const item: Certificate = {
     id: Number(row.id),
     public_code: String(row.public_code),
@@ -26,7 +25,6 @@ function mapCert(row: Record<string, unknown>): Certificate {
     standard: row.standard as Standard,
     registration_code: String(row.registration_code || ""),
     duns_code: String(row.duns_code || ""),
-    fda_registration_status: isValidFdaStatus(fdaStatus) ? fdaStatus : DEFAULT_FDA_STATUS,
     service_price: Number(row.service_price || 0),
     company_name: String(row.company_name || ""),
     scope: String(row.scope || ""),
@@ -69,17 +67,11 @@ function normalizeValidityYears(input: number | undefined, standard: Standard): 
   return DEFAULT_VALIDITY[standard] ?? 2;
 }
 
-function normalizeFdaStatus(input: string | undefined): FdaRegistrationStatus {
-  if (input && isValidFdaStatus(input)) return input as FdaRegistrationStatus;
-  return DEFAULT_FDA_STATUS;
-}
-
 const SAMPLE_CERTS: Array<{
   no: string;
   standard: Standard;
   code: string;
   duns: string;
-  fda_status: FdaRegistrationStatus;
   price: number;
   company: string;
   scope: string;
@@ -92,7 +84,6 @@ const SAMPLE_CERTS: Array<{
     standard: "FDA",
     code: "17823456789",
     duns: "123456789",
-    fda_status: "active",
     price: 18500000,
     company: "An Phat Food JSC",
     scope: "Food Facility Registration — frozen seafood processing for export to USA",
@@ -105,7 +96,6 @@ const SAMPLE_CERTS: Array<{
     standard: "GACC",
     code: "VN-GACC-44012345678",
     duns: "987654321",
-    fda_status: "registered",
     price: 42000000,
     company: "Mekong Agri Products Co., Ltd",
     scope: "Food enterprise registration for export to China (GACC Decree 248)",
@@ -118,7 +108,6 @@ const SAMPLE_CERTS: Array<{
     standard: "FDA",
     code: "18900123456",
     duns: "112223333",
-    fda_status: "submitted",
     price: 21000000,
     company: "Green Leaf Cosmetics JSC",
     scope: "MoCRA facility registration & cosmetic product listing",
@@ -131,7 +120,6 @@ const SAMPLE_CERTS: Array<{
     standard: "GACC",
     code: "VN-GACC-33098765432",
     duns: "445556666",
-    fda_status: "active",
     price: 38500000,
     company: "Viet Phat Rice JSC",
     scope: "Rice milling and packaging facility for export to China market",
@@ -144,7 +132,6 @@ const SAMPLE_CERTS: Array<{
     standard: "FDA",
     code: "17200998877",
     duns: "778889999",
-    fda_status: "pending",
     price: 16500000,
     company: "Binh Minh Seafood Co., Ltd",
     scope: "FDA Food Facility Registration — fresh and frozen seafood",
@@ -199,7 +186,6 @@ export async function ensureSeed() {
         standard: s.standard,
         registration_code: s.code,
         duns_code: s.duns,
-        fda_registration_status: s.fda_status,
         service_price: s.price,
         company_name: s.company,
         scope: s.scope,
@@ -316,7 +302,6 @@ export async function createCertificate(input: {
   standard: Standard;
   registration_code: string;
   duns_code?: string;
-  fda_registration_status?: string;
   service_price: number;
   company_name: string;
   scope: string;
@@ -328,7 +313,6 @@ export async function createCertificate(input: {
   const expires = expiryFromStandard(input.registered_at, input.standard, validity);
   const no = await nextCertificateNo(input.standard);
   const duns = (input.duns_code || "").replace(/\D/g, "").slice(0, 9);
-  const fdaStatus = normalizeFdaStatus(input.fda_registration_status);
   const { data, error } = await supabaseAdmin()
     .from("certificates")
     .insert({
@@ -337,7 +321,6 @@ export async function createCertificate(input: {
       standard: input.standard,
       registration_code: input.registration_code.trim(),
       duns_code: duns,
-      fda_registration_status: fdaStatus,
       service_price: Math.max(0, Math.round(input.service_price || 0)),
       company_name: input.company_name.trim(),
       scope: input.scope.trim(),
@@ -358,7 +341,6 @@ export async function updateCertificate(
     standard: Standard;
     registration_code: string;
     duns_code?: string;
-    fda_registration_status?: string;
     service_price: number;
     company_name: string;
     scope: string;
@@ -375,14 +357,12 @@ export async function updateCertificate(
     current.standard !== input.standard ||
     current.validity_years !== validity;
   const duns = input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
-  const fdaStatus = input.fda_registration_status ? normalizeFdaStatus(input.fda_registration_status) : current.fda_registration_status;
   const { error } = await supabaseAdmin()
     .from("certificates")
     .update({
       standard: input.standard,
       registration_code: input.registration_code.trim(),
       duns_code: duns,
-      fda_registration_status: fdaStatus,
       service_price: Math.max(0, Math.round(input.service_price || 0)),
       company_name: input.company_name.trim(),
       scope: input.scope.trim(),
@@ -428,6 +408,7 @@ export async function publishCertificate(id: number) {
 export async function renewCertificate(id: number, extraFee = 0) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
+  // Renewal must follow contract duration (validity_years), not fixed 2 years
   const validity = getValidityYears(current);
   const baseDate =
     remainingDays(current.expires_at) >= 0

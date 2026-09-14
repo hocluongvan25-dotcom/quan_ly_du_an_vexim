@@ -19,7 +19,6 @@ export async function GET(_: Request, ctx: { params: { code: string } }) {
         standard: item.standard,
         registration_code: item.registration_code,
         duns_code: item.duns_code || "",
-        fda_registration_status: item.fda_registration_status || "pending",
         company_name: item.company_name,
         scope: item.scope,
         registered_at: item.registered_at,

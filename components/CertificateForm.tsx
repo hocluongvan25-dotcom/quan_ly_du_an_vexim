@@ -5,15 +5,14 @@ import { useRouter } from "next/navigation";
 import { CountdownRing } from "./CountdownRing";
 import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
-import { expiryFromStandard, formatDate, remainingDays, getValidityYears, fdaStatusLabel, formatDuns } from "@/lib/utils";
-import { VALIDITY_OPTIONS, DEFAULT_VALIDITY, FDA_STATUS_OPTIONS, type Certificate, type Standard, type FdaRegistrationStatus, DEFAULT_FDA_STATUS } from "@/lib/types";
+import { expiryFromStandard, formatDate, remainingDays, getValidityYears, formatDuns } from "@/lib/utils";
+import { VALIDITY_OPTIONS, DEFAULT_VALIDITY, type Certificate, type Standard } from "@/lib/types";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
 type FormState = {
   standard: Standard;
   registration_code: string;
   duns_code: string;
-  fda_registration_status: FdaRegistrationStatus;
   service_price: string;
   company_name: string;
   scope: string;
@@ -27,7 +26,6 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     standard: initial?.standard || "FDA",
     registration_code: initial?.registration_code || "",
     duns_code: initial?.duns_code || "",
-    fda_registration_status: initial?.fda_registration_status || DEFAULT_FDA_STATUS,
     service_price: initial ? String(initial.service_price) : "",
     company_name: initial?.company_name || "",
     scope: initial?.scope || "",
@@ -58,7 +56,6 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
   }
 
   function handleDunsChange(value: string) {
-    // Allow digits, dashes, spaces; store raw digits but display formatted
     const digits = value.replace(/\D/g, "").slice(0, 9);
     setForm((s) => ({ ...s, duns_code: digits }));
   }
@@ -67,7 +64,6 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     e?.preventDefault();
     setBusy("save");
     setMsg("");
-    // Validate DUNS if provided
     if (form.duns_code) {
       const digits = form.duns_code.replace(/\D/g, "");
       if (digits.length !== 9) {
@@ -110,7 +106,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     setMsg("");
     const extra =
       kind === "renew"
-        ? Number(prompt(`Renew for additional ${currentValidity} ${currentValidity === 1 ? "year" : "years"} (per current contract). Extra fee (VND), leave empty if none:`, "0") || 0)
+        ? Number(prompt(`Renew for additional ${currentValidity} ${currentValidity === 1 ? "year" : "years"} per contract (follows contract duration). Extra fee (VND), leave empty if none:`, "0") || 0)
         : 0;
     const res = await fetch(`/api/certificates/${item.id}`, {
       method: "PUT",
@@ -126,7 +122,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     setItem(data.item);
     if (kind === "confirm") setMsg("Validity confirmed. VALID badge is now active.");
     if (kind === "publish") setMsg("Published. Revenue recorded and QR code ready to print.");
-    if (kind === "renew") setMsg(`Renewed for additional ${getValidityYears(data.item)} ${getValidityYears(data.item) === 1 ? "year" : "years"} per contract.`);
+    if (kind === "renew") setMsg(`Renewed for additional ${getValidityYears(data.item)} ${getValidityYears(data.item) === 1 ? "year" : "years"} per contract (follows contract duration).`);
   }
 
   const qrUrl = item && origin ? `${origin}/verify/${item.public_code}` : "";
@@ -140,7 +136,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               {item ? item.certificate_no : "New Record"}
             </h1>
             <p className="mt-1 text-sm text-navy-900/55">
-              Specialists fill after registration is complete. Service fee is internal only. FDA supports 1-10 years per contract.
+              Specialists fill after registration is complete. Service fee is internal only. Contract duration 1-10 years. Renewal follows contract duration.
             </p>
           </div>
           <ValiditySeal valid={valid} confirmed={confirmed} size="sm" />
@@ -208,33 +204,6 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
             />
             <div className="mt-1 text-[11px] text-navy-900/50">
               Required for FDA facility registration. Format: XX-XXX-XXXX. {form.duns_code.length === 9 ? "✓ Valid" : form.duns_code ? `${form.duns_code.length}/9 digits` : "Optional"}
-            </div>
-          </Field>
-          <Field label="FDA Registration Status">
-            <select
-              value={form.fda_registration_status}
-              onChange={(e) => patch("fda_registration_status", e.target.value as FdaRegistrationStatus)}
-              className="input"
-            >
-              {FDA_STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label} — {opt.description}
-                </option>
-              ))}
-            </select>
-            <div className="mt-1 flex items-center gap-2">
-              <span
-                className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold"
-                style={{
-                  backgroundColor: `${FDA_STATUS_OPTIONS.find((o) => o.value === form.fda_registration_status)?.color || "#6b7280"}18`,
-                  color: FDA_STATUS_OPTIONS.find((o) => o.value === form.fda_registration_status)?.color || "#6b7280",
-                }}
-              >
-                {fdaStatusLabel(form.fda_registration_status)}
-              </span>
-              <span className="text-[11px] text-navy-900/50">
-                {FDA_STATUS_OPTIONS.find((o) => o.value === form.fda_registration_status)?.description}
-              </span>
             </div>
           </Field>
           <Field label="Service Fee (hidden from customer QR scan)">
@@ -340,7 +309,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               onClick={() => action("renew")}
               className="rounded-xl bg-gold-500 px-4 py-2.5 text-sm font-semibold text-navy-950"
             >
-              Renew {currentValidity} {currentValidity === 1 ? "year" : "years"}
+              Renew {currentValidity} {currentValidity === 1 ? "year" : "years"} (per contract)
             </button>
           )}
         </div>
@@ -363,11 +332,11 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
           <div className="mt-3 rounded-xl bg-slate-50 p-3 text-xs">
             <div className="font-semibold text-navy-900">Contract Details:</div>
             <div className="mt-1 text-navy-900/60">
-              Standard: <b>{form.standard}</b> · Duration: <b>{form.validity_years} {form.validity_years === 1 ? "year" : "years"}</b> · Renewal: <b>{form.validity_years} {form.validity_years === 1 ? "year" : "years"}/cycle</b>
+              Standard: <b>{form.standard}</b> · Duration: <b>{form.validity_years} {form.validity_years === 1 ? "year" : "years"}</b> · Renewal: <b>{form.validity_years} {form.validity_years === 1 ? "year" : "years"}/cycle (follows contract)</b>
             </div>
             {form.duns_code && (
               <div className="mt-2">
-                DUNS: <b className="font-mono">{formatDuns(form.duns_code)}</b> · FDA Status: <b>{fdaStatusLabel(form.fda_registration_status)}</b>
+                DUNS: <b className="font-mono">{formatDuns(form.duns_code)}</b>
               </div>
             )}
           </div>

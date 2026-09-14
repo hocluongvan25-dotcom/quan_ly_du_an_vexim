@@ -2,17 +2,6 @@ export type Role = "admin" | "specialist";
 export type Standard = "FDA" | "GACC";
 export type CertificateStatus = "draft" | "published" | "expired";
 
-// FDA Registration Status - for tracking FDA facility registration lifecycle
-export type FdaRegistrationStatus =
-  | "pending"
-  | "submitted"
-  | "registered"
-  | "active"
-  | "expired"
-  | "cancelled"
-  | "suspended"
-  | "on_hold";
-
 export type User = {
   id: number;
   email: string;
@@ -35,7 +24,6 @@ export type Certificate = {
   standard: Standard;
   registration_code: string;
   duns_code: string; // DUNS number - 9-digit business identifier required for FDA
-  fda_registration_status: FdaRegistrationStatus; // FDA registration lifecycle status
   service_price: number;
   company_name: string;
   scope: string;
@@ -60,7 +48,6 @@ export type PublicCertificate = {
   standard: Standard;
   registration_code: string;
   duns_code: string;
-  fda_registration_status: FdaRegistrationStatus;
   company_name: string;
   scope: string;
   registered_at: string;
@@ -124,35 +111,4 @@ export function formatDunsCode(code: string): string {
   const digits = code.replace(/\D/g, "");
   if (digits.length !== 9) return code;
   return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`; // e.g., 12-345-6789
-}
-
-// FDA Registration Status options
-export const FDA_STATUS_OPTIONS: Array<{
-  value: FdaRegistrationStatus;
-  label: string;
-  description: string;
-  color: string;
-}> = [
-  { value: "pending", label: "Pending", description: "Awaiting submission", color: "slate" },
-  { value: "submitted", label: "Submitted", description: "Submitted to FDA", color: "amber" },
-  { value: "registered", label: "Registered", description: "Registered with FDA", color: "blue" },
-  { value: "active", label: "Active", description: "Active and valid", color: "emerald" },
-  { value: "expired", label: "Expired", description: "Registration expired", color: "rose" },
-  { value: "cancelled", label: "Cancelled", description: "Cancelled by facility or FDA", color: "gray" },
-  { value: "suspended", label: "Suspended", description: "Suspended by FDA", color: "red" },
-  { value: "on_hold", label: "On Hold", description: "On hold pending action", color: "orange" },
-];
-
-export const DEFAULT_FDA_STATUS: FdaRegistrationStatus = "pending";
-
-export function isValidFdaStatus(status: string): boolean {
-  return FDA_STATUS_OPTIONS.some((o) => o.value === status);
-}
-
-export function getFdaStatusLabel(status: string): string {
-  return FDA_STATUS_OPTIONS.find((o) => o.value === status)?.label || status;
-}
-
-export function getFdaStatusColor(status: string): string {
-  return FDA_STATUS_OPTIONS.find((o) => o.value === status)?.color || "slate";
 }
