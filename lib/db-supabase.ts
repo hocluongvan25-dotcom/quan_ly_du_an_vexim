@@ -44,6 +44,21 @@ function mapCert(row: Record<string, unknown>): Certificate {
   return item;
 }
 
+function assertNoSupabaseError(error: any, context: string) {
+  if (!error) return;
+  // PGRST205 = table not found in schema cache
+  if (error.code === "PGRST205" || String(error.message || "").includes("PGRST205") || String(error.message || "").includes("schema cache")) {
+    console.error(`[Supabase] ${context} - PGRST205:`, error);
+    throw new Error(
+      `SUPABASE_SCHEMA_MISSING: Bảng '${context}' chưa tồn tại hoặc chưa được expose trong Supabase. ` +
+        `Vui lòng vào Supabase Dashboard > SQL Editor và chạy toàn bộ file supabase/schema.sql, ` +
+        `sau đó chạy: NOTIFY pgrst, 'reload schema'; ` +
+        `Chi tiết gốc: ${error.message}`
+    );
+  }
+  throw error;
+}
+
 const SAMPLE_CERTS: Array<{
   no: string;
   standard: Standard;
@@ -111,56 +126,71 @@ let seeded = false;
 export async function ensureSeed() {
   if (seeded) return;
   const sb = supabaseAdmin();
-  const { count, error } = await sb.from("staff_users").select("id", { count: "exact", head: true });
-  if (error) throw error;
-  if ((count || 0) > 0) {
+  try {
+    const { count, error } = await sb.from("staff_users").select("id", { count: "exact", head: true });
+    if (error) {
+      assertNoSupabaseError(error, "staff_users");
+    }
+    if ((count || 0) > 0) {
+      seeded = true;
+      return;
+    }
+
+    const { data: users, error: userErr } = await sb
+      .from("staff_users")
+      .insert([
+        {
+          email: "admin@veximglobal.com",
+          name: "Quản trị viên",
+          password_hash: hashPassword("Vexim@Admin2026"),
+          role: "admin",
+        },
+        {
+          email: "chuyenmon@veximglobal.com",
+          name: "Chuyên viên hồ sơ",
+          password_hash: hashPassword("Vexim@CM2026"),
+          role: "specialist",
+        },
+      ])
+      .select("id, email");
+    if (userErr) {
+      assertNoSupabaseError(userErr, "staff_users");
+    }
+    const spec = users?.find((u) => u.email === "chuyenmon@veximglobal.com");
+    const admin = users?.find((u) => u.email === "admin@veximglobal.com");
+    const by = (email: string) => (email.includes("Green") ? admin?.id : spec?.id || admin?.id);
+
+    const { error: certErr } = await sb.from("certificates").insert(
+      SAMPLE_CERTS.map((s) => ({
+        public_code: randomCode(12),
+        certificate_no: s.no,
+        standard: s.standard,
+        registration_code: s.code,
+        service_price: s.price,
+        company_name: s.company,
+        scope: s.scope,
+        registered_at: s.registered,
+        expires_at: expiryFromStandard(s.registered, s.standard),
+        validity_confirmed: true,
+        status: "published",
+        published_at: s.published,
+        revenue_recorded: true,
+        created_by: s.company.includes("Green") ? admin?.id : spec?.id || admin?.id,
+      }))
+    );
+    if (certErr) {
+      assertNoSupabaseError(certErr, "certificates");
+    }
+    void by;
     seeded = true;
-    return;
+  } catch (e: any) {
+    if (e?.message?.includes("SUPABASE_SCHEMA_MISSING")) throw e;
+    // Also handle thrown object with code PGRST205
+    if (e?.code === "PGRST205" || String(e?.message || "").includes("PGRST205")) {
+      assertNoSupabaseError(e, "staff_users");
+    }
+    throw e;
   }
-
-  const { data: users, error: userErr } = await sb
-    .from("staff_users")
-    .insert([
-      {
-        email: "admin@veximglobal.com",
-        name: "Quản trị viên",
-        password_hash: hashPassword("Vexim@Admin2026"),
-        role: "admin",
-      },
-      {
-        email: "chuyenmon@veximglobal.com",
-        name: "Chuyên viên hồ sơ",
-        password_hash: hashPassword("Vexim@CM2026"),
-        role: "specialist",
-      },
-    ])
-    .select("id, email");
-  if (userErr) throw userErr;
-  const spec = users?.find((u) => u.email === "chuyenmon@veximglobal.com");
-  const admin = users?.find((u) => u.email === "admin@veximglobal.com");
-  const by = (email: string) =>
-    email.includes("Green") ? admin?.id : spec?.id || admin?.id;
-
-  await sb.from("certificates").insert(
-    SAMPLE_CERTS.map((s) => ({
-      public_code: randomCode(12),
-      certificate_no: s.no,
-      standard: s.standard,
-      registration_code: s.code,
-      service_price: s.price,
-      company_name: s.company,
-      scope: s.scope,
-      registered_at: s.registered,
-      expires_at: expiryFromStandard(s.registered, s.standard),
-      validity_confirmed: true,
-      status: "published",
-      published_at: s.published,
-      revenue_recorded: true,
-      created_by: s.company.includes("Green") ? admin?.id : spec?.id || admin?.id,
-    }))
-  );
-  void by;
-  seeded = true;
 }
 
 export async function findUserByEmail(email: string) {
@@ -170,7 +200,7 @@ export async function findUserByEmail(email: string) {
     .select("*")
     .eq("email", email.toLowerCase().trim())
     .maybeSingle();
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "staff_users");
   if (!data) return undefined;
   return { ...mapUser(data), password_hash: String(data.password_hash) };
 }
@@ -181,16 +211,11 @@ export async function listUsers(): Promise<User[]> {
     .from("staff_users")
     .select("id, email, name, role, created_at")
     .order("id");
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "staff_users");
   return (data || []).map(mapUser);
 }
 
-export async function createUser(input: {
-  email: string;
-  name: string;
-  password: string;
-  role: Role;
-}) {
+export async function createUser(input: { email: string; name: string; password: string; role: Role }) {
   const { data, error } = await supabaseAdmin()
     .from("staff_users")
     .insert({
@@ -201,19 +226,20 @@ export async function createUser(input: {
     })
     .select("id")
     .single();
-  if (error) throw error;
-  return Number(data.id);
+  if (error) assertNoSupabaseError(error, "staff_users");
+  return Number((data as any)?.id ?? 0);
 }
 
 export async function nextCertificateNo(standard: Standard) {
   const year = new Date().getFullYear();
   const prefix = `VXM-${standard}-${year}-`;
-  const { data } = await supabaseAdmin()
+  const { data, error } = await supabaseAdmin()
     .from("certificates")
     .select("certificate_no")
     .like("certificate_no", `${prefix}%`)
     .order("certificate_no", { ascending: false })
     .limit(1);
+  if (error) assertNoSupabaseError(error, "certificates");
   let seq = 1;
   const no = data?.[0]?.certificate_no;
   if (no) {
@@ -229,7 +255,7 @@ export async function listCertificates(): Promise<Certificate[]> {
     .from("certificates")
     .select("*, staff_users(name)")
     .order("updated_at", { ascending: false });
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   return (data || []).map(mapCert);
 }
 
@@ -239,7 +265,7 @@ export async function getCertificate(id: number) {
     .select("*, staff_users(name)")
     .eq("id", id)
     .maybeSingle();
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   return data ? mapCert(data) : undefined;
 }
 
@@ -249,7 +275,7 @@ export async function getCertificateByPublicCode(code: string) {
     .select("*")
     .eq("public_code", code.toUpperCase())
     .maybeSingle();
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   return data ? mapCert(data) : undefined;
 }
 
@@ -280,8 +306,8 @@ export async function createCertificate(input: {
     })
     .select("id")
     .single();
-  if (error) throw error;
-  return Number(data.id);
+  if (error) assertNoSupabaseError(error, "certificates");
+  return Number((data as any)?.id ?? 0);
 }
 
 export async function updateCertificate(
@@ -298,8 +324,7 @@ export async function updateCertificate(
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
   const expires = expiryFromStandard(input.registered_at, input.standard);
-  const reset =
-    current.registered_at !== input.registered_at || current.standard !== input.standard;
+  const reset = current.registered_at !== input.registered_at || current.standard !== input.standard;
   const { error } = await supabaseAdmin()
     .from("certificates")
     .update({
@@ -314,7 +339,7 @@ export async function updateCertificate(
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
 }
 
 export async function confirmValidity(id: number) {
@@ -325,7 +350,7 @@ export async function confirmValidity(id: number) {
     .from("certificates")
     .update({ validity_confirmed: true, updated_at: new Date().toISOString() })
     .eq("id", id);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
 }
 
 export async function publishCertificate(id: number) {
@@ -342,7 +367,7 @@ export async function publishCertificate(id: number) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   return (await getCertificate(id))!;
 }
 
@@ -350,9 +375,7 @@ export async function renewCertificate(id: number, extraFee = 0) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
   const nextExpiry = expiryFromStandard(
-    remainingDays(current.expires_at) >= 0
-      ? current.expires_at
-      : new Date().toISOString().slice(0, 10),
+    remainingDays(current.expires_at) >= 0 ? current.expires_at : new Date().toISOString().slice(0, 10),
     current.standard
   );
   const extra = Math.max(0, Math.round(extraFee || 0));
@@ -368,7 +391,7 @@ export async function renewCertificate(id: number, extraFee = 0) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   return (await getCertificate(id))!;
 }
 
@@ -379,7 +402,7 @@ export async function deleteCertificate(id: number) {
     throw new Error("PUBLISHED");
   }
   const { error } = await supabaseAdmin().from("certificates").delete().eq("id", id);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
 }
 
 export async function revenueStats() {
@@ -388,7 +411,7 @@ export async function revenueStats() {
     .select("id, standard, service_price, published_at, registered_at, company_name, certificate_no, status")
     .eq("revenue_recorded", true)
     .not("published_at", "is", null);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   const rows = data || [];
 
   const monthMap = new Map<string, { month: string; FDA: number; GACC: number; total: number }>();

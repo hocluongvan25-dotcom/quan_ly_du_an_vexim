@@ -9,17 +9,22 @@ import {
   updateCertificate,
 } from "@/lib/db";
 import type { Standard } from "@/lib/types";
+import { handleApiError } from "@/lib/api-helpers";
 
 export const runtime = "nodejs";
 
 type Ctx = { params: { id: string } };
 
 export async function GET(_: Request, ctx: Ctx) {
-  const user = getSession();
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
-  const item = await getCertificate(Number(ctx.params.id));
-  if (!item) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  return NextResponse.json({ item });
+  try {
+    const user = getSession();
+    if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+    const item = await getCertificate(Number(ctx.params.id));
+    if (!item) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+    return NextResponse.json({ item });
+  } catch (e) {
+    return handleApiError(e);
+  }
 }
 
 export async function PUT(req: Request, ctx: Ctx) {
@@ -53,6 +58,9 @@ export async function PUT(req: Request, ctx: Ctx) {
     return NextResponse.json({ item: await getCertificate(id) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "ERROR";
+    if (msg.includes("SUPABASE_SCHEMA_MISSING") || msg.includes("PGRST205")) {
+      return handleApiError(e);
+    }
     const map: Record<string, string> = {
       NOT_FOUND: "Không tìm thấy hồ sơ.",
       NOT_CONFIRMED: "Cần xác nhận hiệu lực (VALID) trước khi xuất bản.",
@@ -65,13 +73,16 @@ export async function PUT(req: Request, ctx: Ctx) {
 }
 
 export async function DELETE(_: Request, ctx: Ctx) {
-  const user = getSession();
-  if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
   try {
+    const user = getSession();
+    if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     await deleteCertificate(Number(ctx.params.id));
     return NextResponse.json({ ok: true });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "ERROR";
+    if (msg.includes("SUPABASE_SCHEMA_MISSING") || msg.includes("PGRST205")) {
+      return handleApiError(e);
+    }
     return NextResponse.json(
       { error: msg === "PUBLISHED" ? "Không thể xoá hồ sơ đã xuất bản." : msg },
       { status: 400 }
