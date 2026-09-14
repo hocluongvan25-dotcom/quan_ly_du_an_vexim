@@ -1,0 +1,76 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --navy: #24180c;
+  --teal: #e8b22a;
+  --gold: #f3c85a;
+  --paper: #fff8ec;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  color: #24180c;
+  background: var(--paper);
+}
+
+.mesh {
+  background:
+    radial-gradient(1000px 480px at 8% -8%, rgba(246, 211, 107, 0.55), transparent 52%),
+    radial-gradient(800px 420px at 100% 0%, rgba(232, 178, 42, 0.28), transparent 48%),
+    radial-gradient(700px 380px at 50% 110%, rgba(36, 24, 12, 0.08), transparent 50%),
+    #fff6e4;
+}
+
+.paper-card {
+  background:
+    linear-gradient(180deg, rgba(255, 252, 244, 0.96), rgba(255, 255, 255, 0.98)),
+    repeating-linear-gradient(
+      135deg,
+      rgba(232, 178, 42, 0.05) 0 8px,
+      transparent 8px 16px
+    );
+}
+
+.seal-pulse {
+  animation: seal 2.4s ease-in-out infinite;
+}
+
+@keyframes seal {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(18, 183, 106, 0.45);
+  }
+  70% {
+    box-shadow: 0 0 0 14px rgba(18, 183, 106, 0);
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+
+.input {
+  width: 100%;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(36, 24, 12, 0.1);
+  background: #fffaf0;
+  padding: 0.55rem 0.75rem;
+  font-size: 0.875rem;
+  outline: none;
+}
+
+.input:focus {
+  box-shadow: 0 0 0 4px rgba(232, 178, 42, 0.22);
+}
