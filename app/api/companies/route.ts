@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { listCompanies, createCompany, getCompanyByName, listCertificates } from "@/lib/db";
 import { handleApiError } from "@/lib/api-helpers";
+import { remainingDays } from "@/lib/utils";
 
 export const runtime = "nodejs";
 
@@ -12,18 +13,51 @@ export async function GET() {
     const companies = await listCompanies();
     try {
       const certs = await listCertificates();
-      // Build map: company lower -> Set of standards + count
-      const certMap = new Map<string, { standards: Set<string>; count: number; email?: string }>();
+      const certMap = new Map<
+        string,
+        {
+          standards: Set<string>;
+          count: number;
+          email?: string;
+          nearestExpiry?: string;
+          nearestRemaining?: number;
+          nearestCertNo?: string;
+          nearestStandard?: string;
+          allExpiries: Array<{ expires_at: string; remaining: number; certificate_no: string; standard: string; status: string }>;
+        }
+      >();
       for (const cert of certs) {
         const name = cert.company_name?.trim();
         if (!name) continue;
         const low = name.toLowerCase();
-        if (!certMap.has(low)) certMap.set(low, { standards: new Set(), count: 0, email: (cert as any).company_email || "" });
+        if (!certMap.has(low)) {
+          certMap.set(low, { standards: new Set(), count: 0, email: (cert as any).company_email || "", allExpiries: [] });
+        }
         const entry = certMap.get(low)!;
         entry.standards.add(cert.standard);
         entry.count++;
         if (!entry.email && (cert as any).company_email) entry.email = (cert as any).company_email;
+        const rem = remainingDays(cert.expires_at);
+        entry.allExpiries.push({
+          expires_at: cert.expires_at,
+          remaining: rem,
+          certificate_no: cert.certificate_no,
+          standard: cert.standard,
+          status: cert.status,
+        });
       }
+      Array.from(certMap.values()).forEach((entry) => {
+        if (entry.allExpiries.length === 0) return;
+        const sorted = [...entry.allExpiries].sort((a, b) => a.remaining - b.remaining);
+        const upcoming = sorted.filter((e) => e.remaining >= 0).sort((a, b) => a.remaining - b.remaining)[0];
+        const nearest = upcoming || sorted.sort((a, b) => b.remaining - a.remaining)[0];
+        if (nearest) {
+          entry.nearestExpiry = nearest.expires_at;
+          entry.nearestRemaining = nearest.remaining;
+          entry.nearestCertNo = nearest.certificate_no;
+          entry.nearestStandard = nearest.standard;
+        }
+      });
 
       const enriched = companies.map((c) => {
         const low = c.company_name.toLowerCase();
@@ -33,6 +67,11 @@ export async function GET() {
           standards: info ? Array.from(info.standards) : [],
           certificate_count: info?.count || 0,
           services_label: info ? Array.from(info.standards).join(", ") : "",
+          nearest_expiry: info?.nearestExpiry || null,
+          nearest_remaining: info?.nearestRemaining ?? null,
+          nearest_cert_no: info?.nearestCertNo || null,
+          nearest_standard: info?.nearestStandard || null,
+          expiries: info?.allExpiries || [],
         };
       });
 
@@ -59,6 +98,11 @@ export async function GET() {
           standards: info ? Array.from(info.standards) : [cert.standard],
           certificate_count: info?.count || 1,
           services_label: info ? Array.from(info.standards).join(", ") : cert.standard,
+          nearest_expiry: info?.nearestExpiry || cert.expires_at,
+          nearest_remaining: info?.nearestRemaining ?? remainingDays(cert.expires_at),
+          nearest_cert_no: info?.nearestCertNo || cert.certificate_no,
+          nearest_standard: info?.nearestStandard || cert.standard,
+          expiries: info?.allExpiries || [],
         });
       }
 

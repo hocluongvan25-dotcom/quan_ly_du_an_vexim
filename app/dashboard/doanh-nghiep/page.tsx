@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Building2, Mail, Phone, FileText, Search, Plus, Edit3, Trash2, Loader2 } from "lucide-react";
+import { Building2, Mail, Phone, FileText, Search, Plus, Edit3, Trash2, Loader2, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 type Company = {
   id: number;
@@ -15,6 +15,13 @@ type Company = {
   notes: string;
   created_at: string;
   updated_at: string;
+  standards?: string[];
+  certificate_count?: number;
+  nearest_expiry?: string | null;
+  nearest_remaining?: number | null;
+  nearest_cert_no?: string | null;
+  nearest_standard?: string | null;
+  expiries?: Array<{ expires_at: string; remaining: number; certificate_no: string; standard: string; status: string }>;
 };
 
 type CompanyWithStats = Company & {
@@ -193,6 +200,7 @@ export default function CompaniesPage() {
                   <th className="py-3 px-3">Email / SĐT</th>
                   <th className="py-3 px-3">MST</th>
                   <th className="py-3 px-3">Dịch Vụ Đã ĐK</th>
+                  <th className="py-3 px-3">Đếm Ngược Hết Hạn</th>
                   <th className="py-3 px-3">Hành Động</th>
                 </tr>
               </thead>
@@ -218,7 +226,10 @@ export default function CompaniesPage() {
                       <div className="font-mono text-xs font-semibold">{c.tax_code || "—"}</div>
                     </td>
                     <td className="py-3 px-3">
-                      <CompanyServices companyName={c.company_name} />
+                      <CompanyServices companyName={c.company_name} company={c} />
+                    </td>
+                    <td className="py-3 px-3">
+                      <ExpiryCountdown company={c} />
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex items-center gap-1.5">
@@ -333,22 +344,91 @@ export default function CompaniesPage() {
   );
 }
 
-function CompanyServices({ companyName }: { companyName: string }) {
-  const [services, setServices] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
+function ExpiryCountdown({ company }: { company: Company }) {
+  const remaining = company.nearest_remaining;
+  const expiry = company.nearest_expiry;
+  const certNo = company.nearest_cert_no;
+  const standard = company.nearest_standard;
+
+  if (remaining == null || !expiry) {
+    return <span className="text-xs text-slate-400">Chưa có chứng nhận</span>;
+  }
+
+  const isExpired = remaining < 0;
+  const isUrgent = remaining >= 0 && remaining <= 30;
+  const isWarning = remaining > 30 && remaining <= 90;
+
+  const absDays = Math.abs(remaining);
+  const years = Math.floor(absDays / 365);
+  const days = absDays % 365;
+
+  let color = "bg-slate-50 text-slate-600 border-slate-200";
+  let icon = <Clock className="h-3.5 w-3.5" />;
+  let label = "";
+
+  if (isExpired) {
+    color = "bg-rose-50 text-rose-700 border-rose-200";
+    icon = <AlertTriangle className="h-3.5 w-3.5" />;
+    label = `Hết hạn ${absDays} ngày`;
+  } else if (isUrgent) {
+    color = "bg-amber-50 text-amber-700 border-amber-200";
+    icon = <AlertTriangle className="h-3.5 w-3.5" />;
+    if (remaining === 0) label = "Hết hạn hôm nay";
+    else if (remaining === 1) label = "Còn 1 ngày";
+    else label = `Còn ${remaining} ngày`;
+  } else if (isWarning) {
+    color = "bg-orange-50 text-orange-700 border-orange-200";
+    icon = <Clock className="h-3.5 w-3.5" />;
+    label = `Còn ${remaining} ngày`;
+  } else {
+    color = "bg-emerald-50 text-emerald-700 border-emerald-200";
+    icon = <CheckCircle2 className="h-3.5 w-3.5" />;
+    label = years > 0 ? `Còn ${years} năm ${days} ngày` : `Còn ${remaining} ngày`;
+  }
+
+  const formatDate = (iso: string) => {
+    if (!iso) return "—";
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return iso.slice(0, 10);
+    return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
+  };
+
+  return (
+    <div className="min-w-[160px]">
+      <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${color}`}>
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className="mt-1 text-[11px] text-slate-500">
+        {standard && <span className="font-semibold mr-1">{standard}</span>}
+        {certNo && <span className="font-mono text-[10px]">{certNo}</span>}
+      </div>
+      <div className="text-[11px] text-slate-400">{formatDate(expiry)}</div>
+      {company.expiries && company.expiries.length > 1 && (
+        <div className="mt-1 text-[10px] text-slate-400">{company.expiries.length} chứng nhận • Sắp nhất hiển thị</div>
+      )}
+    </div>
+  );
+}
+
+function CompanyServices({ companyName, company }: { companyName: string; company?: Company }) {
+  const [services, setServices] = useState<string[]>(company?.standards || []);
+  const [loading, setLoading] = useState(!company?.standards);
 
   useEffect(() => {
+    if (company?.standards && company.standards.length > 0) {
+      setServices(company.standards);
+      setLoading(false);
+      return;
+    }
     const fetchStats = async () => {
       try {
-        // Try to get from companies API stats via name search in certificates
-        // For simplicity, we fetch certificates list and filter
         const res = await fetch("/api/certificates");
         if (!res.ok) return;
         const data = await res.json();
         const certs = (data.items || data.certificates || []).filter((c: any) => c.company_name === companyName);
         const svc = new Set<string>();
         certs.forEach((c: any) => svc.add(c.standard));
-        // Also try leads
         try {
           const res2 = await fetch("/api/consultation");
           if (res2.ok) {
@@ -362,7 +442,7 @@ function CompanyServices({ companyName }: { companyName: string }) {
       setLoading(false);
     };
     fetchStats();
-  }, [companyName]);
+  }, [companyName, company?.standards]);
 
   if (loading) return <span className="text-xs text-slate-400">...</span>;
   if (services.length === 0) return <span className="text-xs text-slate-400">Chưa có DV</span>;
