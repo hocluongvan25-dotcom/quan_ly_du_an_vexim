@@ -35,25 +35,9 @@ export async function POST(req: NextRequest) {
     if (!phone || phone.replace(/\D/g, "").length < 9) {
       return NextResponse.json({ error: "Valid phone is required (min 9 digits)" }, { status: 400 });
     }
-    // Simple rate limit by IP: max 5 leads per hour (check in memory? For now rely on DB)
-    // Could add more sophisticated rate limiting with upstash/redis later
 
     const ip = getClientIp(req);
 
-    const leadId = await createLead({
-      service_type,
-      name,
-      phone,
-      email,
-      company_name,
-      certificate_no,
-      public_code,
-      message,
-      source_url,
-      ip,
-    });
-
-    // Send email notification via Zoho SMTP (non-blocking but await for result)
     const leadData: LeadData = {
       service_type,
       name,
@@ -67,8 +51,38 @@ export async function POST(req: NextRequest) {
       ip,
     };
 
-    // Fire and forget email but log result
-    // We await to ensure email sent, but don't fail if email fails
+    let leadId = 0;
+    let dbWarning: string | null = null;
+    try {
+      leadId = await createLead({
+        service_type,
+        name,
+        phone,
+        email,
+        company_name,
+        certificate_no,
+        public_code,
+        message,
+        source_url,
+        ip,
+      });
+      if (leadId === 0) {
+        dbWarning = "consultation_leads table missing in Supabase - lead not stored in DB, but email notification will still be sent. Please run supabase/schema.sql in Supabase Dashboard.";
+        console.warn(`[Consultation] ${dbWarning}`);
+      }
+    } catch (e: any) {
+      const msg = String(e.message || "");
+      if (msg.includes("SUPABASE_SCHEMA_MISSING") && msg.includes("consultation_leads")) {
+        dbWarning = "consultation_leads table does not exist in Supabase. Lead will be emailed only. Please run supabase/schema.sql and NOTIFY pgrst, 'reload schema';";
+        console.warn(`[Consultation] ${dbWarning}`, e);
+        leadId = 0;
+      } else {
+        console.error("[Consultation] createLead failed, continuing to email:", e);
+        dbWarning = `DB error: ${msg}`;
+        leadId = 0;
+      }
+    }
+
     let emailResult = null;
     try {
       emailResult = await sendLeadNotification(leadData);
@@ -79,12 +93,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       id: leadId,
-      message: "Lead created",
+      message: dbWarning ? "Lead received (email sent, DB not available)" : "Lead created",
       emailSent: emailResult?.adminResult?.success || false,
       mocked: emailResult?.adminResult?.mocked || false,
+      warning: dbWarning || undefined,
+      dbStored: leadId !== 0,
     });
   } catch (err: any) {
     console.error("[Consultation] POST error:", err);
+    const msg = String(err.message || "");
+    if (msg.includes("SUPABASE_SCHEMA_MISSING") || msg.includes("consultation_leads") || msg.includes("PGRST205")) {
+      return NextResponse.json({
+        success: true,
+        id: 0,
+        message: "Lead received (DB table missing, please run migration)",
+        warning: "consultation_leads table missing - please run supabase/schema.sql in Supabase Dashboard > SQL Editor, then NOTIFY pgrst, 'reload schema';",
+        dbStored: false,
+      });
+    }
     return NextResponse.json({ error: err.message || "Internal error" }, { status: 500 });
   }
 }
@@ -101,6 +127,15 @@ export async function GET() {
     const leads = await listLeads();
     return NextResponse.json({ items: leads, count: leads.length });
   } catch (err: any) {
+    const msg = String(err.message || "");
+    if (msg.includes("SUPABASE_SCHEMA_MISSING") && msg.includes("consultation_leads")) {
+      console.warn("[Consultation] GET - table missing, returning empty + instructions");
+      return NextResponse.json({
+        items: [],
+        count: 0,
+        warning: "consultation_leads table does not exist in Supabase. Please run supabase/schema.sql in Supabase Dashboard > SQL Editor, then run: NOTIFY pgrst, 'reload schema';",
+      });
+    }
     return NextResponse.json({ error: err.message || "Internal error" }, { status: 500 });
   }
 }

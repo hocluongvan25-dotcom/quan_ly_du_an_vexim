@@ -24,13 +24,16 @@ export default function LeadsPage() {
   const [filter, setFilter] = useState<"all" | "sales" | "amazon">("all");
   const [statusFilter, setStatusFilter] = useState<"all" | Lead["status"]>("all");
   const [loading, setLoading] = useState(true);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
+    setWarning(null);
     fetch("/api/consultation")
       .then((r) => r.json())
       .then((d) => {
         setLeads(d.items || []);
+        if (d.warning) setWarning(d.warning);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -70,6 +73,22 @@ export default function LeadsPage() {
           Dữ liệu từ form đăng ký tư vấn 2 dịch vụ ở trang verify (B2B). Tự động gửi email về {process.env.NEXT_PUBLIC_CONTACT_EMAIL || "contact@veximglobal.com"} qua Zoho SMTP.
         </p>
       </div>
+
+      {warning && (
+        <div className="rounded-2xl bg-amber-50 border border-amber-300 p-4 text-sm text-amber-900">
+          <div className="font-bold flex items-center gap-2">⚠️ Cảnh báo Supabase - Bảng consultation_leads chưa tồn tại</div>
+          <div className="mt-2 leading-relaxed">{warning}</div>
+          <div className="mt-3 rounded-xl bg-slate-900 text-white p-3 font-mono text-xs leading-relaxed">
+            <div>1. Vào Supabase Dashboard → SQL Editor</div>
+            <div>2. Mở file supabase/schema.sql, copy toàn bộ và chạy</div>
+            <div>3. Chạy thêm lệnh: <span className="text-amber-300">NOTIFY pgrst, 'reload schema';</span></div>
+            <div>4. Đợi 10s rồi reload trang này</div>
+          </div>
+          <div className="mt-2 text-xs text-amber-800/80">
+            Trong khi chờ migration, leads vẫn được gửi qua email (không bị mất), chỉ không lưu vào DB để hiển thị ở đây.
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-4">
         <div className="rounded-2xl bg-white p-4 shadow-card">

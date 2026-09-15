@@ -54,6 +54,17 @@ function assertNoSupabaseError(error: any, context: string) {
   if (!error) return;
   if (error.code === "PGRST205" || String(error.message || "").includes("PGRST205") || String(error.message || "").includes("schema cache")) {
     console.error(`[Supabase] ${context} - PGRST205:`, error);
+    if (context === "consultation_leads") {
+      const e = new Error(
+        `SUPABASE_SCHEMA_MISSING: Table '${context}' does not exist or is not exposed in Supabase. ` +
+          `Please go to Supabase Dashboard > SQL Editor and run the entire supabase/schema.sql file, ` +
+          `then run: NOTIFY pgrst, 'reload schema'; ` +
+          `Original details: ${error.message}`
+      );
+      (e as any).code = "PGRST205";
+      (e as any).isConsultationLeadsMissing = true;
+      throw e;
+    }
     throw new Error(
       `SUPABASE_SCHEMA_MISSING: Table '${context}' does not exist or is not exposed in Supabase. ` +
         `Please go to Supabase Dashboard > SQL Editor and run the entire supabase/schema.sql file, ` +
@@ -62,6 +73,15 @@ function assertNoSupabaseError(error: any, context: string) {
     );
   }
   throw error;
+}
+
+function isMissingConsultationTableError(e: any): boolean {
+  if (!e) return false;
+  if (e.isConsultationLeadsMissing) return true;
+  const msg = String(e.message || "");
+  if (msg.includes("SUPABASE_SCHEMA_MISSING") && msg.includes("consultation_leads")) return true;
+  if (e.code === "PGRST205" && msg.includes("consultation_leads")) return true;
+  return false;
 }
 
 function normalizeValidityYears(input: number | undefined, standard: Standard): number {
@@ -516,56 +536,93 @@ export async function createLead(input: {
   source_url?: string;
   ip?: string;
 }) {
-  const { data, error } = await supabaseAdmin()
-    .from("consultation_leads")
-    .insert({
-      service_type: input.service_type,
-      name: input.name.trim(),
-      phone: input.phone.trim(),
-      email: (input.email || "").trim(),
-      company_name: (input.company_name || "").trim(),
-      certificate_no: (input.certificate_no || "").trim(),
-      public_code: (input.public_code || "").trim(),
-      message: (input.message || "").trim(),
-      source_url: (input.source_url || "").trim(),
-      ip: (input.ip || "").trim(),
-    })
-    .select("id")
-    .single();
-  if (error) assertNoSupabaseError(error, "consultation_leads");
-  return Number((data as any)?.id ?? 0);
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("consultation_leads")
+      .insert({
+        service_type: input.service_type,
+        name: input.name.trim(),
+        phone: input.phone.trim(),
+        email: (input.email || "").trim(),
+        company_name: (input.company_name || "").trim(),
+        certificate_no: (input.certificate_no || "").trim(),
+        public_code: (input.public_code || "").trim(),
+        message: (input.message || "").trim(),
+        source_url: (input.source_url || "").trim(),
+        ip: (input.ip || "").trim(),
+      })
+      .select("id")
+      .single();
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+    return Number((data as any)?.id ?? 0);
+  } catch (e: any) {
+    if (isMissingConsultationTableError(e)) {
+      console.warn("[Supabase] consultation_leads table missing - lead will be emailed only, not stored in DB. Please run supabase/schema.sql");
+      return 0;
+    }
+    throw e;
+  }
 }
 
 export async function listLeads(): Promise<ConsultationLead[]> {
-  const { data, error } = await supabaseAdmin()
-    .from("consultation_leads")
-    .select("*")
-    .order("created_at", { ascending: false });
-  if (error) assertNoSupabaseError(error, "consultation_leads");
-  return (data || []).map(mapLead);
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("consultation_leads")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+    return (data || []).map(mapLead);
+  } catch (e: any) {
+    if (isMissingConsultationTableError(e)) {
+      console.warn("[Supabase] consultation_leads table missing - returning empty list");
+      return [];
+    }
+    throw e;
+  }
 }
 
 export async function getLead(id: number) {
-  const { data, error } = await supabaseAdmin()
-    .from("consultation_leads")
-    .select("*")
-    .eq("id", id)
-    .maybeSingle();
-  if (error) assertNoSupabaseError(error, "consultation_leads");
-  return data ? mapLead(data) : undefined;
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("consultation_leads")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+    return data ? mapLead(data) : undefined;
+  } catch (e: any) {
+    if (isMissingConsultationTableError(e)) return undefined;
+    throw e;
+  }
 }
 
 export async function updateLeadStatus(id: number, status: ConsultationLead["status"]) {
-  const { error } = await supabaseAdmin()
-    .from("consultation_leads")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) assertNoSupabaseError(error, "consultation_leads");
+  try {
+    const { error } = await supabaseAdmin()
+      .from("consultation_leads")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+  } catch (e: any) {
+    if (isMissingConsultationTableError(e)) {
+      console.warn("[Supabase] consultation_leads table missing - updateLeadStatus skipped");
+      return;
+    }
+    throw e;
+  }
 }
 
 export async function deleteLead(id: number) {
-  const { error } = await supabaseAdmin().from("consultation_leads").delete().eq("id", id);
-  if (error) assertNoSupabaseError(error, "consultation_leads");
+  try {
+    const { error } = await supabaseAdmin().from("consultation_leads").delete().eq("id", id);
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+  } catch (e: any) {
+    if (isMissingConsultationTableError(e)) {
+      console.warn("[Supabase] consultation_leads table missing - deleteLead skipped");
+      return;
+    }
+    throw e;
+  }
 }
 
 export async function revenueStats() {
