@@ -22,6 +22,7 @@ create table if not exists public.certificates (
   us_agent text not null default '',
   service_price bigint not null default 0,
   company_name text not null default '',
+  company_email text not null default '',
   scope text not null default '',
   registered_at date not null,
   expires_at date not null,
@@ -67,6 +68,17 @@ begin
     where table_schema='public' and table_name='certificates' and column_name='us_agent'
   ) then
     alter table public.certificates add column us_agent text not null default '';
+  end if;
+end $$;
+
+-- Migration for company_email (for expiry warnings, hidden from QR)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns 
+    where table_schema='public' and table_name='certificates' and column_name='company_email'
+  ) then
+    alter table public.certificates add column company_email text not null default '';
   end if;
 end $$;
 

@@ -45,12 +45,13 @@ export async function createCertificate(input: {
   us_agent?: string;
   service_price: number;
   company_name: string;
+  company_email?: string;
   scope: string;
   registered_at: string;
   validity_years?: number;
   created_by: number;
 }) {
-  return isSupabaseEnabled() ? cloud.createCertificate(input) : sqlite.createCertificate(input);
+  return isSupabaseEnabled() ? cloud.createCertificate(input as any) : sqlite.createCertificate(input as any);
 }
 
 export async function updateCertificate(
@@ -62,12 +63,13 @@ export async function updateCertificate(
     us_agent?: string;
     service_price: number;
     company_name: string;
+    company_email?: string;
     scope: string;
     registered_at: string;
     validity_years?: number;
   }
 ) {
-  return isSupabaseEnabled() ? cloud.updateCertificate(id, input) : sqlite.updateCertificate(id, input);
+  return isSupabaseEnabled() ? cloud.updateCertificate(id, input as any) : sqlite.updateCertificate(id, input as any);
 }
 
 export async function confirmValidity(id: number) {

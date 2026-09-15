@@ -75,6 +75,10 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
     const dunsCode = isGacc ? "" : String(body.duns_code || "");
     const usAgent = isGacc ? "" : String(body.us_agent || "").slice(0, 200);
+    const companyEmail = String(body.company_email || "").trim();
+    if (companyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(companyEmail)) {
+      return NextResponse.json({ error: "Email doanh nghiệp không hợp lệ." }, { status: 400 });
+    }
     await updateCertificate(id, {
       standard: standard as Standard,
       registration_code: String(body.registration_code || ""),
@@ -82,6 +86,7 @@ export async function PUT(req: Request, ctx: Ctx) {
       us_agent: usAgent,
       service_price: Number(body.service_price || 0),
       company_name: String(body.company_name || ""),
+      company_email: companyEmail,
       scope: String(body.scope || ""),
       registered_at: String(body.registered_at || "").slice(0, 10),
       validity_years,

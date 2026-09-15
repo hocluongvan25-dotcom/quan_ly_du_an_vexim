@@ -104,10 +104,15 @@ export async function scanAndNotifyExpiry(): Promise<ExpiryCheckResult> {
       console.warn(`[ExpiryChecker] hasNotification check failed for ${cert.certificate_no}:`, e.message);
     }
 
-    // Gather recipient emails
+    // Gather recipient emails - prefer certificate.company_email, then companies table
     const recipients: string[] = [];
-    const companyInfo = companyMap.get(cert.company_name.toLowerCase());
-    if (companyInfo?.email) recipients.push(companyInfo.email);
+    const certEmail = (cert as any).company_email?.trim();
+    if (certEmail) recipients.push(certEmail);
+
+    if (recipients.length === 0) {
+      const companyInfo = companyMap.get(cert.company_name.toLowerCase());
+      if (companyInfo?.email) recipients.push(companyInfo.email);
+    }
 
     // Also try to get company by name from DB for email
     if (recipients.length === 0) {

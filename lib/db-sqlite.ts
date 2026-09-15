@@ -44,6 +44,7 @@ function migrate(db: DatabaseSync) {
       us_agent TEXT NOT NULL DEFAULT '',
       service_price INTEGER NOT NULL DEFAULT 0,
       company_name TEXT NOT NULL DEFAULT '',
+      company_email TEXT NOT NULL DEFAULT '',
       scope TEXT NOT NULL DEFAULT '',
       registered_at TEXT NOT NULL,
       expires_at TEXT NOT NULL,
@@ -116,6 +117,9 @@ function migrate(db: DatabaseSync) {
     }
     if (!has("us_agent")) {
       db.exec("ALTER TABLE certificates ADD COLUMN us_agent TEXT NOT NULL DEFAULT ''");
+    }
+    if (!has("company_email")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN company_email TEXT NOT NULL DEFAULT ''");
     }
     // Remove fda_registration_status if it exists (feature removed)
     if (has("fda_registration_status")) {
@@ -339,6 +343,7 @@ function hydrate(row: Certificate): Certificate {
   }
   if (!next.duns_code) next.duns_code = "";
   if (!next.us_agent) next.us_agent = "";
+  if (!next.company_email) next.company_email = "";
   // GACC does not have DUNS or US Agent - clear if present
   if (next.standard === "GACC") {
     next.duns_code = "";
@@ -394,6 +399,7 @@ export function createCertificate(input: {
   us_agent?: string;
   service_price: number;
   company_name: string;
+  company_email?: string;
   scope: string;
   registered_at: string;
   validity_years?: number;
@@ -411,8 +417,8 @@ export function createCertificate(input: {
     .prepare(
       `INSERT INTO certificates (
         public_code, certificate_no, standard, registration_code, duns_code, us_agent,
-        service_price, company_name, scope, registered_at, expires_at, validity_years, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        service_price, company_name, company_email, scope, registered_at, expires_at, validity_years, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       publicCode,
@@ -423,12 +429,38 @@ export function createCertificate(input: {
       usAgent,
       Math.max(0, Math.round(input.service_price || 0)),
       input.company_name.trim(),
+      (input.company_email || "").trim(),
       input.scope.trim(),
       input.registered_at,
       expires,
       validity,
       input.created_by
     );
+
+  // Sync to companies table for official DB
+  try {
+    const existing = getCompanyByName(input.company_name.trim());
+    if (!existing && input.company_name.trim()) {
+      createCompany({
+        company_name: input.company_name.trim(),
+        email: (input.company_email || "").trim(),
+      });
+    } else if (existing && input.company_email?.trim()) {
+      // Update email if provided and different
+      if (!existing.email || existing.email !== input.company_email.trim()) {
+        updateCompany(existing.id, {
+          company_name: existing.company_name,
+          email: input.company_email.trim() || existing.email,
+          phone: existing.phone,
+          tax_code: existing.tax_code,
+          address: existing.address,
+          contact_person: existing.contact_person,
+          notes: existing.notes,
+        });
+      }
+    }
+  } catch {}
+
   return Number(info.lastInsertRowid);
 }
 
@@ -441,6 +473,7 @@ export function updateCertificate(
     us_agent?: string;
     service_price: number;
     company_name: string;
+    company_email?: string;
     scope: string;
     registered_at: string;
     validity_years?: number;
@@ -453,11 +486,12 @@ export function updateCertificate(
   const isGacc = input.standard === "GACC";
   const duns = isGacc ? "" : input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
   const usAgent = isGacc ? "" : input.us_agent !== undefined ? input.us_agent.trim().slice(0, 200) : current.us_agent;
+  const companyEmail = input.company_email !== undefined ? input.company_email.trim() : current.company_email || "";
   db()
     .prepare(
       `UPDATE certificates SET
         standard = ?, registration_code = ?, duns_code = ?, us_agent = ?,
-        service_price = ?, company_name = ?,
+        service_price = ?, company_name = ?, company_email = ?,
         scope = ?, registered_at = ?, expires_at = ?, validity_years = ?,
         validity_confirmed = CASE WHEN registered_at = ? AND standard = ? AND validity_years = ? THEN validity_confirmed ELSE 0 END,
         updated_at = datetime('now')
@@ -470,6 +504,7 @@ export function updateCertificate(
       usAgent,
       Math.max(0, Math.round(input.service_price || 0)),
       input.company_name.trim(),
+      companyEmail,
       input.scope.trim(),
       input.registered_at,
       expires,
@@ -479,6 +514,27 @@ export function updateCertificate(
       validity,
       id
     );
+
+  // Sync to companies
+  try {
+    const existing = getCompanyByName(input.company_name.trim());
+    if (!existing && input.company_name.trim()) {
+      createCompany({
+        company_name: input.company_name.trim(),
+        email: companyEmail,
+      });
+    } else if (existing && companyEmail) {
+      updateCompany(existing.id, {
+        company_name: existing.company_name,
+        email: companyEmail || existing.email,
+        phone: existing.phone,
+        tax_code: existing.tax_code,
+        address: existing.address,
+        contact_person: existing.contact_person,
+        notes: existing.notes,
+      });
+    }
+  } catch {}
 }
 
 export function confirmValidity(id: number) {

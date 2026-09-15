@@ -1,14 +1,16 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CountdownRing } from "./CountdownRing";
 import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
 import { expiryFromStandard, formatDate, remainingDays, getValidityYears, formatDuns, todayLocalIso, todayUtcIso } from "@/lib/utils";
 import { FDA_VALIDITY_OPTIONS, GACC_FIXED_YEARS, DEFAULT_VALIDITY, type Certificate, type Standard } from "@/lib/types";
-import { CheckCircle2, Loader2, X } from "lucide-react";
+import { CheckCircle2, Loader2, X, Building2, Mail, EyeOff, Search } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
+
+type CompanyOption = { id: number; company_name: string; email: string };
 
 type FormState = {
   standard: Standard;
@@ -17,6 +19,7 @@ type FormState = {
   us_agent: string;
   service_price: string;
   company_name: string;
+  company_email: string;
   scope: string;
   registered_at: string;
   validity_years: number;
@@ -32,6 +35,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     us_agent: initial?.standard === "GACC" ? "" : initial?.us_agent || "Vexim Global LLC",
     service_price: initial ? String(initial.service_price) : "",
     company_name: initial?.company_name || "",
+    company_email: (initial as any)?.company_email || "",
     scope: initial?.scope || "",
     registered_at: initial?.registered_at?.slice(0, 10) || todayLocalIso(),
     validity_years: initial?.standard === "GACC" ? GACC_FIXED_YEARS : initial?.validity_years || DEFAULT_VALIDITY[initial?.standard || "FDA"] || 2,
@@ -40,6 +44,9 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState("");
   const [origin, setOrigin] = useState("");
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [companySearchOpen, setCompanySearchOpen] = useState(false);
+  const companyWrapRef = useRef<HTMLDivElement>(null);
 
   const [showRenewDialog, setShowRenewDialog] = useState(false);
   const [renewYears, setRenewYears] = useState<number>(initial?.standard === "GACC" ? GACC_FIXED_YEARS : initial?.validity_years || 2);
@@ -47,6 +54,28 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
 
   useEffect(() => {
     setOrigin(window.location.origin);
+    // Fetch companies for autocomplete + email auto-fill
+    fetch("/api/companies")
+      .then((r) => r.json())
+      .then((d) => {
+        const list = d.companies || d.items || [];
+        if (Array.isArray(list)) {
+          setCompanies(list.map((c: any) => ({ id: c.id, company_name: c.company_name, email: c.email || "" })));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (!companyWrapRef.current) return;
+      if (!companyWrapRef.current.contains(e.target as Node)) {
+        setCompanySearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
   useEffect(() => {
@@ -86,6 +115,21 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     return expiryFromStandard(renewBaseDate, item.standard, renewYears);
   }, [renewBaseDate, item?.standard, renewYears]);
 
+  const filteredCompanies = useMemo(() => {
+    const q = form.company_name.trim().toLowerCase();
+    if (!q) return companies.slice(0, 8);
+    return companies.filter((c) => c.company_name.toLowerCase().includes(q)).slice(0, 8);
+  }, [companies, form.company_name]);
+
+  function selectCompany(c: CompanyOption) {
+    setForm((s) => ({
+      ...s,
+      company_name: c.company_name,
+      company_email: c.email || s.company_email,
+    }));
+    setCompanySearchOpen(false);
+  }
+
   function patch<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((s) => ({ ...s, [key]: value }));
   }
@@ -111,11 +155,18 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     const isGacc = form.standard === "GACC";
     const payload = {
       ...form,
+      company_name: form.company_name.trim(),
+      company_email: form.company_email.trim(),
       service_price: Number(String(form.service_price).replace(/[^\d]/g, "") || 0),
       validity_years: finalValidity,
       duns_code: isGacc ? "" : form.duns_code.replace(/\D/g, "").slice(0, 9),
       us_agent: isGacc ? "" : form.us_agent.trim().slice(0, 200),
     };
+    if (payload.company_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.company_email)) {
+      setBusy("");
+      setMsg("Email doanh nghiệp không hợp lệ.");
+      return;
+    }
     const res = await fetch(item ? `/api/certificates/${item.id}` : "/api/certificates", {
       method: item ? "PUT" : "POST",
       headers: { "Content-Type": "application/json" },
@@ -323,9 +374,85 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               placeholder={t("form.serviceFeePlaceholder")}
             />
           </Field>
-          <Field label={t("form.companyName")} className="md:col-span-2">
-            <input className="input" required value={form.company_name} onChange={(e) => patch("company_name", e.target.value)} />
+          <Field label={
+            <span className="inline-flex items-center gap-1.5">
+              Email doanh nghiệp
+              <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 border px-2 py-0.5 text-[10px] font-bold text-slate-500">
+                <EyeOff className="h-3 w-3" /> Ẩn với QR
+              </span>
+            </span> as any
+          }>
+            <div className="relative">
+              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="input pl-9"
+                type="email"
+                value={form.company_email}
+                onChange={(e) => patch("company_email", e.target.value)}
+                placeholder="contact@company.com"
+              />
+            </div>
+            <div className="mt-1 text-[11px] text-navy-900/50">Tự động lấy từ danh bạ doanh nghiệp, dùng gửi cảnh báo hết hạn. Không hiển thị khi quét QR.</div>
           </Field>
+          <div className="md:col-span-2" ref={companyWrapRef}>
+            <Field label={
+              <span className="inline-flex items-center gap-1.5">
+                {t("form.companyName")}
+                <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-700 inline-flex items-center gap-1">
+                  <Search className="h-3 w-3" /> Tìm kiếm
+                </span>
+              </span> as any
+            }>
+              <div className="relative">
+                <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  className="input pl-9 pr-9"
+                  required
+                  value={form.company_name}
+                  onChange={(e) => {
+                    patch("company_name", e.target.value);
+                    setCompanySearchOpen(true);
+                  }}
+                  onFocus={() => setCompanySearchOpen(true)}
+                  placeholder="Nhập tên công ty để tìm kiếm..."
+                  autoComplete="off"
+                />
+                <button
+                  type="button"
+                  onClick={() => setCompanySearchOpen((v) => !v)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 hover:bg-slate-100"
+                  tabIndex={-1}
+                >
+                  <Search className="h-4 w-4 text-slate-400" />
+                </button>
+                {companySearchOpen && filteredCompanies.length > 0 && (
+                  <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border bg-white shadow-xl">
+                    <div className="sticky top-0 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-500">
+                      {companies.length} doanh nghiệp • {filteredCompanies.length} kết quả
+                    </div>
+                    {filteredCompanies.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => selectCompany(c)}
+                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-slate-50 border-b last:border-0"
+                      >
+                        <Building2 className="h-4 w-4 text-slate-400 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-sm font-medium text-navy-900">{c.company_name}</div>
+                          {c.email && <div className="truncate text-[11px] text-slate-500">{c.email}</div>}
+                        </div>
+                        {form.company_name === c.company_name && <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />}
+                      </button>
+                    ))}
+                    {form.company_name.trim() && !filteredCompanies.some((c) => c.company_name.toLowerCase() === form.company_name.trim().toLowerCase()) && (
+                      <div className="px-3 py-2 text-xs text-slate-500">Nhấn Enter để tạo mới: <b className="text-navy-900">{form.company_name.trim()}</b></div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </Field>
+          </div>
           <Field label={t("form.scope")} className="md:col-span-2">
             <textarea
               className="input min-h-[90px]"
@@ -586,7 +713,7 @@ function Field({
   children,
   className,
 }: {
-  label: string;
+  label: string | React.ReactNode;
   children: React.ReactNode;
   className?: string;
 }) {

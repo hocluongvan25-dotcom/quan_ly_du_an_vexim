@@ -27,6 +27,7 @@ export type Certificate = {
   us_agent: string; // US Agent - required for FDA, not applicable for GACC
   service_price: number;
   company_name: string;
+  company_email: string; // Company email for expiry warnings, hidden from QR
   scope: string;
   registered_at: string;
   expires_at: string;

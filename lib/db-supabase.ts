@@ -29,6 +29,7 @@ function mapCert(row: Record<string, unknown>): Certificate {
     us_agent: std === "GACC" ? "" : String(row.us_agent || ""),
     service_price: Number(row.service_price || 0),
     company_name: String(row.company_name || ""),
+    company_email: String(row.company_email || ""),
     scope: String(row.scope || ""),
     registered_at: String(row.registered_at).slice(0, 10),
     expires_at: String(row.expires_at).slice(0, 10),
@@ -335,6 +336,7 @@ export async function createCertificate(input: {
   us_agent?: string;
   service_price: number;
   company_name: string;
+  company_email?: string;
   scope: string;
   registered_at: string;
   validity_years?: number;
@@ -357,6 +359,7 @@ export async function createCertificate(input: {
       us_agent: usAgent,
       service_price: Math.max(0, Math.round(input.service_price || 0)),
       company_name: input.company_name.trim(),
+      company_email: (input.company_email || "").trim(),
       scope: input.scope.trim(),
       registered_at: input.registered_at,
       expires_at: expires,
@@ -366,6 +369,23 @@ export async function createCertificate(input: {
     .select("id")
     .single();
   if (error) assertNoSupabaseError(error, "certificates");
+  // Sync to companies
+  try {
+    const existing = await getCompanyByName(input.company_name.trim());
+    if (!existing && input.company_name.trim()) {
+      await createCompany({ company_name: input.company_name.trim(), email: (input.company_email || "").trim() });
+    } else if (existing && input.company_email?.trim()) {
+      await updateCompany(existing.id, {
+        company_name: existing.company_name,
+        email: input.company_email.trim() || existing.email,
+        phone: existing.phone,
+        tax_code: existing.tax_code,
+        address: existing.address,
+        contact_person: existing.contact_person,
+        notes: existing.notes,
+      });
+    }
+  } catch {}
   return Number((data as any)?.id ?? 0);
 }
 
@@ -378,6 +398,7 @@ export async function updateCertificate(
     us_agent?: string;
     service_price: number;
     company_name: string;
+    company_email?: string;
     scope: string;
     registered_at: string;
     validity_years?: number;
@@ -394,6 +415,7 @@ export async function updateCertificate(
   const isGacc = input.standard === "GACC";
   const duns = isGacc ? "" : input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
   const usAgent = isGacc ? "" : input.us_agent !== undefined ? input.us_agent.trim().slice(0, 200) : current.us_agent;
+  const companyEmail = input.company_email !== undefined ? input.company_email.trim() : (current as any).company_email || "";
   const { error } = await supabaseAdmin()
     .from("certificates")
     .update({
@@ -403,6 +425,7 @@ export async function updateCertificate(
       us_agent: usAgent,
       service_price: Math.max(0, Math.round(input.service_price || 0)),
       company_name: input.company_name.trim(),
+      company_email: companyEmail,
       scope: input.scope.trim(),
       registered_at: input.registered_at,
       expires_at: expires,
@@ -412,6 +435,22 @@ export async function updateCertificate(
     })
     .eq("id", id);
   if (error) assertNoSupabaseError(error, "certificates");
+  try {
+    const existing = await getCompanyByName(input.company_name.trim());
+    if (!existing && input.company_name.trim()) {
+      await createCompany({ company_name: input.company_name.trim(), email: companyEmail });
+    } else if (existing && companyEmail) {
+      await updateCompany(existing.id, {
+        company_name: existing.company_name,
+        email: companyEmail || existing.email,
+        phone: existing.phone,
+        tax_code: existing.tax_code,
+        address: existing.address,
+        contact_person: existing.contact_person,
+        notes: existing.notes,
+      });
+    }
+  } catch {}
 }
 
 export async function confirmValidity(id: number) {
