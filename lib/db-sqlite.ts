@@ -75,6 +75,19 @@ function migrate(db: DatabaseSync) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS companies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_name TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL DEFAULT '',
+      phone TEXT NOT NULL DEFAULT '',
+      tax_code TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      contact_person TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migration for old DBs
@@ -602,6 +615,148 @@ export function updateLeadStatus(id: number, status: ConsultationLead["status"])
 
 export function deleteLead(id: number) {
   db().prepare(`DELETE FROM consultation_leads WHERE id = ?`).run(id);
+}
+
+export type Company = {
+  id: number;
+  company_name: string;
+  email: string;
+  phone: string;
+  tax_code: string;
+  address: string;
+  contact_person: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export function listCompanies(): Company[] {
+  const companies = plain(
+    db()
+      .prepare(`SELECT * FROM companies ORDER BY updated_at DESC, id DESC`)
+      .all()
+  ) as Company[];
+
+  // Also include distinct company names from certificates that are not yet in companies table (official DB)
+  const certCompanies = db()
+    .prepare(`SELECT DISTINCT company_name FROM certificates WHERE company_name != ''`)
+    .all() as Array<{ company_name: string }>;
+
+  const existingNames = new Set(companies.map((c) => c.company_name.toLowerCase()));
+  const missing: Company[] = certCompanies
+    .filter((r) => !existingNames.has(r.company_name.toLowerCase()))
+    .map((r, idx) => ({
+      id: -1000 - idx, // temporary negative id for unsaved
+      company_name: r.company_name,
+      email: "",
+      phone: "",
+      tax_code: "",
+      address: "",
+      contact_person: "",
+      notes: "Tự động từ chứng nhận",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+
+  return [...companies, ...missing];
+}
+
+export function getCompany(id: number): Company | undefined {
+  return plain(
+    db().prepare(`SELECT * FROM companies WHERE id = ?`).get(id)
+  ) as Company | undefined;
+}
+
+export function getCompanyByName(name: string): Company | undefined {
+  return plain(
+    db().prepare(`SELECT * FROM companies WHERE company_name = ?`).get(name.trim())
+  ) as Company | undefined;
+}
+
+export function createCompany(input: {
+  company_name: string;
+  email?: string;
+  phone?: string;
+  tax_code?: string;
+  address?: string;
+  contact_person?: string;
+  notes?: string;
+}) {
+  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+  const info = db()
+    .prepare(
+      `INSERT INTO companies (company_name, email, phone, tax_code, address, contact_person, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      input.company_name.trim(),
+      (input.email || "").trim(),
+      (input.phone || "").trim(),
+      (input.tax_code || "").trim(),
+      (input.address || "").trim(),
+      (input.contact_person || "").trim(),
+      (input.notes || "").trim()
+    );
+  return Number(info.lastInsertRowid);
+}
+
+export function updateCompany(
+  id: number,
+  input: {
+    company_name: string;
+    email?: string;
+    phone?: string;
+    tax_code?: string;
+    address?: string;
+    contact_person?: string;
+    notes?: string;
+  }
+) {
+  const current = getCompany(id);
+  if (!current) throw new Error("NOT_FOUND");
+  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+  db()
+    .prepare(
+      `UPDATE companies SET
+        company_name = ?, email = ?, phone = ?, tax_code = ?, address = ?, contact_person = ?, notes = ?,
+        updated_at = datetime('now')
+       WHERE id = ?`
+    )
+    .run(
+      input.company_name.trim(),
+      (input.email || "").trim(),
+      (input.phone || "").trim(),
+      (input.tax_code || "").trim(),
+      (input.address || "").trim(),
+      (input.contact_person || "").trim(),
+      (input.notes || "").trim(),
+      id
+    );
+}
+
+export function deleteCompany(id: number) {
+  const current = getCompany(id);
+  if (!current) throw new Error("NOT_FOUND");
+  db().prepare(`DELETE FROM companies WHERE id = ?`).run(id);
+}
+
+export function getCompanyStats(companyName: string) {
+  const certs = db()
+    .prepare(`SELECT * FROM certificates WHERE company_name = ? ORDER BY updated_at DESC`)
+    .all(companyName) as Certificate[];
+  const leads = db()
+    .prepare(`SELECT * FROM consultation_leads WHERE company_name = ? ORDER BY created_at DESC`)
+    .all(companyName) as ConsultationLead[];
+  const services = new Set<string>();
+  certs.forEach((c) => services.add(c.standard));
+  leads.forEach((l) => services.add(l.service_type === "sales" ? "SALE_EXPORT" : "AMAZON_OPS"));
+  return {
+    certificates: certs.map(hydrate),
+    leads: plain(leads) as ConsultationLead[],
+    services: Array.from(services),
+    totalCertificates: certs.length,
+    totalLeads: leads.length,
+  };
 }
 
 export function revenueStats() {

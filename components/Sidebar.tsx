@@ -10,6 +10,7 @@ import {
   Plus,
   Users,
   MessageSquare,
+  Building2,
 } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
     { href: "/dashboard", labelKey: "nav.overview", icon: LayoutDashboard, adminOnly: false },
     { href: "/dashboard/ho-so", labelKey: "nav.records", icon: FileBadge2, adminOnly: false },
     { href: "/dashboard/ho-so/moi", labelKey: "nav.newRecord", icon: Plus, adminOnly: false },
+    { href: "/dashboard/doanh-nghiep", labelKey: "Doanh Nghiệp", icon: Building2, adminOnly: false },
     { href: "/dashboard/leads", labelKey: "Leads Tư Vấn", icon: MessageSquare, adminOnly: false },
     { href: "/dashboard/doanh-thu", labelKey: "nav.revenue", icon: BarChart3, adminOnly: true },
     { href: "/dashboard/nguoi-dung", labelKey: "nav.users", icon: Users, adminOnly: true },

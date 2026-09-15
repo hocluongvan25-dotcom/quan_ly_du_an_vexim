@@ -93,6 +93,7 @@ export async function revenueStats() {
 }
 
 export type ConsultationLead = sqlite.ConsultationLead;
+export type Company = sqlite.Company;
 
 export async function createLead(input: {
   service_type: "sales" | "amazon";
@@ -123,4 +124,51 @@ export async function updateLeadStatus(id: number, status: ConsultationLead["sta
 
 export async function deleteLead(id: number) {
   return isSupabaseEnabled() ? cloud.deleteLead(id) : sqlite.deleteLead(id);
+}
+
+export async function listCompanies() {
+  return isSupabaseEnabled() ? cloud.listCompanies() : sqlite.listCompanies();
+}
+
+export async function getCompany(id: number) {
+  return isSupabaseEnabled() ? cloud.getCompany(id) : sqlite.getCompany(id);
+}
+
+export async function getCompanyByName(name: string) {
+  return isSupabaseEnabled() ? cloud.getCompanyByName(name) : sqlite.getCompanyByName(name);
+}
+
+export async function createCompany(input: {
+  company_name: string;
+  email?: string;
+  phone?: string;
+  tax_code?: string;
+  address?: string;
+  contact_person?: string;
+  notes?: string;
+}) {
+  return isSupabaseEnabled() ? cloud.createCompany(input) : sqlite.createCompany(input);
+}
+
+export async function updateCompany(
+  id: number,
+  input: {
+    company_name: string;
+    email?: string;
+    phone?: string;
+    tax_code?: string;
+    address?: string;
+    contact_person?: string;
+    notes?: string;
+  }
+) {
+  return isSupabaseEnabled() ? cloud.updateCompany(id, input) : sqlite.updateCompany(id, input);
+}
+
+export async function deleteCompany(id: number) {
+  return isSupabaseEnabled() ? cloud.deleteCompany(id) : sqlite.deleteCompany(id);
+}
+
+export async function getCompanyStats(companyName: string) {
+  return isSupabaseEnabled() ? cloud.getCompanyStats(companyName) : sqlite.getCompanyStats(companyName);
 }

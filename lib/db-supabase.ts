@@ -627,6 +627,212 @@ export async function deleteLead(id: number) {
   }
 }
 
+export type Company = {
+  id: number;
+  company_name: string;
+  email: string;
+  phone: string;
+  tax_code: string;
+  address: string;
+  contact_person: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+function mapCompany(row: Record<string, unknown>): Company {
+  return {
+    id: Number(row.id),
+    company_name: String(row.company_name || ""),
+    email: String(row.email || ""),
+    phone: String(row.phone || ""),
+    tax_code: String(row.tax_code || ""),
+    address: String(row.address || ""),
+    contact_person: String(row.contact_person || ""),
+    notes: String(row.notes || ""),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  };
+}
+
+function isMissingCompaniesTableError(e: any): boolean {
+  if (!e) return false;
+  const msg = String(e.message || "");
+  if (msg.includes("companies") && (msg.includes("PGRST205") || msg.includes("schema cache") || msg.includes("does not exist"))) return true;
+  if (e.code === "PGRST205" && msg.includes("companies")) return true;
+  return false;
+}
+
+export async function listCompanies(): Promise<Company[]> {
+  try {
+    const { data, error } = await supabaseAdmin().from("companies").select("*").order("updated_at", { ascending: false });
+    if (error) assertNoSupabaseError(error, "companies");
+    const companies = (data || []).map(mapCompany);
+
+    // Merge with distinct company names from certificates (official DB)
+    try {
+      const { data: certData, error: certErr } = await supabaseAdmin()
+        .from("certificates")
+        .select("company_name")
+        .neq("company_name", "");
+      if (!certErr && certData) {
+        const existing = new Set(companies.map((c) => c.company_name.toLowerCase()));
+        const distinct = new Map<string, string>();
+        certData.forEach((r: any) => {
+          const name = String(r.company_name || "").trim();
+          if (name && !existing.has(name.toLowerCase())) {
+            distinct.set(name.toLowerCase(), name);
+          }
+        });
+        let idx = 0;
+        for (const name of Array.from(distinct.values())) {
+          companies.push({
+            id: -1000 - idx,
+            company_name: name,
+            email: "",
+            phone: "",
+            tax_code: "",
+            address: "",
+            contact_person: "",
+            notes: "Tự động từ chứng nhận",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          idx++;
+        }
+      }
+    } catch {}
+
+    return companies;
+  } catch (e: any) {
+    if (isMissingCompaniesTableError(e)) {
+      console.warn("[Supabase] companies table missing - returning empty, please run schema.sql");
+      return [];
+    }
+    throw e;
+  }
+}
+
+export async function getCompany(id: number): Promise<Company | undefined> {
+  try {
+    const { data, error } = await supabaseAdmin().from("companies").select("*").eq("id", id).maybeSingle();
+    if (error) assertNoSupabaseError(error, "companies");
+    return data ? mapCompany(data) : undefined;
+  } catch (e: any) {
+    if (isMissingCompaniesTableError(e)) return undefined;
+    throw e;
+  }
+}
+
+export async function getCompanyByName(name: string): Promise<Company | undefined> {
+  try {
+    const { data, error } = await supabaseAdmin().from("companies").select("*").eq("company_name", name.trim()).maybeSingle();
+    if (error) assertNoSupabaseError(error, "companies");
+    return data ? mapCompany(data) : undefined;
+  } catch (e: any) {
+    if (isMissingCompaniesTableError(e)) return undefined;
+    throw e;
+  }
+}
+
+export async function createCompany(input: {
+  company_name: string;
+  email?: string;
+  phone?: string;
+  tax_code?: string;
+  address?: string;
+  contact_person?: string;
+  notes?: string;
+}): Promise<number> {
+  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+  const { data, error } = await supabaseAdmin()
+    .from("companies")
+    .insert({
+      company_name: input.company_name.trim(),
+      email: (input.email || "").trim(),
+      phone: (input.phone || "").trim(),
+      tax_code: (input.tax_code || "").trim(),
+      address: (input.address || "").trim(),
+      contact_person: (input.contact_person || "").trim(),
+      notes: (input.notes || "").trim(),
+    })
+    .select("id")
+    .single();
+  if (error) assertNoSupabaseError(error, "companies");
+  return Number((data as any)?.id ?? 0);
+}
+
+export async function updateCompany(
+  id: number,
+  input: {
+    company_name: string;
+    email?: string;
+    phone?: string;
+    tax_code?: string;
+    address?: string;
+    contact_person?: string;
+    notes?: string;
+  }
+) {
+  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+  const { error } = await supabaseAdmin()
+    .from("companies")
+    .update({
+      company_name: input.company_name.trim(),
+      email: (input.email || "").trim(),
+      phone: (input.phone || "").trim(),
+      tax_code: (input.tax_code || "").trim(),
+      address: (input.address || "").trim(),
+      contact_person: (input.contact_person || "").trim(),
+      notes: (input.notes || "").trim(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) assertNoSupabaseError(error, "companies");
+}
+
+export async function deleteCompany(id: number) {
+  const { error } = await supabaseAdmin().from("companies").delete().eq("id", id);
+  if (error) assertNoSupabaseError(error, "companies");
+}
+
+export async function getCompanyStats(companyName: string) {
+  const sb = supabaseAdmin();
+  const { data: certsData, error: certErr } = await sb
+    .from("certificates")
+    .select("*")
+    .eq("company_name", companyName)
+    .order("updated_at", { ascending: false });
+  if (certErr) assertNoSupabaseError(certErr, "certificates");
+
+  let leadsData: any[] = [];
+  try {
+    const { data, error } = await sb
+      .from("consultation_leads")
+      .select("*")
+      .eq("company_name", companyName)
+      .order("created_at", { ascending: false });
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+    leadsData = data || [];
+  } catch (e: any) {
+    if (!isMissingConsultationTableError(e)) throw e;
+  }
+
+  const certs = (certsData || []).map(mapCert);
+  const leads = leadsData.map(mapLead);
+  const services = new Set<string>();
+  certs.forEach((c) => services.add(c.standard));
+  leads.forEach((l) => services.add(l.service_type === "sales" ? "SALE_EXPORT" : "AMAZON_OPS"));
+
+  return {
+    certificates: certs,
+    leads,
+    services: Array.from(services),
+    totalCertificates: certs.length,
+    totalLeads: leads.length,
+  };
+}
+
 export async function revenueStats() {
   const { data, error } = await supabaseAdmin()
     .from("certificates")

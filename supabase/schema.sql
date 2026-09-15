@@ -107,6 +107,20 @@ create table if not exists public.consultation_leads (
   updated_at timestamptz not null default now()
 );
 
+-- Companies / Business Profiles (official DB)
+create table if not exists public.companies (
+  id bigint generated always as identity primary key,
+  company_name text unique not null,
+  email text not null default '',
+  phone text not null default '',
+  tax_code text not null default '',
+  address text not null default '',
+  contact_person text not null default '',
+  notes text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- Indexes
 create index if not exists certificates_public_code_idx on public.certificates (public_code);
 create index if not exists certificates_status_idx on public.certificates (status);
@@ -118,19 +132,25 @@ create index if not exists certificates_us_agent_idx on public.certificates (us_
 create index if not exists consultation_leads_service_type_idx on public.consultation_leads (service_type);
 create index if not exists consultation_leads_status_idx on public.consultation_leads (status);
 create index if not exists consultation_leads_created_at_idx on public.consultation_leads (created_at desc);
+create index if not exists companies_company_name_idx on public.companies (company_name);
+create index if not exists companies_tax_code_idx on public.companies (tax_code);
+create index if not exists companies_created_at_idx on public.companies (created_at desc);
 
 -- RLS
 alter table public.staff_users enable row level security;
 alter table public.certificates enable row level security;
 alter table public.consultation_leads enable row level security;
+alter table public.companies enable row level security;
 
 -- Grants
 grant all on table public.staff_users to service_role;
 grant all on table public.certificates to service_role;
 grant all on table public.consultation_leads to service_role;
+grant all on table public.companies to service_role;
 grant all on table public.staff_users to postgres;
 grant all on table public.certificates to postgres;
 grant all on table public.consultation_leads to postgres;
+grant all on table public.companies to postgres;
 grant usage, select on all sequences in schema public to service_role;
 grant usage, select on all sequences in schema public to postgres;
 
