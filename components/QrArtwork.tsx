@@ -90,7 +90,7 @@ export function QrArtwork({
             bgColor="#ffffff"
             fgColor="#24180C"
             imageSettings={{
-              src: "/logo-mark.png",
+              src: "/logo-mark-new.png",
               height: 44,
               width: 44,
               excavate: true,
@@ -107,7 +107,7 @@ export function QrArtwork({
           fgColor="#24180C"
           includeMargin
           imageSettings={{
-            src: "/logo-mark.png",
+            src: "/logo-mark-new.png",
             height: 160,
             width: 160,
             excavate: true,
