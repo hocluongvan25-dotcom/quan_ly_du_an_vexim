@@ -200,17 +200,6 @@ export default function LeadsPage() {
         </div>
       </div>
 
-      <div className="rounded-2xl bg-slate-900 text-white p-5">
-        <h3 className="font-bold text-sm">Cấu hình Email Zoho - contact@veximglobal.com</h3>
-        <div className="mt-3 text-xs leading-relaxed text-white/70 space-y-1">
-          <div>• SMTP Host: smtp.zoho.com (US) hoặc smtppro.zoho.com, Port 465 SSL hoặc 587 TLS</div>
-          <div>• User: contact@veximglobal.com, Pass: App Password từ Zoho Account → Security → App Passwords</div>
-          <div>• Env vars cần set: ZOHO_SMTP_HOST, ZOHO_SMTP_PORT, ZOHO_SMTP_USER, ZOHO_SMTP_PASS, ZOHO_FROM_EMAIL, ZOHO_TO_EMAIL</div>
-          <div>• SPF: thêm v=spf1 include:zoho.com ~all vào DNS TXT</div>
-          <div>• DKIM: tạo trong Zoho Mail Admin → Email Authentication → DKIM → add TXT record</div>
-          <div>• Test: GET /api/email/test (admin only) để kiểm tra kết nối SMTP</div>
-        </div>
-      </div>
     </div>
   );
 }
