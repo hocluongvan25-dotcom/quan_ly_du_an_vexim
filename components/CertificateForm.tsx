@@ -41,7 +41,6 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
   const [busy, setBusy] = useState("");
   const [origin, setOrigin] = useState("");
 
-  // Renew dialog state
   const [showRenewDialog, setShowRenewDialog] = useState(false);
   const [renewYears, setRenewYears] = useState<number>(initial?.standard === "GACC" ? GACC_FIXED_YEARS : initial?.validity_years || 2);
   const [renewFee, setRenewFee] = useState<string>("0");
@@ -56,7 +55,6 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     }
   }, [item?.id]);
 
-  // When standard changes to GACC, force 5 years and clear FDA-only fields
   useEffect(() => {
     if (form.standard === "GACC") {
       if (form.validity_years !== GACC_FIXED_YEARS || form.duns_code || form.us_agent) {
@@ -69,12 +67,12 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     () => expiryFromStandard(form.registered_at, form.standard, form.validity_years),
     [form.registered_at, form.standard, form.validity_years]
   );
-  const previewLeft = remainingDays(expires);
-  const savedLeft = item ? remainingDays(item.expires_at) : previewLeft;
-  const left = previewLeft;
-  const confirmed = Boolean(item?.validity_confirmed);
+  const savedLeft = item ? remainingDays(item.expires_at) : remainingDays(expires);
+  const left = item ? savedLeft : remainingDays(expires);
+  // Simplified: published = valid, no separate confirm step
   const published = item?.status === "published" || item?.status === "expired";
-  const valid = confirmed && savedLeft >= 0;
+  const valid = published && savedLeft >= 0;
+  const confirmed = published; // auto-confirmed on publish
   const displayValidity = form.standard === "GACC" ? GACC_FIXED_YEARS : form.validity_years;
   const savedValidity = item ? getValidityYears(item) : form.validity_years;
 
@@ -101,7 +99,6 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     e?.preventDefault();
     setBusy("save");
     setMsg("");
-    // DUNS only for FDA
     if (form.standard === "FDA" && form.duns_code) {
       const digits = form.duns_code.replace(/\D/g, "");
       if (digits.length !== 9) {
@@ -144,27 +141,27 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     );
   }
 
-  async function action(kind: "confirm" | "publish") {
+  async function publish() {
     if (!item) {
+      // If no item yet, save first then publish
       await save();
       return;
     }
-    setBusy(kind);
+    setBusy("publish");
     setMsg("");
     const res = await fetch(`/api/certificates/${item.id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: kind }),
+      body: JSON.stringify({ action: "publish" }),
     });
     const data = await res.json();
     setBusy("");
     if (!res.ok) {
-      setMsg(data.error || "Action failed");
+      setMsg(data.error || "Publish failed");
       return;
     }
     setItem(data.item);
-    if (kind === "confirm") setMsg(t("form.validityConfirmed"));
-    if (kind === "publish") setMsg(t("form.publishedMsg"));
+    setMsg(t("form.publishedMsg"));
   }
 
   async function doRenew() {
@@ -215,6 +212,14 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               {item ? item.certificate_no : t("form.newRecord")}
             </h1>
             <p className="mt-1 text-sm text-navy-900/55">{t("form.specialistFill")}</p>
+            <div className="mt-2 inline-flex items-center gap-2 text-[11px]">
+              <span className={`px-2.5 py-1 rounded-full font-bold ${published ? "bg-emerald-100 text-emerald-800 border border-emerald-200" : "bg-slate-100 text-slate-600 border"}`}>
+                {published ? (valid ? "✓ Đã xuất bản - Hợp lệ" : "Đã xuất bản - Hết hạn") : "Nháp"}
+              </span>
+              {published && item?.published_at && (
+                <span className="text-slate-400">Xuất bản: {formatDate(item.published_at)}</span>
+              )}
+            </div>
           </div>
           <ValiditySeal valid={valid} confirmed={confirmed} size="sm" />
         </div>
@@ -276,7 +281,6 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               placeholder={t("form.registrationCodePlaceholder")}
             />
           </Field>
-          {/* DUNS and US Agent - FDA only, side by side */}
           {isFda ? (
             <>
               <Field label={t("form.dunsNumber")}>
@@ -363,7 +367,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
           </Field>
           <Field label={t("form.certificateValidity")}>
             <div className="flex h-[42px] items-center text-sm font-semibold">
-              {confirmed ? (
+              {published ? (
                 <span className={valid ? "text-emerald-600" : "text-rose-600"}>
                   {valid
                     ? t("form.validRunning", {
@@ -373,7 +377,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                     : t("form.expiredStatus")}
                 </span>
               ) : (
-                <span className="text-navy-900/45">{t("form.notConfirmed")}</span>
+                <span className="text-navy-900/45">Nháp - chưa xuất bản</span>
               )}
             </div>
           </Field>
@@ -398,16 +402,8 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
           <button
             type="button"
             disabled={!!busy || !item}
-            onClick={() => action("confirm")}
-            className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-          >
-            {busy === "confirm" ? t("form.confirming") : t("form.confirmValidity")}
-          </button>
-          <button
-            type="button"
-            disabled={!!busy || !item || !confirmed}
-            onClick={() => action("publish")}
-            className="rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+            onClick={publish}
+            className="rounded-xl bg-navy-900 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 shadow-lift"
           >
             {busy === "publish" ? (
               <span className="inline-flex items-center gap-1">
@@ -434,18 +430,21 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
             </button>
           )}
         </div>
+        <div className="pt-2 text-[11px] text-slate-500">
+          Luồng mới: <b>Lưu nháp</b> → <b>Xuất bản + tạo QR</b> (tự động hợp lệ, không cần bước Xác nhận riêng)
+        </div>
       </form>
 
       <aside className="space-y-4">
         <div className="rounded-3xl bg-white p-5 shadow-card">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-display font-bold">{t("form.validityTitle")}</h3>
-            {confirmed && <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
+            {valid && <CheckCircle2 className="h-5 w-5 text-emerald-500" />}
           </div>
           <CountdownRing
             registeredAt={item?.registered_at || form.registered_at}
             expiresAt={item?.expires_at || expires}
-            running={confirmed}
+            running={published}
           />
           <p className="mt-4 text-center text-xs text-navy-900/50">
             {t("form.registeredExpires", {
@@ -475,16 +474,6 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                 US Agent: <b>{form.us_agent}</b>
               </div>
             )}
-            {item && item.renewal_count > 0 && (
-              <div className="mt-2 text-navy-900/60">
-                {t("form.renewedTimes", {
-                  count: item.renewal_count,
-                  date: item.last_renewed_at ? formatDate(item.last_renewed_at) : "—",
-                  years: savedValidity,
-                  yearLabel: savedValidity === 1 ? t("common.year") : t("common.years"),
-                })}
-              </div>
-            )}
           </div>
         </div>
         {published && qrUrl ? (
@@ -496,7 +485,6 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
         )}
       </aside>
 
-      {/* Renew Dialog */}
       {showRenewDialog && item && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
@@ -556,13 +544,6 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                     years: item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears,
                     yearLabel: (item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears) === 1 ? t("common.year") : t("common.years"),
                     to: formatDate(renewNewExpiry),
-                  })}
-                </div>
-                <div className="mt-1 text-xs text-emerald-700/70">
-                  {t("form.renewalCountPreview", {
-                    count: item.renewal_count + 1,
-                    years: item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears,
-                    yearLabel: (item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears) === 1 ? t("common.year") : t("common.years"),
                   })}
                 </div>
               </div>

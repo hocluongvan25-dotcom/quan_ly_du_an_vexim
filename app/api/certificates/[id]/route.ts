@@ -36,6 +36,7 @@ export async function PUT(req: Request, ctx: Ctx) {
   const id = Number(ctx.params.id);
   try {
     if (action === "confirm") {
+      // Legacy: confirm now just auto-publishes validity, kept for backward compat
       await confirmValidity(id);
       return NextResponse.json({ item: await getCertificate(id) });
     }
@@ -47,7 +48,6 @@ export async function PUT(req: Request, ctx: Ctx) {
       const extraFee = Number(body.extra_fee || body.renew_fee || 0);
       const renewalYearsRaw = body.validity_years ?? body.renew_years ?? body.years;
       const renewalYears = renewalYearsRaw ? Number(renewalYearsRaw) : undefined;
-      // GACC fixed 5 years, FDA 1-10
       const current = await getCertificate(id);
       if (!current) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
       if (current.standard === "GACC" && renewalYears !== undefined && renewalYears !== GACC_FIXED_YEARS) {
@@ -68,7 +68,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
     const isGacc = standard === "GACC";
     if (!isGacc && body.duns_code) {
-      const raw = String(body.duns_code).replace(/\\D/g, "");
+      const raw = String(body.duns_code).replace(/\D/g, "");
       if (raw && !isValidDunsCode(raw)) {
         return NextResponse.json({ error: "DUNS must be 9 digits (e.g. 12-345-6789)." }, { status: 400 });
       }
@@ -94,7 +94,6 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
     const map: Record<string, string> = {
       NOT_FOUND: "Certificate not found.",
-      NOT_CONFIRMED: "Validity must be confirmed (VALID) before publishing.",
       INCOMPLETE: "Missing company name or registration code.",
       MISSING_DATES: "Missing registration date / expiry date.",
       PUBLISHED: "Cannot delete a published certificate.",

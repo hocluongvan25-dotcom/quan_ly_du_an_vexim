@@ -141,7 +141,7 @@ export const translations: Record<Locale, TranslationTree> = {
       newRecord: "New Record",
       editRecord: "Edit Record",
       specialistFill:
-        "Specialists fill after registration is complete. Service fee is internal only. FDA 1-10 years flexible, GACC fixed 5 years. Renewal: FDA selectable years + fee, GACC fixed 5 years.",
+        "Specialists fill after registration is complete. Service fee is internal only. Flow: Save Draft → Publish + QR (auto-valid). FDA 1-10 years flexible, GACC fixed 5 years.",
       standard: "Standard",
       standardFDA: "FDA — Food & Cosmetics",
       standardGACC: "GACC — China",
@@ -431,7 +431,7 @@ export const translations: Record<Locale, TranslationTree> = {
       newRecord: "Hồ sơ mới",
       editRecord: "Chỉnh sửa hồ sơ",
       specialistFill:
-        "Chuyên viên điền sau khi đăng ký hoàn tất. Phí dịch vụ chỉ nội bộ. FDA linh hoạt 1-10 năm, GACC cố định 5 năm. Gia hạn: FDA chọn số năm + phí, GACC cố định 5 năm.",
+        "Chuyên viên điền sau khi đăng ký hoàn tất. Luồng mới: Lưu nháp → Xuất bản + QR (tự động hợp lệ, không cần bước Xác nhận riêng). FDA 1-10 năm, GACC cố định 5 năm.",
       standard: "Tiêu chuẩn",
       standardFDA: "FDA — Thực phẩm & Mỹ phẩm",
       standardGACC: "GACC — Trung Quốc",

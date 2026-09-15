@@ -428,12 +428,13 @@ export async function confirmValidity(id: number) {
 export async function publishCertificate(id: number) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  if (!current.validity_confirmed) throw new Error("NOT_CONFIRMED");
+  // Simplified flow: publish auto-confirms validity, no separate confirm required
   if (!current.company_name || !current.registration_code) throw new Error("INCOMPLETE");
   const { error } = await supabaseAdmin()
     .from("certificates")
     .update({
       status: "published",
+      validity_confirmed: true,
       published_at: current.published_at || new Date().toISOString(),
       revenue_recorded: true,
       updated_at: new Date().toISOString(),
