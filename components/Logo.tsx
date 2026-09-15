@@ -11,33 +11,34 @@ export function Logo({
   wordmark?: boolean;
   invert?: boolean;
 }) {
+  // New Vexim Global logo - uses full logo with text for wordmark, mark only for icon
+  if (wordmark) {
+    return (
+      <div className={cn("flex items-center", className)}>
+        <img
+          src={invert ? "/logo-white.png" : "/logo.png"}
+          alt="Vexim Global - Tận tâm, nhanh chóng, chính xác"
+          className={cn(
+            "object-contain",
+            // Responsive sizing: sidebar needs larger, header needs medium
+            invert 
+              ? "h-12 w-auto max-w-[180px]" 
+              : "h-10 w-auto max-w-[200px] md:h-11",
+            markClassName
+          )}
+        />
+      </div>
+    );
+  }
+
+  // Mark only (for QR code center, favicon etc)
   return (
-    <div className={cn("flex items-center gap-2.5", className)}>
+    <div className={cn("flex items-center", className)}>
       <img
-        src="/logo-mark.png"
+        src="/logo-mark-new.png"
         alt="Vexim Global"
         className={cn("h-10 w-10 object-contain", markClassName)}
       />
-      {wordmark && (
-        <div className="leading-tight">
-          <div
-            className={cn(
-              "font-display text-[15px] font-extrabold tracking-[0.14em]",
-              invert ? "text-white" : "text-navy-900"
-            )}
-          >
-            VEXIM
-          </div>
-          <div
-            className={cn(
-              "text-[10px] font-semibold uppercase tracking-[0.28em]",
-              invert ? "text-teal-400" : "text-teal-600"
-            )}
-          >
-            Global
-          </div>
-        </div>
-      )}
     </div>
   );
 }

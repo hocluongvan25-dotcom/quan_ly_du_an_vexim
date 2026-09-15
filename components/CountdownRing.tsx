@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { remainingMs, splitCountdown } from "@/lib/utils";
+import { useI18n } from "@/lib/i18n/context";
 
 export function CountdownRing({
   registeredAt,
@@ -12,6 +13,7 @@ export function CountdownRing({
   expiresAt: string;
   running: boolean;
 }) {
+  const { t } = useI18n();
   const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
@@ -21,8 +23,9 @@ export function CountdownRing({
   }, [running]);
 
   const { remain, total, parts } = useMemo(() => {
-    const start = new Date(registeredAt.slice(0, 10) + "T00:00:00").getTime();
-    const end = new Date(expiresAt.slice(0, 10) + "T23:59:59").getTime();
+    // Use UTC to avoid timezone drift
+    const start = new Date(registeredAt.slice(0, 10) + "T00:00:00Z").getTime();
+    const end = new Date(expiresAt.slice(0, 10) + "T23:59:59Z").getTime();
     const totalMs = Math.max(1, end - start);
     const remainMs = running ? remainingMs(expiresAt, new Date(now)) : totalMs;
     return {
@@ -38,10 +41,10 @@ export function CountdownRing({
   const dash = c * pct;
 
   const items = [
-    { label: "Ngày", value: parts.days },
-    { label: "Giờ", value: parts.hours },
-    { label: "Phút", value: parts.minutes },
-    { label: "Giây", value: parts.seconds },
+    { label: t("countdown.days"), value: parts.days },
+    { label: t("countdown.hours"), value: parts.hours },
+    { label: t("countdown.minutes"), value: parts.minutes },
+    { label: t("countdown.seconds"), value: parts.seconds },
   ];
 
   return (
@@ -66,7 +69,7 @@ export function CountdownRing({
               {Math.ceil(remain / 86400000)}
             </div>
             <div className="text-[10px] font-semibold uppercase tracking-widest text-navy-900/50">
-              ngày còn lại
+              {t("countdown.days")} {t("common.days") === "ngày" ? "còn lại" : "remaining"}
             </div>
           </div>
         </div>
@@ -85,7 +88,7 @@ export function CountdownRing({
         ))}
       </div>
       <p className="max-w-xs text-center text-[11px] leading-relaxed text-navy-900/55">
-        Đồng hồ hiệu lực đếm từ ngày hết hạn về ngày đăng ký — thời gian còn lại của chứng chỉ.
+        {t("countdown.remaining", { days: Math.ceil(remain / 86400000) })}
       </p>
     </div>
   );

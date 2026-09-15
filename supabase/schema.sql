@@ -1,6 +1,7 @@
--- Chạy file này trong Supabase SQL Editor (một lần).
--- Service role từ Next.js sẽ bỏ qua RLS.
+-- Run this file once in Supabase SQL Editor.
+-- Service role from Next.js will bypass RLS.
 
+-- Create staff_users table
 create table if not exists public.staff_users (
   id bigint generated always as identity primary key,
   email text unique not null,
@@ -10,17 +11,22 @@ create table if not exists public.staff_users (
   created_at timestamptz not null default now()
 );
 
+-- Create certificates table with flexible validity, DUNS and US Agent (FDA only, GACC has none)
 create table if not exists public.certificates (
   id bigint generated always as identity primary key,
   public_code text unique not null,
   certificate_no text unique not null,
   standard text not null check (standard in ('FDA', 'GACC')),
   registration_code text not null default '',
+  duns_code text not null default '',
+  us_agent text not null default '',
   service_price bigint not null default 0,
   company_name text not null default '',
+  company_email text not null default '',
   scope text not null default '',
   registered_at date not null,
   expires_at date not null,
+  validity_years int not null default 2 check (validity_years between 1 and 10),
   validity_confirmed boolean not null default false,
   status text not null default 'draft' check (status in ('draft', 'published', 'expired')),
   published_at timestamptz,
@@ -32,11 +38,151 @@ create table if not exists public.certificates (
   updated_at timestamptz not null default now()
 );
 
+-- Migration for old DB without validity_years
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns 
+    where table_schema='public' and table_name='certificates' and column_name='validity_years'
+  ) then
+    alter table public.certificates add column validity_years int not null default 2 check (validity_years between 1 and 10);
+  end if;
+end $$;
+
+-- Migration for old DB without duns_code
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns 
+    where table_schema='public' and table_name='certificates' and column_name='duns_code'
+  ) then
+    alter table public.certificates add column duns_code text not null default '';
+  end if;
+end $$;
+
+-- Migration for old DB without us_agent (FDA only)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns 
+    where table_schema='public' and table_name='certificates' and column_name='us_agent'
+  ) then
+    alter table public.certificates add column us_agent text not null default '';
+  end if;
+end $$;
+
+-- Migration for company_email (for expiry warnings, hidden from QR)
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.columns 
+    where table_schema='public' and table_name='certificates' and column_name='company_email'
+  ) then
+    alter table public.certificates add column company_email text not null default '';
+  end if;
+end $$;
+
+-- Cleanup: GACC does not have DUNS or US Agent - clear old data
+update public.certificates set duns_code = '' where standard='GACC';
+update public.certificates set us_agent = '' where standard='GACC';
+
+-- Cleanup: drop fda_registration_status if it exists (feature removed per user request)
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns 
+    where table_schema='public' and table_name='certificates' and column_name='fda_registration_status'
+  ) then
+    alter table public.certificates drop column fda_registration_status;
+  end if;
+end $$;
+
+-- Update old data: set validity_years per standard if missing
+update public.certificates set validity_years = 2 where standard='FDA' and (validity_years is null or validity_years not between 1 and 10);
+update public.certificates set validity_years = 5 where standard='GACC' and (validity_years is null or validity_years not between 1 and 10);
+
+-- Consultation Leads (B2B marketing from verify page)
+create table if not exists public.consultation_leads (
+  id bigint generated always as identity primary key,
+  service_type text not null check (service_type in ('sales','amazon')),
+  name text not null,
+  phone text not null,
+  email text not null default '',
+  company_name text not null default '',
+  certificate_no text not null default '',
+  public_code text not null default '',
+  message text not null default '',
+  source_url text not null default '',
+  ip text not null default '',
+  status text not null default 'new' check (status in ('new','contacted','converted','closed')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Companies / Business Profiles (official DB)
+create table if not exists public.companies (
+  id bigint generated always as identity primary key,
+  company_name text unique not null,
+  email text not null default '',
+  phone text not null default '',
+  tax_code text not null default '',
+  address text not null default '',
+  contact_person text not null default '',
+  notes text not null default '',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+-- Expiry Notifications (auto scan)
+create table if not exists public.expiry_notifications (
+  id bigint generated always as identity primary key,
+  certificate_id bigint not null references public.certificates(id) on delete cascade,
+  company_name text not null default '',
+  notification_type text not null check (notification_type in ('90_days','60_days','30_days','14_days','7_days','3_days','1_day','expired','renewal_reminder')),
+  recipient_email text not null default '',
+  status text not null default 'sent' check (status in ('sent','failed')),
+  sent_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+-- Indexes
 create index if not exists certificates_public_code_idx on public.certificates (public_code);
 create index if not exists certificates_status_idx on public.certificates (status);
+create index if not exists certificates_standard_idx on public.certificates (standard);
+create index if not exists certificates_created_by_idx on public.certificates (created_by);
+create index if not exists certificates_validity_years_idx on public.certificates (validity_years);
+create index if not exists certificates_duns_code_idx on public.certificates (duns_code);
+create index if not exists certificates_us_agent_idx on public.certificates (us_agent);
+create index if not exists consultation_leads_service_type_idx on public.consultation_leads (service_type);
+create index if not exists consultation_leads_status_idx on public.consultation_leads (status);
+create index if not exists consultation_leads_created_at_idx on public.consultation_leads (created_at desc);
+create index if not exists companies_company_name_idx on public.companies (company_name);
+create index if not exists companies_tax_code_idx on public.companies (tax_code);
+create index if not exists companies_created_at_idx on public.companies (created_at desc);
+create index if not exists expiry_notifications_certificate_id_idx on public.expiry_notifications (certificate_id);
+create index if not exists expiry_notifications_type_idx on public.expiry_notifications (notification_type);
+create index if not exists expiry_notifications_sent_at_idx on public.expiry_notifications (sent_at desc);
 
+-- RLS
 alter table public.staff_users enable row level security;
 alter table public.certificates enable row level security;
+alter table public.consultation_leads enable row level security;
+alter table public.companies enable row level security;
+alter table public.expiry_notifications enable row level security;
 
--- Không mở SELECT cho anon: giá dịch vụ không được lộ.
--- Next.js dùng SUPABASE_SERVICE_ROLE_KEY nên không cần policy.
+-- Grants
+grant all on table public.staff_users to service_role;
+grant all on table public.certificates to service_role;
+grant all on table public.consultation_leads to service_role;
+grant all on table public.companies to service_role;
+grant all on table public.expiry_notifications to service_role;
+grant all on table public.staff_users to postgres;
+grant all on table public.certificates to postgres;
+grant all on table public.consultation_leads to postgres;
+grant all on table public.companies to postgres;
+grant all on table public.expiry_notifications to postgres;
+grant usage, select on all sequences in schema public to service_role;
+grant usage, select on all sequences in schema public to postgres;
+
+-- Important: Reload PostgREST schema cache to avoid PGRST205 error
+notify pgrst, 'reload schema';

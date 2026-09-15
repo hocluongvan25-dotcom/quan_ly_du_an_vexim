@@ -2,8 +2,9 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
 import { hashPassword } from "./auth";
-import { expiryFromStandard, randomCode, remainingDays } from "./utils";
+import { expiryFromStandard, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
+import { DEFAULT_VALIDITY, isValidValidityYears, GACC_FIXED_YEARS, isValidValidityYearsForStandard } from "./types";
 
 const dataDir = path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "vexim.db");
@@ -39,11 +40,15 @@ function migrate(db: DatabaseSync) {
       certificate_no TEXT NOT NULL UNIQUE,
       standard TEXT NOT NULL CHECK (standard IN ('FDA','GACC')),
       registration_code TEXT NOT NULL DEFAULT '',
+      duns_code TEXT NOT NULL DEFAULT '',
+      us_agent TEXT NOT NULL DEFAULT '',
       service_price INTEGER NOT NULL DEFAULT 0,
       company_name TEXT NOT NULL DEFAULT '',
+      company_email TEXT NOT NULL DEFAULT '',
       scope TEXT NOT NULL DEFAULT '',
       registered_at TEXT NOT NULL,
       expires_at TEXT NOT NULL,
+      validity_years INTEGER NOT NULL DEFAULT 2 CHECK (validity_years BETWEEN 1 AND 10),
       validity_confirmed INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','published','expired')),
       published_at TEXT,
@@ -54,7 +59,81 @@ function migrate(db: DatabaseSync) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS consultation_leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      service_type TEXT NOT NULL CHECK (service_type IN ('sales','amazon')),
+      name TEXT NOT NULL,
+      phone TEXT NOT NULL,
+      email TEXT NOT NULL DEFAULT '',
+      company_name TEXT NOT NULL DEFAULT '',
+      certificate_no TEXT NOT NULL DEFAULT '',
+      public_code TEXT NOT NULL DEFAULT '',
+      message TEXT NOT NULL DEFAULT '',
+      source_url TEXT NOT NULL DEFAULT '',
+      ip TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','contacted','converted','closed')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS companies (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_name TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL DEFAULT '',
+      phone TEXT NOT NULL DEFAULT '',
+      tax_code TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      contact_person TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS expiry_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      certificate_id INTEGER NOT NULL REFERENCES certificates(id) ON DELETE CASCADE,
+      company_name TEXT NOT NULL DEFAULT '',
+      notification_type TEXT NOT NULL CHECK (notification_type IN ('90_days','60_days','30_days','14_days','7_days','3_days','1_day','expired','renewal_reminder')),
+      recipient_email TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('sent','failed')),
+      sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
+
+  // Migration for old DBs
+  try {
+    const cols = db.prepare("PRAGMA table_info(certificates)").all() as Array<{ name: string }>;
+    const has = (name: string) => cols.some((c) => c.name === name);
+
+    if (!has("validity_years")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN validity_years INTEGER NOT NULL DEFAULT 2 CHECK (validity_years BETWEEN 1 AND 10)");
+      db.exec("UPDATE certificates SET validity_years = 2 WHERE standard='FDA'");
+      db.exec("UPDATE certificates SET validity_years = 5 WHERE standard='GACC'");
+    }
+    if (!has("duns_code")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN duns_code TEXT NOT NULL DEFAULT ''");
+    }
+    if (!has("us_agent")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN us_agent TEXT NOT NULL DEFAULT ''");
+    }
+    if (!has("company_email")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN company_email TEXT NOT NULL DEFAULT ''");
+    }
+    // Remove fda_registration_status if it exists (feature removed)
+    if (has("fda_registration_status")) {
+      try {
+        // SQLite < 3.35 doesn't support DROP COLUMN easily, so we try; if fails, ignore and let hydrate handle
+        db.exec("ALTER TABLE certificates DROP COLUMN fda_registration_status");
+      } catch {
+        // For older SQLite, just leave column - hydrate will ignore it
+        console.warn("[migrate] fda_registration_status column exists but cannot drop in this SQLite version, ignoring");
+      }
+    }
+  } catch (e) {
+    console.warn("[migrate] Could not add columns:", e);
+  }
 }
 
 function seed(db: DatabaseSync) {
@@ -68,13 +147,13 @@ function seed(db: DatabaseSync) {
     );
     insertUser.run(
       "admin@veximglobal.com",
-      "Quản trị viên",
+      "Administrator",
       hashPassword("Vexim@Admin2026"),
       "admin"
     );
     insertUser.run(
       "chuyenmon@veximglobal.com",
-      "Chuyên viên hồ sơ",
+      "Documentation Specialist",
       hashPassword("Vexim@CM2026"),
       "specialist"
     );
@@ -90,76 +169,94 @@ function seed(db: DatabaseSync) {
       no: string;
       standard: Standard;
       code: string;
+      duns: string;
+      us_agent: string;
       price: number;
       company: string;
       scope: string;
       registered: string;
       published: string;
+      validity: number;
       by: number;
     }> = [
       {
         no: "VXM-FDA-2025-0001",
         standard: "FDA",
         code: "17823456789",
+        duns: "12-345-6789",
+        us_agent: "Vexim Global LLC",
         price: 18500000,
-        company: "Công ty CP Thực phẩm An Phát",
-        scope: "Food Facility Registration — chế biến thủy sản đông lạnh xuất khẩu sang Hoa Kỳ",
+        company: "An Phat Food JSC",
+        scope: "Food Facility Registration — frozen seafood processing for export to USA",
         registered: "2025-01-15",
         published: "2025-01-16",
+        validity: 2,
         by: spec.id,
       },
       {
         no: "VXM-GACC-2024-0008",
         standard: "GACC",
         code: "VN-GACC-44012345678",
+        duns: "",
+        us_agent: "",
         price: 42000000,
-        company: "Công ty TNHH Nông sản Mekong",
-        scope: "Đăng ký doanh nghiệp sản xuất thực phẩm xuất khẩu vào Trung Quốc (GACC Decree 248)",
+        company: "Mekong Agri Products Co., Ltd",
+        scope: "Food enterprise registration for export to China (GACC Decree 248)",
         registered: "2024-03-20",
         published: "2024-03-22",
+        validity: 5,
         by: spec.id,
       },
       {
         no: "VXM-FDA-2026-0004",
         standard: "FDA",
         code: "18900123456",
+        duns: "11-222-3333",
+        us_agent: "Vexim Global LLC",
         price: 21000000,
         company: "Green Leaf Cosmetics JSC",
         scope: "MoCRA facility registration & cosmetic product listing",
         registered: "2026-02-10",
         published: "2026-02-12",
+        validity: 3,
         by: admin.id,
       },
       {
         no: "VXM-GACC-2026-0002",
         standard: "GACC",
         code: "VN-GACC-33098765432",
+        duns: "",
+        us_agent: "",
         price: 38500000,
-        company: "Công ty CP Gạo Việt Phát",
-        scope: "Cơ sở xay xát, đóng gói gạo xuất khẩu sang thị trường Trung Quốc",
+        company: "Viet Phat Rice JSC",
+        scope: "Rice milling and packaging facility for export to China market",
         registered: "2026-06-01",
         published: "2026-06-03",
+        validity: 5,
         by: spec.id,
       },
       {
         no: "VXM-FDA-2026-0012",
         standard: "FDA",
         code: "17200998877",
+        duns: "77-888-9999",
+        us_agent: "Vexim Global LLC",
         price: 16500000,
-        company: "Công ty TNHH Hải sản Bình Minh",
-        scope: "FDA Food Facility Registration — thủy sản tươi sống và đông lạnh",
+        company: "Binh Minh Seafood Co., Ltd",
+        scope: "FDA Food Facility Registration — fresh and frozen seafood",
         registered: "2026-08-18",
         published: "2026-08-20",
+        validity: 2,
         by: spec.id,
       },
     ];
 
     const insertCert = db.prepare(`
       INSERT INTO certificates (
-        public_code, certificate_no, standard, registration_code, service_price,
-        company_name, scope, registered_at, expires_at, validity_confirmed,
+        public_code, certificate_no, standard, registration_code, duns_code, us_agent,
+        service_price, company_name, scope, registered_at, expires_at, validity_years, validity_confirmed,
         status, published_at, revenue_recorded, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?, 1, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'published', ?, 1, ?)
     `);
 
     for (const s of samples) {
@@ -168,11 +265,14 @@ function seed(db: DatabaseSync) {
         s.no,
         s.standard,
         s.code,
+        s.duns.replace(/\D/g, ""),
+        s.us_agent,
         s.price,
         s.company,
         s.scope,
         s.registered,
-        expiryFromStandard(s.registered, s.standard),
+        expiryFromStandard(s.registered, s.standard, s.validity),
+        s.validity,
         `${s.published} 09:30:00`,
         s.by
       );
@@ -238,6 +338,17 @@ function plain<T>(row: T): T {
 function hydrate(row: Certificate): Certificate {
   if (!row) return row;
   const next = plain(row);
+  if (!next.validity_years) {
+    next.validity_years = getValidityYears(next as any);
+  }
+  if (!next.duns_code) next.duns_code = "";
+  if (!next.us_agent) next.us_agent = "";
+  if (!next.company_email) next.company_email = "";
+  // GACC does not have DUNS or US Agent - clear if present
+  if (next.standard === "GACC") {
+    next.duns_code = "";
+    next.us_agent = "";
+  }
   if (next.status === "published" && remainingDays(next.expires_at) < 0) {
     return { ...next, status: "expired" };
   }
@@ -275,37 +386,81 @@ export function getCertificateByPublicCode(code: string) {
   return row ? hydrate(row) : undefined;
 }
 
+function normalizeValidityYears(input: number | undefined, standard: Standard): number {
+  if (standard === "GACC") return GACC_FIXED_YEARS;
+  if (input && isValidValidityYears(input)) return Math.round(input);
+  return DEFAULT_VALIDITY[standard] ?? 2;
+}
+
 export function createCertificate(input: {
   standard: Standard;
   registration_code: string;
+  duns_code?: string;
+  us_agent?: string;
   service_price: number;
   company_name: string;
+  company_email?: string;
   scope: string;
   registered_at: string;
+  validity_years?: number;
   created_by: number;
 }) {
-  const expires = expiryFromStandard(input.registered_at, input.standard);
+  const validity = normalizeValidityYears(input.validity_years, input.standard);
+  const expires = expiryFromStandard(input.registered_at, input.standard, validity);
   const no = nextCertificateNo(input.standard);
   const publicCode = randomCode(12);
+  // DUNS and US Agent only for FDA, GACC has none
+  const isGacc = input.standard === "GACC";
+  const duns = isGacc ? "" : (input.duns_code || "").replace(/\D/g, "").slice(0, 9);
+  const usAgent = isGacc ? "" : (input.us_agent || "").trim().slice(0, 200);
   const info = db()
     .prepare(
       `INSERT INTO certificates (
-        public_code, certificate_no, standard, registration_code, service_price,
-        company_name, scope, registered_at, expires_at, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        public_code, certificate_no, standard, registration_code, duns_code, us_agent,
+        service_price, company_name, company_email, scope, registered_at, expires_at, validity_years, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       publicCode,
       no,
       input.standard,
       input.registration_code.trim(),
+      duns,
+      usAgent,
       Math.max(0, Math.round(input.service_price || 0)),
       input.company_name.trim(),
+      (input.company_email || "").trim(),
       input.scope.trim(),
       input.registered_at,
       expires,
+      validity,
       input.created_by
     );
+
+  // Sync to companies table for official DB
+  try {
+    const existing = getCompanyByName(input.company_name.trim());
+    if (!existing && input.company_name.trim()) {
+      createCompany({
+        company_name: input.company_name.trim(),
+        email: (input.company_email || "").trim(),
+      });
+    } else if (existing && input.company_email?.trim()) {
+      // Update email if provided and different
+      if (!existing.email || existing.email !== input.company_email.trim()) {
+        updateCompany(existing.id, {
+          company_name: existing.company_name,
+          email: input.company_email.trim() || existing.email,
+          phone: existing.phone,
+          tax_code: existing.tax_code,
+          address: existing.address,
+          contact_person: existing.contact_person,
+          notes: existing.notes,
+        });
+      }
+    }
+  } catch {}
+
   return Number(info.lastInsertRowid);
 }
 
@@ -314,36 +469,72 @@ export function updateCertificate(
   input: {
     standard: Standard;
     registration_code: string;
+    duns_code?: string;
+    us_agent?: string;
     service_price: number;
     company_name: string;
+    company_email?: string;
     scope: string;
     registered_at: string;
+    validity_years?: number;
   }
 ) {
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  const expires = expiryFromStandard(input.registered_at, input.standard);
+  const validity = normalizeValidityYears(input.validity_years ?? current.validity_years, input.standard);
+  const expires = expiryFromStandard(input.registered_at, input.standard, validity);
+  const isGacc = input.standard === "GACC";
+  const duns = isGacc ? "" : input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
+  const usAgent = isGacc ? "" : input.us_agent !== undefined ? input.us_agent.trim().slice(0, 200) : current.us_agent;
+  const companyEmail = input.company_email !== undefined ? input.company_email.trim() : current.company_email || "";
   db()
     .prepare(
       `UPDATE certificates SET
-        standard = ?, registration_code = ?, service_price = ?, company_name = ?,
-        scope = ?, registered_at = ?, expires_at = ?,
-        validity_confirmed = CASE WHEN registered_at = ? AND standard = ? THEN validity_confirmed ELSE 0 END,
+        standard = ?, registration_code = ?, duns_code = ?, us_agent = ?,
+        service_price = ?, company_name = ?, company_email = ?,
+        scope = ?, registered_at = ?, expires_at = ?, validity_years = ?,
+        validity_confirmed = CASE WHEN registered_at = ? AND standard = ? AND validity_years = ? THEN validity_confirmed ELSE 0 END,
         updated_at = datetime('now')
        WHERE id = ?`
     )
     .run(
       input.standard,
       input.registration_code.trim(),
+      duns,
+      usAgent,
       Math.max(0, Math.round(input.service_price || 0)),
       input.company_name.trim(),
+      companyEmail,
       input.scope.trim(),
       input.registered_at,
       expires,
+      validity,
       input.registered_at,
       input.standard,
+      validity,
       id
     );
+
+  // Sync to companies
+  try {
+    const existing = getCompanyByName(input.company_name.trim());
+    if (!existing && input.company_name.trim()) {
+      createCompany({
+        company_name: input.company_name.trim(),
+        email: companyEmail,
+      });
+    } else if (existing && companyEmail) {
+      updateCompany(existing.id, {
+        company_name: existing.company_name,
+        email: companyEmail || existing.email,
+        phone: existing.phone,
+        tax_code: existing.tax_code,
+        address: existing.address,
+        contact_person: existing.contact_person,
+        notes: existing.notes,
+      });
+    }
+  } catch {}
 }
 
 export function confirmValidity(id: number) {
@@ -360,34 +551,47 @@ export function confirmValidity(id: number) {
 export function publishCertificate(id: number) {
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  if (!current.validity_confirmed) throw new Error("NOT_CONFIRMED");
   if (!current.company_name || !current.registration_code) throw new Error("INCOMPLETE");
-  const already = current.revenue_recorded ? 1 : 1;
+  // Recalculate expiry to ensure 1-year and other durations are correct (fix old buggy data)
+  const fixedExpiry = expiryFromStandard(current.registered_at, current.standard, current.validity_years);
   db()
     .prepare(
       `UPDATE certificates SET
         status = 'published',
+        validity_confirmed = 1,
+        expires_at = ?,
         published_at = COALESCE(published_at, datetime('now')),
-        revenue_recorded = ?,
+        revenue_recorded = 1,
         updated_at = datetime('now')
        WHERE id = ?`
     )
-    .run(already, id);
+    .run(fixedExpiry, id);
   return getCertificate(id)!;
 }
 
-export function renewCertificate(id: number, extraFee = 0) {
+export function renewCertificate(id: number, extraFee = 0, renewalYears?: number) {
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  const nextExpiry = expiryFromStandard(
-    remainingDays(current.expires_at) >= 0 ? current.expires_at : new Date().toISOString().slice(0, 10),
-    current.standard
-  );
+  // FDA flexible 1-10, GACC fixed 5
+  let validity: number;
+  if (current.standard === "GACC") {
+    validity = GACC_FIXED_YEARS;
+  } else if (renewalYears && isValidValidityYearsForStandard(renewalYears, current.standard)) {
+    validity = Math.round(renewalYears);
+  } else {
+    validity = getValidityYears(current);
+  }
+  const baseDate =
+    remainingDays(current.expires_at) >= 0
+      ? current.expires_at
+      : todayUtcIso();
+  const nextExpiry = expiryFromStandard(baseDate, current.standard, validity);
   const extra = Math.max(0, Math.round(extraFee || 0));
   db()
     .prepare(
       `UPDATE certificates SET
         expires_at = ?,
+        validity_years = ?,
         renewal_count = renewal_count + 1,
         last_renewed_at = datetime('now'),
         service_price = service_price + ?,
@@ -396,7 +600,7 @@ export function renewCertificate(id: number, extraFee = 0) {
         updated_at = datetime('now')
        WHERE id = ?`
     )
-    .run(nextExpiry, extra, id);
+    .run(nextExpiry, validity, extra, id);
   return getCertificate(id)!;
 }
 
@@ -407,6 +611,275 @@ export function deleteCertificate(id: number) {
     throw new Error("PUBLISHED");
   }
   db().prepare("DELETE FROM certificates WHERE id = ?").run(id);
+}
+
+export type ConsultationLead = {
+  id: number;
+  service_type: "sales" | "amazon";
+  name: string;
+  phone: string;
+  email: string;
+  company_name: string;
+  certificate_no: string;
+  public_code: string;
+  message: string;
+  source_url: string;
+  ip: string;
+  status: "new" | "contacted" | "converted" | "closed";
+  created_at: string;
+  updated_at: string;
+};
+
+export function createLead(input: {
+  service_type: "sales" | "amazon";
+  name: string;
+  phone: string;
+  email?: string;
+  company_name?: string;
+  certificate_no?: string;
+  public_code?: string;
+  message?: string;
+  source_url?: string;
+  ip?: string;
+}) {
+  const info = db()
+    .prepare(
+      `INSERT INTO consultation_leads (service_type, name, phone, email, company_name, certificate_no, public_code, message, source_url, ip)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      input.service_type,
+      input.name.trim(),
+      input.phone.trim(),
+      (input.email || "").trim(),
+      (input.company_name || "").trim(),
+      (input.certificate_no || "").trim(),
+      (input.public_code || "").trim(),
+      (input.message || "").trim(),
+      (input.source_url || "").trim(),
+      (input.ip || "").trim()
+    );
+  return Number(info.lastInsertRowid);
+}
+
+export function listLeads(): ConsultationLead[] {
+  return plain(
+    db()
+      .prepare(`SELECT * FROM consultation_leads ORDER BY created_at DESC, id DESC`)
+      .all()
+  ) as ConsultationLead[];
+}
+
+export function getLead(id: number) {
+  return plain(
+    db().prepare(`SELECT * FROM consultation_leads WHERE id = ?`).get(id)
+  ) as ConsultationLead | undefined;
+}
+
+export function updateLeadStatus(id: number, status: ConsultationLead["status"]) {
+  db().prepare(`UPDATE consultation_leads SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(status, id);
+}
+
+export function deleteLead(id: number) {
+  db().prepare(`DELETE FROM consultation_leads WHERE id = ?`).run(id);
+}
+
+export type Company = {
+  id: number;
+  company_name: string;
+  email: string;
+  phone: string;
+  tax_code: string;
+  address: string;
+  contact_person: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export function listCompanies(): Company[] {
+  const companies = plain(
+    db()
+      .prepare(`SELECT * FROM companies ORDER BY updated_at DESC, id DESC`)
+      .all()
+  ) as Company[];
+
+  // Also include distinct company names from certificates that are not yet in companies table (official DB)
+  const certCompanies = db()
+    .prepare(`SELECT DISTINCT company_name FROM certificates WHERE company_name != ''`)
+    .all() as Array<{ company_name: string }>;
+
+  const existingNames = new Set(companies.map((c) => c.company_name.toLowerCase()));
+  const missing: Company[] = certCompanies
+    .filter((r) => !existingNames.has(r.company_name.toLowerCase()))
+    .map((r, idx) => ({
+      id: -1000 - idx, // temporary negative id for unsaved
+      company_name: r.company_name,
+      email: "",
+      phone: "",
+      tax_code: "",
+      address: "",
+      contact_person: "",
+      notes: "Tự động từ chứng nhận",
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+
+  return [...companies, ...missing];
+}
+
+export function getCompany(id: number): Company | undefined {
+  return plain(
+    db().prepare(`SELECT * FROM companies WHERE id = ?`).get(id)
+  ) as Company | undefined;
+}
+
+export function getCompanyByName(name: string): Company | undefined {
+  return plain(
+    db().prepare(`SELECT * FROM companies WHERE company_name = ?`).get(name.trim())
+  ) as Company | undefined;
+}
+
+export function createCompany(input: {
+  company_name: string;
+  email?: string;
+  phone?: string;
+  tax_code?: string;
+  address?: string;
+  contact_person?: string;
+  notes?: string;
+}) {
+  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+  const info = db()
+    .prepare(
+      `INSERT INTO companies (company_name, email, phone, tax_code, address, contact_person, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      input.company_name.trim(),
+      (input.email || "").trim(),
+      (input.phone || "").trim(),
+      (input.tax_code || "").trim(),
+      (input.address || "").trim(),
+      (input.contact_person || "").trim(),
+      (input.notes || "").trim()
+    );
+  return Number(info.lastInsertRowid);
+}
+
+export function updateCompany(
+  id: number,
+  input: {
+    company_name: string;
+    email?: string;
+    phone?: string;
+    tax_code?: string;
+    address?: string;
+    contact_person?: string;
+    notes?: string;
+  }
+) {
+  const current = getCompany(id);
+  if (!current) throw new Error("NOT_FOUND");
+  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+  db()
+    .prepare(
+      `UPDATE companies SET
+        company_name = ?, email = ?, phone = ?, tax_code = ?, address = ?, contact_person = ?, notes = ?,
+        updated_at = datetime('now')
+       WHERE id = ?`
+    )
+    .run(
+      input.company_name.trim(),
+      (input.email || "").trim(),
+      (input.phone || "").trim(),
+      (input.tax_code || "").trim(),
+      (input.address || "").trim(),
+      (input.contact_person || "").trim(),
+      (input.notes || "").trim(),
+      id
+    );
+}
+
+export function deleteCompany(id: number) {
+  const current = getCompany(id);
+  if (!current) throw new Error("NOT_FOUND");
+  db().prepare(`DELETE FROM companies WHERE id = ?`).run(id);
+}
+
+export function getCompanyStats(companyName: string) {
+  const certs = db()
+    .prepare(`SELECT * FROM certificates WHERE company_name = ? ORDER BY updated_at DESC`)
+    .all(companyName) as Certificate[];
+  const leads = db()
+    .prepare(`SELECT * FROM consultation_leads WHERE company_name = ? ORDER BY created_at DESC`)
+    .all(companyName) as ConsultationLead[];
+  const services = new Set<string>();
+  certs.forEach((c) => services.add(c.standard));
+  leads.forEach((l) => services.add(l.service_type === "sales" ? "SALE_EXPORT" : "AMAZON_OPS"));
+  return {
+    certificates: certs.map(hydrate),
+    leads: plain(leads) as ConsultationLead[],
+    services: Array.from(services),
+    totalCertificates: certs.length,
+    totalLeads: leads.length,
+  };
+}
+
+export type ExpiryNotification = {
+  id: number;
+  certificate_id: number;
+  company_name: string;
+  notification_type: "90_days" | "60_days" | "30_days" | "14_days" | "7_days" | "3_days" | "1_day" | "expired" | "renewal_reminder";
+  recipient_email: string;
+  status: "sent" | "failed";
+  sent_at: string;
+  created_at: string;
+};
+
+export function listExpiryNotifications(limit = 100): ExpiryNotification[] {
+  return plain(
+    db()
+      .prepare(`SELECT * FROM expiry_notifications ORDER BY sent_at DESC, id DESC LIMIT ?`)
+      .all(limit)
+  ) as ExpiryNotification[];
+}
+
+export function getExpiryNotificationsForCertificate(certId: number): ExpiryNotification[] {
+  return plain(
+    db()
+      .prepare(`SELECT * FROM expiry_notifications WHERE certificate_id = ? ORDER BY sent_at DESC`)
+      .all(certId)
+  ) as ExpiryNotification[];
+}
+
+export function hasNotificationBeenSent(certId: number, type: string): boolean {
+  const row = db()
+    .prepare(`SELECT id FROM expiry_notifications WHERE certificate_id = ? AND notification_type = ? LIMIT 1`)
+    .get(certId, type) as { id: number } | undefined;
+  return !!row;
+}
+
+export function createExpiryNotification(input: {
+  certificate_id: number;
+  company_name: string;
+  notification_type: ExpiryNotification["notification_type"];
+  recipient_email: string;
+  status?: "sent" | "failed";
+}) {
+  const info = db()
+    .prepare(
+      `INSERT INTO expiry_notifications (certificate_id, company_name, notification_type, recipient_email, status)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(
+      input.certificate_id,
+      input.company_name,
+      input.notification_type,
+      input.recipient_email,
+      input.status || "sent"
+    );
+  return Number(info.lastInsertRowid);
 }
 
 export function revenueStats() {
@@ -449,24 +922,20 @@ export function revenueStats() {
     if (r.standard === "FDA") fda += amt;
     else gacc += amt;
 
-    const bump = (
-      map: Map<string, { FDA: number; GACC: number; total: number } & Record<string, string>>,
-      key: string,
-      labelKey: string
-    ) => {
+    const bump = (map: Map<string, any>, key: string, labelKey: string) => {
       const cur = map.get(key) || { [labelKey]: key, FDA: 0, GACC: 0, total: 0 };
-      cur[r.standard] += amt;
-      cur.total += amt;
+      cur[r.standard] = (cur[r.standard] || 0) + amt;
+      cur.total = (cur.total || 0) + amt;
       map.set(key, cur);
     };
-    bump(monthMap as never, monthKey, "month");
-    bump(quarterMap as never, quarterKey, "quarter");
-    bump(yearMap as never, yearKey, "year");
+    bump(monthMap, monthKey, "month");
+    bump(quarterMap, quarterKey, "quarter");
+    bump(yearMap, yearKey, "year");
   }
 
-  const months = [...monthMap.values()].sort((a, b) => a.month.localeCompare(b.month));
-  const quarters = [...quarterMap.values()].sort((a, b) => a.quarter.localeCompare(b.quarter));
-  const years = [...yearMap.values()].sort((a, b) => a.year.localeCompare(b.year));
+  const months = Array.from(monthMap.values()).sort((a, b) => a.month.localeCompare(b.month));
+  const quarters = Array.from(quarterMap.values()).sort((a, b) => a.quarter.localeCompare(b.quarter));
+  const years = Array.from(yearMap.values()).sort((a, b) => a.year.localeCompare(b.year));
 
   return {
     total,

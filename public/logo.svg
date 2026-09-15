@@ -1,13 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 80 88" fill="none">
-  <defs>
-    <linearGradient id="g" x1="12" y1="8" x2="68" y2="80" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F6D36B"/>
-      <stop offset="1" stop-color="#E0A824"/>
-    </linearGradient>
-  </defs>
-  <path d="M40 4L72 22.5V57.5L40 76L8 57.5V22.5L40 4Z" fill="#24180C"/>
-  <path d="M40 10.2L66.2 25.2V54.8L40 69.8L13.8 54.8V25.2L40 10.2Z" stroke="#F3C85A" stroke-width="2.2" fill="url(#g)"/>
-  <ellipse cx="40" cy="40" rx="16.5" ry="16.5" fill="none" stroke="#24180C" stroke-width="1.4" opacity=".28"/>
-  <path d="M24.5 40h31M40 24.5v31M27 30.5c8 6 18 6 26 0M27 49.5c8-6 18-6 26 0" stroke="#24180C" stroke-width="1.15" opacity=".22"/>
-  <path d="M28 26L40 58L52 26" stroke="#24180C" stroke-width="6.4" stroke-linecap="round" stroke-linejoin="round"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" fill="none">
+  <!-- Outer green C -->
+  <path d="M 95 30 A 55 55 0 1 0 95 90 A 55 55 0 0 0 95 30" 
+        stroke="#00A651" stroke-width="12" fill="none" stroke-linecap="round"/>
+  <!-- Inner black C -->
+  <path d="M 82 42 A 35 35 0 1 0 82 78 A 35 35 0 0 0 82 42" 
+        stroke="#000000" stroke-width="10" fill="none" stroke-linecap="round"/>
+  <!-- Small green swoosh -->
+  <path d="M 75 85 Q 85 82 88 75 Q 86 83 75 85" 
+        fill="#00A651"/>
 </svg>
