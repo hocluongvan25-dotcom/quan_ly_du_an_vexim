@@ -28,21 +28,29 @@ export function parseDate(value: string) {
   const dateOnly = value.slice(0, 10);
   const [y, m, d] = dateOnly.split("-").map(Number);
   if (!y || !m || !d) return null;
-  return new Date(y, m - 1, d, 0, 0, 0, 0);
+  // Use UTC to avoid timezone drift between Vercel (UTC) and client (VN UTC+7)
+  return new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
 }
 
 export function toIsoDate(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
 
 export function addYears(isoDate: string, years: number) {
   const d = parseDate(isoDate);
   if (!d) return isoDate;
-  d.setFullYear(d.getFullYear() + years);
-  return toIsoDate(d);
+  // Preserve UTC
+  const y = d.getUTCFullYear() + years;
+  const m = d.getUTCMonth();
+  const day = d.getUTCDate();
+  // Handle Feb 29 -> Feb 28 if not leap year
+  const lastDayOfMonth = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
+  const safeDay = Math.min(day, lastDayOfMonth);
+  const next = new Date(Date.UTC(y, m, safeDay, 0, 0, 0, 0));
+  return toIsoDate(next);
 }
 
 // FDA flexible 1-10 years, GACC fixed 5 years
@@ -86,22 +94,27 @@ export function daysBetween(fromIso: string, toIso: string) {
   const a = parseDate(fromIso);
   const b = parseDate(toIso);
   if (!a || !b) return 0;
+  // Use UTC diff
   return Math.round((b.getTime() - a.getTime()) / 86400000);
 }
 
 export function remainingDays(expiresAt: string, now = new Date()) {
   const exp = parseDate(expiresAt);
   if (!exp) return 0;
+  // End of expiry day in UTC
   const end = new Date(exp);
-  end.setHours(23, 59, 59, 999);
-  return Math.ceil((end.getTime() - now.getTime()) / 86400000);
+  end.setUTCHours(23, 59, 59, 999);
+  const diff = end.getTime() - now.getTime();
+  // Avoid -0
+  const days = Math.ceil(diff / 86400000);
+  return Object.is(days, -0) ? 0 : days;
 }
 
 export function remainingMs(expiresAt: string, now = new Date()) {
   const exp = parseDate(expiresAt);
   if (!exp) return 0;
   const end = new Date(exp);
-  end.setHours(23, 59, 59, 999);
+  end.setUTCHours(23, 59, 59, 999);
   return Math.max(0, end.getTime() - now.getTime());
 }
 
@@ -110,9 +123,9 @@ export function isValidNow(expiresAt: string, registeredAt: string, now = new Da
   const exp = parseDate(expiresAt);
   if (!start || !exp) return false;
   const end = new Date(exp);
-  end.setHours(23, 59, 59, 999);
+  end.setUTCHours(23, 59, 59, 999);
   const begin = new Date(start);
-  begin.setHours(0, 0, 0, 0);
+  begin.setUTCHours(0, 0, 0, 0);
   return now.getTime() >= begin.getTime() && now.getTime() <= end.getTime();
 }
 
@@ -154,4 +167,12 @@ export function formatDuns(code: string | null | undefined) {
   const digits = code.replace(/\D/g, "");
   if (digits.length !== 9) return code;
   return `${digits.slice(0, 2)}-${digits.slice(2, 5)}-${digits.slice(5)}`;
+}
+
+export function todayLocalIso(): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }

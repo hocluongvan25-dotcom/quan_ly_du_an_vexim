@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCertificateByPublicCode } from "@/lib/db";
-import { daysBetween, isValidNow, remainingDays, remainingMs, getValidityYears } from "@/lib/utils";
+import { daysBetween, remainingDays, remainingMs, getValidityYears } from "@/lib/utils";
 import { handleApiError } from "@/lib/api-helpers";
 
 export const runtime = "nodejs";
@@ -12,7 +12,7 @@ export async function GET(_: Request, ctx: { params: { code: string } }) {
       return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
     }
     const isFda = item.standard === "FDA";
-    const valid = Boolean(item.validity_confirmed) && isValidNow(item.expires_at, item.registered_at);
+    const valid = Boolean(item.validity_confirmed) && remainingDays(item.expires_at) >= 0;
     return NextResponse.json({
       item: {
         public_code: item.public_code,

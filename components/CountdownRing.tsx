@@ -23,8 +23,9 @@ export function CountdownRing({
   }, [running]);
 
   const { remain, total, parts } = useMemo(() => {
-    const start = new Date(registeredAt.slice(0, 10) + "T00:00:00").getTime();
-    const end = new Date(expiresAt.slice(0, 10) + "T23:59:59").getTime();
+    // Use UTC to avoid timezone drift
+    const start = new Date(registeredAt.slice(0, 10) + "T00:00:00Z").getTime();
+    const end = new Date(expiresAt.slice(0, 10) + "T23:59:59Z").getTime();
     const totalMs = Math.max(1, end - start);
     const remainMs = running ? remainingMs(expiresAt, new Date(now)) : totalMs;
     return {

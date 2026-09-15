@@ -471,19 +471,21 @@ export function confirmValidity(id: number) {
 export function publishCertificate(id: number) {
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  // Simplified flow: no separate confirm step required, publish auto-confirms validity
   if (!current.company_name || !current.registration_code) throw new Error("INCOMPLETE");
+  // Recalculate expiry to ensure 1-year and other durations are correct (fix old buggy data)
+  const fixedExpiry = expiryFromStandard(current.registered_at, current.standard, current.validity_years);
   db()
     .prepare(
       `UPDATE certificates SET
         status = 'published',
         validity_confirmed = 1,
+        expires_at = ?,
         published_at = COALESCE(published_at, datetime('now')),
         revenue_recorded = 1,
         updated_at = datetime('now')
        WHERE id = ?`
     )
-    .run(id);
+    .run(fixedExpiry, id);
   return getCertificate(id)!;
 }
 

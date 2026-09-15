@@ -5,7 +5,6 @@ import { COMPANY, type Certificate } from "@/lib/types";
 import {
   daysBetween,
   formatDate,
-  isValidNow,
   remainingDays,
   getValidityYears,
   formatDuns,
@@ -24,7 +23,7 @@ export function VerifyView({ cert }: Props) {
 
   const valid =
     Boolean(cert.validity_confirmed) &&
-    isValidNow(cert.expires_at, cert.registered_at);
+    remainingDays(cert.expires_at) >= 0;
   const left = remainingDays(cert.expires_at);
   const total = daysBetween(cert.registered_at, cert.expires_at);
   const validityYears = getValidityYears(cert as any);
