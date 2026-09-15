@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
 import { hashPassword } from "./auth";
-import { expiryFromStandard, randomCode, remainingDays, getValidityYears } from "./utils";
+import { expiryFromStandard, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
 import { DEFAULT_VALIDITY, isValidValidityYears, GACC_FIXED_YEARS, isValidValidityYearsForStandard } from "./types";
 
@@ -504,7 +504,7 @@ export function renewCertificate(id: number, extraFee = 0, renewalYears?: number
   const baseDate =
     remainingDays(current.expires_at) >= 0
       ? current.expires_at
-      : new Date().toISOString().slice(0, 10);
+      : todayUtcIso();
   const nextExpiry = expiryFromStandard(baseDate, current.standard, validity);
   const extra = Math.max(0, Math.round(extraFee || 0));
   db()

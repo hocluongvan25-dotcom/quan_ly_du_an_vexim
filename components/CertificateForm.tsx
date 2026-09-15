@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { CountdownRing } from "./CountdownRing";
 import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
-import { expiryFromStandard, formatDate, remainingDays, getValidityYears, formatDuns, todayLocalIso } from "@/lib/utils";
+import { expiryFromStandard, formatDate, remainingDays, getValidityYears, formatDuns, todayLocalIso, todayUtcIso } from "@/lib/utils";
 import { FDA_VALIDITY_OPTIONS, GACC_FIXED_YEARS, DEFAULT_VALIDITY, type Certificate, type Standard } from "@/lib/types";
 import { CheckCircle2, Loader2, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
@@ -77,8 +77,8 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
   const savedValidity = item ? getValidityYears(item) : form.validity_years;
 
   const renewBaseDate = useMemo(() => {
-    if (!item) return todayLocalIso();
-    return remainingDays(item.expires_at) >= 0 ? item.expires_at : todayLocalIso();
+    if (!item) return todayUtcIso();
+    return remainingDays(item.expires_at) >= 0 ? item.expires_at : todayUtcIso();
   }, [item?.expires_at]);
 
   const renewNewExpiry = useMemo(() => {

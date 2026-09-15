@@ -1,6 +1,6 @@
 import { hashPassword } from "./auth";
 import { supabaseAdmin } from "./supabase";
-import { expiryFromStandard, randomCode, remainingDays, getValidityYears } from "./utils";
+import { expiryFromStandard, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
 import { DEFAULT_VALIDITY, isValidValidityYears, GACC_FIXED_YEARS, isValidValidityYearsForStandard } from "./types";
 
@@ -460,7 +460,7 @@ export async function renewCertificate(id: number, extraFee = 0, renewalYears?: 
   const baseDate =
     remainingDays(current.expires_at) >= 0
       ? current.expires_at
-      : new Date().toISOString().slice(0, 10);
+      : todayUtcIso();
   const nextExpiry = expiryFromStandard(baseDate, current.standard, validity);
   const extra = Math.max(0, Math.round(extraFee || 0));
   const { error } = await supabaseAdmin()

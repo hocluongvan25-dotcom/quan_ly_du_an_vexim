@@ -31,7 +31,7 @@ export function VerifyView({ cert }: Props) {
   const isFda = cert.standard === "FDA";
   const duns = isFda ? ((cert as any).duns_code || "") : "";
   const usAgent = isFda ? ((cert as any).us_agent || "") : "";
-  const expiryYear = new Date(cert.expires_at).getFullYear();
+  const expiryYear = cert.expires_at.slice(0, 4);
   const regCode = cert.registration_code || "—";
   const scope = cert.scope || "";
 

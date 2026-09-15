@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCertificateByPublicCode } from "@/lib/db";
-import { daysBetween, remainingDays, remainingMs, getValidityYears } from "@/lib/utils";
+import { daysBetween, remainingDays, remainingMs, getValidityYears, todayUtcIso } from "@/lib/utils";
 import { handleApiError } from "@/lib/api-helpers";
 
 export const runtime = "nodejs";
@@ -31,7 +31,7 @@ export async function GET(_: Request, ctx: { params: { code: string } }) {
         remaining_ms: remainingMs(item.expires_at),
         remaining_days: remainingDays(item.expires_at),
         total_days: daysBetween(item.registered_at, item.expires_at),
-        elapsed_days: daysBetween(item.registered_at, new Date().toISOString().slice(0, 10)),
+        elapsed_days: daysBetween(item.registered_at, todayUtcIso()),
         is_valid: valid,
       },
     });
