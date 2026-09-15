@@ -94,6 +94,7 @@ export async function revenueStats() {
 
 export type ConsultationLead = sqlite.ConsultationLead;
 export type Company = sqlite.Company;
+export type ExpiryNotification = sqlite.ExpiryNotification;
 
 export async function createLead(input: {
   service_type: "sales" | "amazon";
@@ -171,4 +172,26 @@ export async function deleteCompany(id: number) {
 
 export async function getCompanyStats(companyName: string) {
   return isSupabaseEnabled() ? cloud.getCompanyStats(companyName) : sqlite.getCompanyStats(companyName);
+}
+
+export async function listExpiryNotifications(limit = 100) {
+  return isSupabaseEnabled() ? cloud.listExpiryNotifications(limit) : sqlite.listExpiryNotifications(limit);
+}
+
+export async function getExpiryNotificationsForCertificate(certId: number) {
+  return isSupabaseEnabled() ? cloud.getExpiryNotificationsForCertificate(certId) : sqlite.getExpiryNotificationsForCertificate(certId);
+}
+
+export async function hasNotificationBeenSent(certId: number, type: string) {
+  return isSupabaseEnabled() ? cloud.hasNotificationBeenSent(certId, type) : sqlite.hasNotificationBeenSent(certId, type);
+}
+
+export async function createExpiryNotification(input: {
+  certificate_id: number;
+  company_name: string;
+  notification_type: ExpiryNotification["notification_type"];
+  recipient_email: string;
+  status?: "sent" | "failed";
+}) {
+  return isSupabaseEnabled() ? cloud.createExpiryNotification(input) : sqlite.createExpiryNotification(input);
 }

@@ -833,6 +833,98 @@ export async function getCompanyStats(companyName: string) {
   };
 }
 
+
+export type ExpiryNotification = {
+  id: number;
+  certificate_id: number;
+  company_name: string;
+  notification_type: "90_days" | "60_days" | "30_days" | "14_days" | "7_days" | "3_days" | "1_day" | "expired" | "renewal_reminder";
+  recipient_email: string;
+  status: "sent" | "failed";
+  sent_at: string;
+  created_at: string;
+};
+
+function mapExpiryNotification(row: Record<string, unknown>): ExpiryNotification {
+  return {
+    id: Number(row.id),
+    certificate_id: Number(row.certificate_id),
+    company_name: String(row.company_name || ""),
+    notification_type: row.notification_type as ExpiryNotification["notification_type"],
+    recipient_email: String(row.recipient_email || ""),
+    status: (row.status as ExpiryNotification["status"]) || "sent",
+    sent_at: String(row.sent_at),
+    created_at: String(row.created_at),
+  };
+}
+
+export async function listExpiryNotifications(limit = 100): Promise<ExpiryNotification[]> {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("expiry_notifications")
+      .select("*")
+      .order("sent_at", { ascending: false })
+      .limit(limit);
+    if (error) assertNoSupabaseError(error, "expiry_notifications");
+    return (data || []).map(mapExpiryNotification);
+  } catch (e: any) {
+    if (String(e.message || "").includes("expiry_notifications")) return [];
+    throw e;
+  }
+}
+
+export async function getExpiryNotificationsForCertificate(certId: number): Promise<ExpiryNotification[]> {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("expiry_notifications")
+      .select("*")
+      .eq("certificate_id", certId)
+      .order("sent_at", { ascending: false });
+    if (error) assertNoSupabaseError(error, "expiry_notifications");
+    return (data || []).map(mapExpiryNotification);
+  } catch {
+    return [];
+  }
+}
+
+export async function hasNotificationBeenSent(certId: number, type: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("expiry_notifications")
+      .select("id")
+      .eq("certificate_id", certId)
+      .eq("notification_type", type)
+      .limit(1)
+      .maybeSingle();
+    if (error) return false;
+    return !!data;
+  } catch {
+    return false;
+  }
+}
+
+export async function createExpiryNotification(input: {
+  certificate_id: number;
+  company_name: string;
+  notification_type: ExpiryNotification["notification_type"];
+  recipient_email: string;
+  status?: "sent" | "failed";
+}): Promise<number> {
+  const { data, error } = await supabaseAdmin()
+    .from("expiry_notifications")
+    .insert({
+      certificate_id: input.certificate_id,
+      company_name: input.company_name,
+      notification_type: input.notification_type,
+      recipient_email: input.recipient_email,
+      status: input.status || "sent",
+    })
+    .select("id")
+    .single();
+  if (error) assertNoSupabaseError(error, "expiry_notifications");
+  return Number((data as any)?.id ?? 0);
+}
+
 export async function revenueStats() {
   const { data, error } = await supabaseAdmin()
     .from("certificates")

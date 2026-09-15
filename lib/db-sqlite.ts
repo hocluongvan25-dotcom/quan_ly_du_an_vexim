@@ -88,6 +88,17 @@ function migrate(db: DatabaseSync) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+
+    CREATE TABLE IF NOT EXISTS expiry_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      certificate_id INTEGER NOT NULL REFERENCES certificates(id) ON DELETE CASCADE,
+      company_name TEXT NOT NULL DEFAULT '',
+      notification_type TEXT NOT NULL CHECK (notification_type IN ('90_days','60_days','30_days','14_days','7_days','3_days','1_day','expired','renewal_reminder')),
+      recipient_email TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('sent','failed')),
+      sent_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
   `);
 
   // Migration for old DBs
@@ -757,6 +768,62 @@ export function getCompanyStats(companyName: string) {
     totalCertificates: certs.length,
     totalLeads: leads.length,
   };
+}
+
+export type ExpiryNotification = {
+  id: number;
+  certificate_id: number;
+  company_name: string;
+  notification_type: "90_days" | "60_days" | "30_days" | "14_days" | "7_days" | "3_days" | "1_day" | "expired" | "renewal_reminder";
+  recipient_email: string;
+  status: "sent" | "failed";
+  sent_at: string;
+  created_at: string;
+};
+
+export function listExpiryNotifications(limit = 100): ExpiryNotification[] {
+  return plain(
+    db()
+      .prepare(`SELECT * FROM expiry_notifications ORDER BY sent_at DESC, id DESC LIMIT ?`)
+      .all(limit)
+  ) as ExpiryNotification[];
+}
+
+export function getExpiryNotificationsForCertificate(certId: number): ExpiryNotification[] {
+  return plain(
+    db()
+      .prepare(`SELECT * FROM expiry_notifications WHERE certificate_id = ? ORDER BY sent_at DESC`)
+      .all(certId)
+  ) as ExpiryNotification[];
+}
+
+export function hasNotificationBeenSent(certId: number, type: string): boolean {
+  const row = db()
+    .prepare(`SELECT id FROM expiry_notifications WHERE certificate_id = ? AND notification_type = ? LIMIT 1`)
+    .get(certId, type) as { id: number } | undefined;
+  return !!row;
+}
+
+export function createExpiryNotification(input: {
+  certificate_id: number;
+  company_name: string;
+  notification_type: ExpiryNotification["notification_type"];
+  recipient_email: string;
+  status?: "sent" | "failed";
+}) {
+  const info = db()
+    .prepare(
+      `INSERT INTO expiry_notifications (certificate_id, company_name, notification_type, recipient_email, status)
+       VALUES (?, ?, ?, ?, ?)`
+    )
+    .run(
+      input.certificate_id,
+      input.company_name,
+      input.notification_type,
+      input.recipient_email,
+      input.status || "sent"
+    );
+  return Number(info.lastInsertRowid);
 }
 
 export function revenueStats() {

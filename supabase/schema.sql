@@ -121,6 +121,18 @@ create table if not exists public.companies (
   updated_at timestamptz not null default now()
 );
 
+-- Expiry Notifications (auto scan)
+create table if not exists public.expiry_notifications (
+  id bigint generated always as identity primary key,
+  certificate_id bigint not null references public.certificates(id) on delete cascade,
+  company_name text not null default '',
+  notification_type text not null check (notification_type in ('90_days','60_days','30_days','14_days','7_days','3_days','1_day','expired','renewal_reminder')),
+  recipient_email text not null default '',
+  status text not null default 'sent' check (status in ('sent','failed')),
+  sent_at timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
 -- Indexes
 create index if not exists certificates_public_code_idx on public.certificates (public_code);
 create index if not exists certificates_status_idx on public.certificates (status);
@@ -135,22 +147,28 @@ create index if not exists consultation_leads_created_at_idx on public.consultat
 create index if not exists companies_company_name_idx on public.companies (company_name);
 create index if not exists companies_tax_code_idx on public.companies (tax_code);
 create index if not exists companies_created_at_idx on public.companies (created_at desc);
+create index if not exists expiry_notifications_certificate_id_idx on public.expiry_notifications (certificate_id);
+create index if not exists expiry_notifications_type_idx on public.expiry_notifications (notification_type);
+create index if not exists expiry_notifications_sent_at_idx on public.expiry_notifications (sent_at desc);
 
 -- RLS
 alter table public.staff_users enable row level security;
 alter table public.certificates enable row level security;
 alter table public.consultation_leads enable row level security;
 alter table public.companies enable row level security;
+alter table public.expiry_notifications enable row level security;
 
 -- Grants
 grant all on table public.staff_users to service_role;
 grant all on table public.certificates to service_role;
 grant all on table public.consultation_leads to service_role;
 grant all on table public.companies to service_role;
+grant all on table public.expiry_notifications to service_role;
 grant all on table public.staff_users to postgres;
 grant all on table public.certificates to postgres;
 grant all on table public.consultation_leads to postgres;
 grant all on table public.companies to postgres;
+grant all on table public.expiry_notifications to postgres;
 grant usage, select on all sequences in schema public to service_role;
 grant usage, select on all sequences in schema public to postgres;
 
