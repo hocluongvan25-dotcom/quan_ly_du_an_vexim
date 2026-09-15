@@ -220,18 +220,7 @@ export default function ExpiryAlertsPage() {
         </div>
       </div>
 
-      <div className="rounded-3xl bg-navy-900 text-white p-6">
-        <h3 className="font-bold flex items-center gap-2"><Clock className="h-5 w-5 text-amber-400" /> Cách hoạt động</h3>
-        <ul className="mt-3 space-y-2 text-sm text-white/80 list-disc pl-5">
-          <li>Hệ thống tự động quét mỗi ngày (qua Vercel Cron gọi <code className="bg-white/10 px-1.5 py-0.5 rounded">/api/cron/expiry-check?secret=...</code>)</li>
-          <li>Tính <code>remainingDays = daysBetween(todayUtc, expires)</code> đã audit chính xác 100%</li>
-          <li>Gửi email khi remaining = 90, 60, 30, 14, 7, 3, 1, 0, hoặc &lt;0 (expired)</li>
-          <li>Mỗi ngưỡng chỉ gửi 1 lần / chứng nhận (lưu trong <code>expiry_notifications</code>) để tránh spam</li>
-          <li>Gửi tới email doanh nghiệp (từ bảng <code>companies</code>) + admin <code>contact@veximglobal.com</code></li>
-          <li>Có thể bấm "Quét & Gửi Cảnh Báo" thủ công từ dashboard này</li>
-          <li>Cần cấu hình SMTP Zoho (ZOHO_SMTP_PASS) trong env để gửi thật, nếu không sẽ ở chế độ mock log</li>
-        </ul>
-      </div>
+
     </div>
   );
 }
