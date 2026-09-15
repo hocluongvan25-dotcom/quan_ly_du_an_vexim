@@ -125,8 +125,8 @@ export function VerifyView({ cert }: Props) {
   const switchTab = (tab: "facility" | "services") => setActiveTab(tab);
 
   return (
-    <div className="min-h-screen bg-[#eef2f7] flex justify-center sm:py-6 sm:px-4">
-      <div className="w-full max-w-md bg-white sm:rounded-[32px] shadow-2xl overflow-hidden relative flex flex-col min-h-screen sm:min-h-[90vh] border border-slate-200">
+    <div className="min-h-[100dvh] bg-[#eef2f7] flex justify-center sm:py-6 sm:px-4">
+      <div className="w-full max-w-md bg-white sm:rounded-[32px] shadow-2xl overflow-hidden relative flex flex-col min-h-[100dvh] sm:min-h-[90vh] border border-slate-200 mx-auto">
         {/* Toast */}
         {toast && (
           <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] flex">
@@ -399,18 +399,18 @@ export function VerifyView({ cert }: Props) {
           </div>
         </footer>
 
-        {/* Modals */}
+        {/* Modals - Fixed size on mobile, no stretch when keyboard appears */}
         {modal === "sales" && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setModal(null)}></div>
-            <div className="relative bg-white w-full sm:max-w-md rounded-t-[28px] sm:rounded-[24px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-              <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-6 text-slate-900 relative">
+            <div className="relative bg-white w-full max-w-md rounded-t-[28px] sm:rounded-[24px] shadow-2xl overflow-hidden flex flex-col h-[85dvh] sm:h-auto sm:max-h-[90vh] max-h-[85dvh] sm:max-h-[90vh]">
+              <div className="bg-gradient-to-br from-amber-400 to-orange-500 p-6 text-slate-900 relative shrink-0">
                 <button onClick={() => setModal(null)} className="absolute top-4 right-4 w-8 h-8 bg-black/10 hover:bg-black/20 rounded-full flex items-center justify-center"><i className="fa-solid fa-xmark"></i></button>
                 <div className="inline-flex bg-slate-900 text-amber-300 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider">Phòng Sale Mỹ</div>
                 <h3 className="mt-3 font-black text-[18px] leading-[1.2]">Ủy Thác Phòng Sale Xuất Khẩu Mỹ</h3>
                 <p className="mt-2 text-[12px] leading-[1.5] text-slate-900/80">Tiết kiệm 70% chi phí so với mở văn phòng tại Mỹ. Có ngay đội ngũ sale bản địa.</p>
               </div>
-              <div className="p-5 space-y-4 overflow-y-auto">
+              <div className="p-5 space-y-4 overflow-y-auto overscroll-contain flex-1">
                 <div className="space-y-2.5">
                   <div className="flex gap-2.5"><div className="w-6 h-6 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0"><i className="fa-solid fa-check text-[10px]"></i></div><div className="text-[12px] leading-[1.5] text-slate-700"><b>Kết nối Buyer B2B</b> - Chuỗi siêu thị, phân phối Mỹ</div></div>
                   <div className="flex gap-2.5"><div className="w-6 h-6 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0"><i className="fa-solid fa-check text-[10px]"></i></div><div className="text-[12px] leading-[1.5] text-slate-700"><b>Bảo vệ L/C</b> - An toàn giao dịch quốc tế</div></div>
@@ -419,9 +419,9 @@ export function VerifyView({ cert }: Props) {
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Đăng ký tư vấn miễn phí</div>
                   <div className="mt-3 space-y-3">
-                    <input value={salesForm.name} onChange={(e)=>setSalesForm({...salesForm, name: e.target.value})} placeholder="Họ tên / Tên nhà máy" className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
-                    <input value={salesForm.phone} onChange={(e)=>setSalesForm({...salesForm, phone: e.target.value})} placeholder="SĐT / Zalo" className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
-                    <button disabled={submitting} onClick={()=>submitConsultation("sales")} className="w-full bg-slate-900 text-white rounded-xl py-3 text-[13px] font-bold hover:bg-black disabled:opacity-60">{submitting ? "Đang gửi..." : <>Gửi Yêu Cầu Tư Vấn <i className="fa-solid fa-paper-plane ml-1.5"></i></>}</button>
+                    <input value={salesForm.name} onChange={(e)=>setSalesForm({...salesForm, name: e.target.value})} placeholder="Họ tên / Tên nhà máy" className="w-full border border-slate-200 rounded-xl px-3.5 py-3 text-[16px] sm:text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
+                    <input value={salesForm.phone} onChange={(e)=>setSalesForm({...salesForm, phone: e.target.value})} placeholder="SĐT / Zalo" inputMode="numeric" className="w-full border border-slate-200 rounded-xl px-3.5 py-3 text-[16px] sm:text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
+                    <button disabled={submitting} onClick={()=>submitConsultation("sales")} className="w-full bg-slate-900 text-white rounded-xl py-3 text-[13px] font-bold hover:bg-black disabled:opacity-60 shrink-0">{submitting ? "Đang gửi..." : <>Gửi Yêu Cầu Tư Vấn <i className="fa-solid fa-paper-plane ml-1.5"></i></>}</button>
                     <a href="https://veximtrade.com" target="_blank" className="block text-center text-[11px] font-bold text-slate-600 hover:text-slate-900 underline">Hoặc truy cập veximtrade.com <i className="fa-solid fa-external-link ml-1"></i></a>
                   </div>
                 </div>
@@ -431,16 +431,16 @@ export function VerifyView({ cert }: Props) {
         )}
 
         {modal === "amazon" && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setModal(null)}></div>
-            <div className="relative bg-white w-full sm:max-w-md rounded-t-[28px] sm:rounded-[24px] shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-              <div className="bg-slate-900 p-6 text-white relative">
+            <div className="relative bg-white w-full max-w-md rounded-t-[28px] sm:rounded-[24px] shadow-2xl overflow-hidden flex flex-col h-[85dvh] sm:h-auto sm:max-h-[90vh] max-h-[85dvh] sm:max-h-[90vh]">
+              <div className="bg-slate-900 p-6 text-white relative shrink-0">
                 <button onClick={() => setModal(null)} className="absolute top-4 right-4 w-8 h-8 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center"><i className="fa-solid fa-xmark"></i></button>
                 <div className="inline-flex bg-white text-slate-900 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider"><i className="fa-brands fa-amazon mr-1"></i> Amazon US</div>
                 <h3 className="mt-3 font-black text-[18px] leading-[1.2]">Vận Hành Gian Hàng Amazon US</h3>
                 <p className="mt-2 text-[12px] leading-[1.5] text-white/70">Tiếp cận 300M+ khách hàng toàn cầu. Vexim quản lý toàn bộ vận hành.</p>
               </div>
-              <div className="p-5 space-y-4 overflow-y-auto">
+              <div className="p-5 space-y-4 overflow-y-auto overscroll-contain flex-1">
                 <div className="space-y-2.5">
                   <div className="flex gap-2.5"><div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center shrink-0"><i className="fa-solid fa-check text-[10px]"></i></div><div className="text-[12px] leading-[1.5] text-slate-700"><b>Brand Registry & USPTO</b> - Bảo hộ thương hiệu</div></div>
                   <div className="flex gap-2.5"><div className="w-6 h-6 rounded-full bg-slate-900 text-white flex items-center justify-center shrink-0"><i className="fa-solid fa-check text-[10px]"></i></div><div className="text-[12px] leading-[1.5] text-slate-700"><b>A+ Content & PPC</b> - Tối ưu hiển thị & quảng cáo</div></div>
@@ -449,9 +449,9 @@ export function VerifyView({ cert }: Props) {
                 <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Đăng ký tư vấn miễn phí</div>
                   <div className="mt-3 space-y-3">
-                    <input value={amazonForm.name} onChange={(e)=>setAmazonForm({...amazonForm, name: e.target.value})} placeholder="Họ tên / Tên nhà máy" className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
-                    <input value={amazonForm.phone} onChange={(e)=>setAmazonForm({...amazonForm, phone: e.target.value})} placeholder="SĐT / Zalo" className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
-                    <button disabled={submitting} onClick={()=>submitConsultation("amazon")} className="w-full bg-slate-900 text-white rounded-xl py-3 text-[13px] font-bold hover:bg-black disabled:opacity-60">{submitting ? "Đang gửi..." : <>Gửi Yêu Cầu Tư Vấn <i className="fa-solid fa-paper-plane ml-1.5"></i></>}</button>
+                    <input value={amazonForm.name} onChange={(e)=>setAmazonForm({...amazonForm, name: e.target.value})} placeholder="Họ tên / Tên nhà máy" className="w-full border border-slate-200 rounded-xl px-3.5 py-3 text-[16px] sm:text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
+                    <input value={amazonForm.phone} onChange={(e)=>setAmazonForm({...amazonForm, phone: e.target.value})} placeholder="SĐT / Zalo" inputMode="numeric" className="w-full border border-slate-200 rounded-xl px-3.5 py-3 text-[16px] sm:text-[13px] focus:outline-none focus:border-slate-900 focus:ring-1 focus:ring-slate-900"/>
+                    <button disabled={submitting} onClick={()=>submitConsultation("amazon")} className="w-full bg-slate-900 text-white rounded-xl py-3 text-[13px] font-bold hover:bg-black disabled:opacity-60 shrink-0">{submitting ? "Đang gửi..." : <>Gửi Yêu Cầu Tư Vấn <i className="fa-solid fa-paper-plane ml-1.5"></i></>}</button>
                     <a href="https://veximops.com" target="_blank" className="block text-center text-[11px] font-bold text-slate-600 hover:text-slate-900 underline">Hoặc truy cập veximops.com <i className="fa-solid fa-external-link ml-1"></i></a>
                   </div>
                 </div>

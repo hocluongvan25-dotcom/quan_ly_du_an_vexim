@@ -29,7 +29,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
     standard: initial?.standard || "FDA",
     registration_code: initial?.registration_code || "",
     duns_code: initial?.standard === "GACC" ? "" : initial?.duns_code || "",
-    us_agent: initial?.standard === "GACC" ? "" : initial?.us_agent || "Vexim US Compliance LLC",
+    us_agent: initial?.standard === "GACC" ? "" : initial?.us_agent || "Vexim Global LLC",
     service_price: initial ? String(initial.service_price) : "",
     company_name: initial?.company_name || "",
     scope: initial?.scope || "",
@@ -235,7 +235,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                   standard: newStd,
                   validity_years: newStd === "GACC" ? GACC_FIXED_YEARS : s.validity_years,
                   duns_code: newStd === "GACC" ? "" : s.duns_code,
-                  us_agent: newStd === "GACC" ? "" : s.us_agent || "Vexim US Compliance LLC",
+                  us_agent: newStd === "GACC" ? "" : s.us_agent || "Vexim Global LLC",
                 }));
               }}
               className="input"
@@ -301,7 +301,7 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                   className="input"
                   value={form.us_agent}
                   onChange={(e) => patch("us_agent", e.target.value)}
-                  placeholder={t("form.usAgentPlaceholder") || "Vexim US Compliance LLC"}
+                  placeholder={t("form.usAgentPlaceholder") || "Vexim Global LLC"}
                   maxLength={200}
                 />
                 <div className="mt-1 text-[11px] text-navy-900/50">
