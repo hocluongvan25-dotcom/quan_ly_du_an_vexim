@@ -18,7 +18,6 @@ type Lead = {
 function playNotificationSound() {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    // Pleasant double chime
     const playTone = (freq: number, start: number, duration: number, volume: number) => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
@@ -43,25 +42,29 @@ export function LeadsNotifier() {
   const [open, setOpen] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [hasPermission, setHasPermission] = useState(false);
-  const prevCountRef = useRef<number>(0);
-  const prevIdsRef = useRef<Set<number>>(new Set());
+  const seenIdsRef = useRef<Set<number>>(new Set());
+  const allPrevIdsRef = useRef<Set<number>>(new Set());
   const initializedRef = useRef(false);
   const audioUnlockedRef = useRef(false);
 
-  // Load sound preference
+  // Load preferences
   useEffect(() => {
     const saved = localStorage.getItem("vexim_leads_sound");
     if (saved !== null) setSoundEnabled(saved === "1");
-    const ids = localStorage.getItem("vexim_leads_seen_ids");
-    if (ids) {
+    const seen = localStorage.getItem("vexim_leads_seen_ids");
+    if (seen) {
       try {
-        prevIdsRef.current = new Set(JSON.parse(ids));
+        seenIdsRef.current = new Set(JSON.parse(seen));
       } catch {}
     }
     if ("Notification" in window) {
       setHasPermission(Notification.permission === "granted");
     }
   }, []);
+
+  const persistSeen = (set: Set<number>) => {
+    localStorage.setItem("vexim_leads_seen_ids", JSON.stringify(Array.from(set)));
+  };
 
   const toggleSound = () => {
     const next = !soundEnabled;
@@ -76,71 +79,76 @@ export function LeadsNotifier() {
     setHasPermission(perm === "granted");
   };
 
-  const fetchLeads = async (isInitial = false) => {
+  const markAllSeen = () => {
+    // Add all current leads to seen set and clear badge
+    const merged = new Set([...Array.from(seenIdsRef.current), ...leads.map((l) => l.id), ...Array.from(allPrevIdsRef.current)]);
+    seenIdsRef.current = merged;
+    persistSeen(merged);
+    setNewCount(0);
+  };
+
+  const markOneSeen = (id: number) => {
+    if (!seenIdsRef.current.has(id)) {
+      const next = new Set(seenIdsRef.current);
+      next.add(id);
+      seenIdsRef.current = next;
+      persistSeen(next);
+      // Decrement count if this lead was counted as new & unseen
+      setNewCount((c) => Math.max(0, c - 1));
+    }
+  };
+
+  const fetchLeads = async () => {
     try {
       const res = await fetch("/api/consultation", { cache: "no-store" });
       if (!res.ok) return;
       const data = await res.json();
       const items: Lead[] = data.items || [];
-      const newLeads = items.filter((l) => l.status === "new");
+
+      // Unseen new leads = status new AND not in seen set
+      const unseenNew = items.filter((l) => l.status === "new" && !seenIdsRef.current.has(l.id));
       setLeads(items.slice(0, 10));
-      setNewCount(newLeads.length);
+      setNewCount(unseenNew.length);
 
       if (!initializedRef.current) {
-        // First load - just init without sound
-        prevCountRef.current = newLeads.length;
-        prevIdsRef.current = new Set(items.map((l) => l.id));
-        localStorage.setItem("vexim_leads_seen_ids", JSON.stringify(Array.from(prevIdsRef.current)));
+        // First load - don't play sound, just init prev ids
+        allPrevIdsRef.current = new Set(items.map((l) => l.id));
         initializedRef.current = true;
         return;
       }
 
-      // Detect truly new leads by ID
+      // Detect truly new arrivals (IDs not seen in previous fetch)
       const currentIds = new Set(items.map((l) => l.id));
-      const unseenIds = Array.from(currentIds).filter((id) => !prevIdsRef.current.has(id));
-      const unseenNewLeads = items.filter((l) => unseenIds.includes(l.id) && l.status === "new");
+      const newArrivalIds = Array.from(currentIds).filter((id) => !allPrevIdsRef.current.has(id));
+      const newArrivalLeads = items.filter((l) => newArrivalIds.includes(l.id) && l.status === "new");
 
-      if (unseenNewLeads.length > 0) {
-        // Play sound
-        if (soundEnabled) {
-          if (!audioUnlockedRef.current) {
-            // Try to unlock audio context on first interaction
-            audioUnlockedRef.current = true;
-          }
-          playNotificationSound();
-        }
-
-        // Browser notification
+      if (newArrivalLeads.length > 0) {
+        if (soundEnabled) playNotificationSound();
         if (hasPermission && "Notification" in window) {
-          const first = unseenNewLeads[0];
-          new Notification(`🔔 Lead mới: ${first.name}`, {
+          const first = newArrivalLeads[0];
+          const more = newArrivalLeads.length > 1 ? ` +${newArrivalLeads.length - 1} lead khác` : "";
+          new Notification(`🔔 Lead mới: ${first.name}${more}`, {
             body: `${first.service_type === "sales" ? "Sale Mỹ" : "Amazon US"} - ${first.phone} ${first.company_name ? " - " + first.company_name : ""}`,
             icon: "/favicon.ico",
           });
         }
-
-        // Update seen IDs
-        const merged = new Set([...Array.from(prevIdsRef.current), ...Array.from(currentIds)]);
-        prevIdsRef.current = merged;
-        localStorage.setItem("vexim_leads_seen_ids", JSON.stringify(Array.from(merged)));
       }
 
-      prevCountRef.current = newLeads.length;
+      allPrevIdsRef.current = currentIds;
     } catch {}
   };
 
   useEffect(() => {
-    fetchLeads(true);
-    const interval = setInterval(() => fetchLeads(false), 30000); // poll every 30s
+    fetchLeads();
+    const interval = setInterval(fetchLeads, 30000);
     return () => clearInterval(interval);
   }, [soundEnabled, hasPermission]);
 
-  // Unlock audio on first user interaction
+  // Unlock audio on first interaction
   useEffect(() => {
     const unlock = () => {
       if (!audioUnlockedRef.current) {
         audioUnlockedRef.current = true;
-        // Create silent context to unlock
         try {
           const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
           const buffer = ctx.createBuffer(1, 1, 22050);
@@ -161,19 +169,16 @@ export function LeadsNotifier() {
     };
   }, []);
 
-  const markAllSeen = () => {
-    const allIds = leads.map((l) => l.id);
-    const merged = new Set([...Array.from(prevIdsRef.current), ...allIds]);
-    prevIdsRef.current = merged;
-    localStorage.setItem("vexim_leads_seen_ids", JSON.stringify(Array.from(merged)));
-  };
-
   return (
     <div className="relative">
       <button
         onClick={() => {
-          setOpen((o) => !o);
-          if (!open) markAllSeen();
+          const willOpen = !open;
+          setOpen(willOpen);
+          if (willOpen) {
+            // When opening, mark all as seen and clear badge
+            markAllSeen();
+          }
         }}
         className="relative flex h-9 w-9 items-center justify-center rounded-full border border-navy-900/10 bg-white text-navy-900/70 hover:bg-slate-50 hover:text-navy-900 transition-colors"
         title="Thông báo leads mới"
@@ -193,9 +198,13 @@ export function LeadsNotifier() {
             <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
               <div className="flex items-center gap-2">
                 <div className="font-bold text-sm">Leads mới</div>
-                {newCount > 0 && (
+                {newCount > 0 ? (
                   <span className="rounded-full bg-red-50 border border-red-200 px-2 py-0.5 text-[11px] font-bold text-red-700">
-                    {newCount} chưa liên hệ
+                    {newCount} chưa xem
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] font-bold text-emerald-700">
+                    Đã xem hết
                   </span>
                 )}
               </div>
@@ -220,43 +229,55 @@ export function LeadsNotifier() {
               {leads.length === 0 ? (
                 <div className="px-4 py-10 text-center text-sm text-slate-400">Chưa có lead nào</div>
               ) : (
-                leads.map((l) => (
-                  <Link
-                    key={l.id}
-                    href="/dashboard/leads"
-                    onClick={() => setOpen(false)}
-                    className={`flex gap-3 px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 ${l.status === "new" ? "bg-amber-50/50" : ""}`}
-                  >
-                    <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${l.status === "new" ? "bg-red-500 animate-pulse" : "bg-slate-300"}`} />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-[13px] truncate">{l.name}</span>
-                        <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-bold ${l.service_type === "sales" ? "bg-amber-100 text-amber-800" : "bg-slate-900 text-white"}`}>
-                          {l.service_type === "sales" ? "Sale" : "Amazon"}
-                        </span>
+                leads.map((l) => {
+                  const isUnseen = !seenIdsRef.current.has(l.id) && l.status === "new";
+                  return (
+                    <Link
+                      key={l.id}
+                      href="/dashboard/leads"
+                      onClick={() => {
+                        markOneSeen(l.id);
+                        setOpen(false);
+                      }}
+                      className={`flex gap-3 px-4 py-3 hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors ${isUnseen ? "bg-amber-50/70" : l.status === "new" ? "bg-amber-50/30" : ""}`}
+                    >
+                      <div className={`mt-1 h-2 w-2 rounded-full shrink-0 ${isUnseen ? "bg-red-500 animate-pulse" : l.status === "new" ? "bg-amber-500" : "bg-slate-300"}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-[13px] truncate">{l.name}</span>
+                          <span className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-bold ${l.service_type === "sales" ? "bg-amber-100 text-amber-800" : "bg-slate-900 text-white"}`}>
+                            {l.service_type === "sales" ? "Sale" : "Amazon"}
+                          </span>
+                          {isUnseen && <span className="text-[10px] font-bold text-red-600">NEW</span>}
+                        </div>
+                        <div className="mt-0.5 text-xs text-slate-600 truncate">{l.phone} {l.company_name ? `· ${l.company_name}` : ""}</div>
+                        <div className="mt-1 text-[11px] text-slate-400">{formatDate(l.created_at)}</div>
                       </div>
-                      <div className="mt-0.5 text-xs text-slate-600 truncate">{l.phone} {l.company_name ? `· ${l.company_name}` : ""}</div>
-                      <div className="mt-1 text-[11px] text-slate-400">{formatDate(l.created_at)}</div>
-                    </div>
-                  </Link>
-                ))
+                    </Link>
+                  );
+                })
               )}
             </div>
 
             <div className="border-t border-slate-100 bg-slate-50 px-3 py-2 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                {!hasPermission && (
+                {!hasPermission ? (
                   <button
                     onClick={requestNotificationPermission}
                     className="text-[11px] font-semibold text-teal-700 hover:underline"
                   >
                     Bật thông báo trình duyệt
                   </button>
+                ) : (
+                  <span className="text-[11px] text-slate-400">Chuông {soundEnabled ? "bật" : "tắt"} · Tự làm mới 30s</span>
                 )}
               </div>
               <Link
                 href="/dashboard/leads"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  markAllSeen();
+                  setOpen(false);
+                }}
                 className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-bold text-white hover:bg-black"
               >
                 Xem tất cả →
