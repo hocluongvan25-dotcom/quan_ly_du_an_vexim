@@ -10,21 +10,45 @@ export async function GET() {
     const session = getSession();
     if (!session) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     const companies = await listCompanies();
-    // Merge distinct company names from certificates for autocomplete fallback (official DB + certs)
     try {
       const certs = await listCertificates();
+      // Build map: company lower -> Set of standards + count
+      const certMap = new Map<string, { standards: Set<string>; count: number; email?: string }>();
+      for (const cert of certs) {
+        const name = cert.company_name?.trim();
+        if (!name) continue;
+        const low = name.toLowerCase();
+        if (!certMap.has(low)) certMap.set(low, { standards: new Set(), count: 0, email: (cert as any).company_email || "" });
+        const entry = certMap.get(low)!;
+        entry.standards.add(cert.standard);
+        entry.count++;
+        if (!entry.email && (cert as any).company_email) entry.email = (cert as any).company_email;
+      }
+
+      const enriched = companies.map((c) => {
+        const low = c.company_name.toLowerCase();
+        const info = certMap.get(low);
+        return {
+          ...c,
+          standards: info ? Array.from(info.standards) : [],
+          certificate_count: info?.count || 0,
+          services_label: info ? Array.from(info.standards).join(", ") : "",
+        };
+      });
+
       const existingNames = new Set(companies.map((c) => c.company_name.toLowerCase()));
-      const extra: typeof companies = [];
+      const extra: any[] = [];
       for (const cert of certs) {
         const name = cert.company_name?.trim();
         if (!name) continue;
         const low = name.toLowerCase();
         if (existingNames.has(low)) continue;
         existingNames.add(low);
+        const info = certMap.get(low);
         extra.push({
           id: -cert.id,
           company_name: name,
-          email: (cert as any).company_email || "",
+          email: info?.email || (cert as any).company_email || "",
           phone: "",
           tax_code: "",
           address: "",
@@ -32,10 +56,16 @@ export async function GET() {
           notes: "",
           created_at: cert.created_at,
           updated_at: cert.updated_at,
-        } as any);
+          standards: info ? Array.from(info.standards) : [cert.standard],
+          certificate_count: info?.count || 1,
+          services_label: info ? Array.from(info.standards).join(", ") : cert.standard,
+        });
       }
-      return NextResponse.json({ companies: [...companies, ...extra], items: [...companies, ...extra] });
-    } catch {
+
+      const all = [...enriched, ...extra];
+      return NextResponse.json({ companies: all, items: all });
+    } catch (err) {
+      console.error("companies enrich error", err);
       return NextResponse.json({ companies, items: companies });
     }
   } catch (e) {

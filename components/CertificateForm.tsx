@@ -10,7 +10,7 @@ import { FDA_VALIDITY_OPTIONS, GACC_FIXED_YEARS, DEFAULT_VALIDITY, type Certific
 import { CheckCircle2, Loader2, X, Building2, Mail, EyeOff, Search } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
 
-type CompanyOption = { id: number; company_name: string; email: string };
+type CompanyOption = { id: number; company_name: string; email: string; standards?: string[]; certificate_count?: number; services_label?: string };
 
 type FormState = {
   standard: Standard;
@@ -60,7 +60,16 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
       .then((d) => {
         const list = d.companies || d.items || [];
         if (Array.isArray(list)) {
-          setCompanies(list.map((c: any) => ({ id: c.id, company_name: c.company_name, email: c.email || "" })));
+          setCompanies(
+            list.map((c: any) => ({
+              id: c.id,
+              company_name: c.company_name,
+              email: c.email || "",
+              standards: c.standards || [],
+              certificate_count: c.certificate_count || 0,
+              services_label: c.services_label || (c.standards || []).join(", "),
+            }))
+          );
         }
       })
       .catch(() => {});
@@ -382,10 +391,13 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
               </span>
             </span> as any
           }>
-            <div className="relative">
-              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <div className="relative group">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex w-11 items-center justify-center">
+                <Mail className="h-[18px] w-[18px] text-slate-400 group-focus-within:text-navy-900/70" />
+              </div>
+              <div className="pointer-events-none absolute left-11 top-1/2 h-5 w-px -translate-y-1/2 bg-navy-900/10" />
               <input
-                className="input pl-9"
+                className="input !pl-[52px] !pr-3"
                 type="email"
                 value={form.company_email}
                 onChange={(e) => patch("company_email", e.target.value)}
@@ -403,10 +415,13 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                 </span>
               </span> as any
             }>
-              <div className="relative">
-                <Building2 className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <div className="relative group">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex w-11 items-center justify-center">
+                  <Building2 className="h-[18px] w-[18px] text-slate-400 group-focus-within:text-navy-900/70" />
+                </div>
+                <div className="pointer-events-none absolute left-11 top-1/2 h-5 w-px -translate-y-1/2 bg-navy-900/10" />
                 <input
-                  className="input pl-9 pr-9"
+                  className="input !pl-[52px] !pr-11"
                   required
                   value={form.company_name}
                   onChange={(e) => {
@@ -420,29 +435,55 @@ export function CertificateForm({ initial }: { initial?: Certificate }) {
                 <button
                   type="button"
                   onClick={() => setCompanySearchOpen((v) => !v)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 hover:bg-slate-100"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full hover:bg-slate-100"
                   tabIndex={-1}
                 >
-                  <Search className="h-4 w-4 text-slate-400" />
+                  <Search className="h-4 w-4 text-slate-500" />
                 </button>
                 {companySearchOpen && filteredCompanies.length > 0 && (
-                  <div className="absolute z-20 mt-1 max-h-64 w-full overflow-auto rounded-xl border bg-white shadow-xl">
-                    <div className="sticky top-0 bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-500">
-                      {companies.length} doanh nghiệp • {filteredCompanies.length} kết quả
+                  <div className="absolute z-20 mt-1 max-h-72 w-full overflow-auto rounded-xl border bg-white shadow-xl">
+                    <div className="sticky top-0 z-10 flex justify-between bg-slate-50 px-3 py-1.5 text-[11px] font-semibold text-slate-500">
+                      <span>{companies.length} doanh nghiệp • {filteredCompanies.length} kết quả</span>
+                      <span className="text-[10px]">Dịch vụ →</span>
                     </div>
                     {filteredCompanies.map((c) => (
                       <button
                         key={c.id}
                         type="button"
                         onClick={() => selectCompany(c)}
-                        className="flex w-full items-center gap-2 px-3 py-2.5 text-left hover:bg-slate-50 border-b last:border-0"
+                        className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left hover:bg-slate-50 border-b last:border-0"
                       >
                         <Building2 className="h-4 w-4 text-slate-400 shrink-0" />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-medium text-navy-900">{c.company_name}</div>
                           {c.email && <div className="truncate text-[11px] text-slate-500">{c.email}</div>}
                         </div>
-                        {form.company_name === c.company_name && <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />}
+                        <div className="flex shrink-0 flex-col items-end gap-1">
+                          <div className="flex gap-1">
+                            {(c.standards || []).length > 0 ? (
+                              (c.standards || []).map((s) => (
+                                <span
+                                  key={s}
+                                  className={`rounded-full border px-2 py-0.5 text-[10px] font-bold leading-none ${
+                                    s === "FDA"
+                                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                                      : s === "GACC"
+                                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                                      : "bg-slate-50 text-slate-600 border-slate-200"
+                                  }`}
+                                >
+                                  {s}
+                                </span>
+                              ))
+                            ) : (
+                              <span className="rounded-full bg-slate-50 border px-2 py-0.5 text-[10px] text-slate-400">Chưa có DV</span>
+                            )}
+                          </div>
+                          {c.certificate_count ? (
+                            <span className="text-[10px] text-slate-400">{c.certificate_count} hồ sơ</span>
+                          ) : null}
+                        </div>
+                        {form.company_name === c.company_name && <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0 ml-1" />}
                       </button>
                     ))}
                     {form.company_name.trim() && !filteredCompanies.some((c) => c.company_name.toLowerCase() === form.company_name.trim().toLowerCase()) && (
