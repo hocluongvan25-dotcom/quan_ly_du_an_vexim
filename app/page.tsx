@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { COMPANY } from "@/lib/types";
-import { ArrowRight, QrCode, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bell, KanbanSquare, QrCode, ReceiptText, ShieldCheck, FileText } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
@@ -60,9 +60,24 @@ export default function HomePage() {
               descKey: "home.features.qr.desc",
             },
             {
-              icon: ArrowRight,
-              titleKey: "home.features.roles.title",
-              descKey: "home.features.roles.desc",
+              icon: KanbanSquare,
+              titleKey: "home.features.crm.title",
+              descKey: "home.features.crm.desc",
+            },
+            {
+              icon: FileText,
+              titleKey: "home.features.contract.title",
+              descKey: "home.features.contract.desc",
+            },
+            {
+              icon: ReceiptText,
+              titleKey: "home.features.accounting.title",
+              descKey: "home.features.accounting.desc",
+            },
+            {
+              icon: Bell,
+              titleKey: "home.features.reminders.title",
+              descKey: "home.features.reminders.desc",
             },
           ].map((c) => (
             <div

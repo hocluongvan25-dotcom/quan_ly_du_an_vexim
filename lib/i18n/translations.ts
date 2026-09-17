@@ -49,23 +49,35 @@ export const translations: Record<Locale, TranslationTree> = {
     },
     home: {
       internalLogin: "Internal Login",
-      network: "Vexim Certificate Network",
-      title: "Verify FDA & GACC Certificates Issued by Vexim Global",
+      network: "Vexim Export Management Platform",
+      title: "FDA, GACC, Export Sales & Amazon — Run on One System",
       description:
-        "Scan the QR code on the certificate to view validity, scope and remaining duration. Service fees are not disclosed on the public verification page.",
+        "Verify certificates by QR, track every deal from lead to close, auto-generate service contracts, invoice per installment and never miss a follow-up.",
       goToSystem: "Go to Management System",
       features: {
         validity: {
-          title: "Standard Validity",
-          desc: "FDA 1-10 years flexible per contract / GACC fixed 5 years. Countdown from expiry date.",
+          title: "FDA & GACC Records",
+          desc: "FDA validity flexible 1–10 years, GACC fixed 5 years. Track expiry dates, renewals and publish QR verification.",
         },
         qr: {
-          title: "QR Printed on Certificate",
-          desc: "Each published record has its own QR code, customers can self-verify.",
+          title: "Public QR Verification",
+          desc: "Every published record has its own QR code — customers and partners scan to check validity. Service fees stay private.",
         },
-        roles: {
-          title: "Two Roles",
-          desc: "Admin manages system. Specialists fill records after registration.",
+        crm: {
+          title: "4-Pipeline Sales CRM",
+          desc: "FDA, GACC, Export Sales and Amazon pipelines: drag-and-drop stages, follow-up reminders and alerts for stalled deals.",
+        },
+        contract: {
+          title: "Self-Generating Contracts",
+          desc: "Closing an Export Sales or Amazon deal auto-creates the contract from deal data, with flexible 1–60 month cycles and renewal reminders.",
+        },
+        accounting: {
+          title: "Billing & Collection",
+          desc: "One invoice per installment with 8% VAT, tracking collected, outstanding and overdue amounts plus 12-month cash flow.",
+        },
+        reminders: {
+          title: "Automatic Reminders",
+          desc: "Bell alerts for follow-ups, closed deals missing records, invoices due soon and certificates about to expire.",
         },
       },
     },
@@ -338,23 +350,35 @@ export const translations: Record<Locale, TranslationTree> = {
     },
     home: {
       internalLogin: "Đăng nhập nội bộ",
-      network: "Mạng lưới chứng nhận Vexim",
-      title: "Xác minh chứng nhận FDA & GACC do Vexim Global cấp",
+      network: "Nền tảng quản lý xuất khẩu Vexim",
+      title: "FDA, GACC, Sale xuất khẩu & Amazon — Gói gọn trên một hệ thống",
       description:
-        "Quét mã QR trên chứng nhận để xem hiệu lực, phạm vi và thời gian còn lại. Phí dịch vụ không được hiển thị trên trang xác minh công khai.",
+        "Xác minh chứng nhận bằng QR, theo dõi deal từ lead đến chốt, hợp đồng tự sinh, hóa đơn theo từng đợt thu và nhắc việc tự động.",
       goToSystem: "Vào hệ thống quản lý",
       features: {
         validity: {
-          title: "Hiệu lực tiêu chuẩn",
-          desc: "FDA 1-10 năm linh hoạt theo hợp đồng / GACC cố định 5 năm. Đếm ngược từ ngày hết hạn.",
+          title: "Hồ sơ FDA & GACC",
+          desc: "FDA hiệu lực linh hoạt 1–10 năm, GACC cố định 5 năm. Theo dõi ngày hết hạn, gia hạn và xuất bản QR xác minh.",
         },
         qr: {
-          title: "QR in trên chứng nhận",
-          desc: "Mỗi hồ sơ đã xuất bản có mã QR riêng, khách hàng có thể tự xác minh.",
+          title: "Xác minh QR công khai",
+          desc: "Mỗi hồ sơ đã xuất bản có mã QR riêng — khách hàng và đối tác tự quét kiểm tra hiệu lực, phí dịch vụ không hiển thị.",
         },
-        roles: {
-          title: "Hai vai trò",
-          desc: "Admin quản lý hệ thống. Chuyên viên điền hồ sơ sau khi đăng ký.",
+        crm: {
+          title: "CRM 4 tuyến bán hàng",
+          desc: "Pipeline FDA, GACC, Sale XK và Amazon: kéo-thả chuyển giai đoạn, nhắc follow-up, báo động deal bị bỏ quên.",
+        },
+        contract: {
+          title: "Hợp đồng tự sinh",
+          desc: "Chốt deal Sale XK hoặc Amazon là hợp đồng tự tạo từ dữ liệu deal, chu kỳ linh hoạt 1–60 tháng, nhắc gia hạn.",
+        },
+        accounting: {
+          title: "Kế toán thu chi",
+          desc: "Mỗi đợt thu một hóa đơn, VAT 8%, theo dõi đã thu / còn lại / quá hạn và dòng tiền 12 tháng.",
+        },
+        reminders: {
+          title: "Nhắc việc tự động",
+          desc: "Chuông báo follow-up, deal chốt chưa có hồ sơ, hóa đơn sắp đến hạn và chứng nhận sắp hết hạn.",
         },
       },
     },
