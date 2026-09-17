@@ -10,7 +10,7 @@ import {
 } from "@/lib/db";
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
-import { isValidValidityYearsForStandard, isValidDunsCode, GACC_FIXED_YEARS } from "@/lib/types";
+import { isValidDunsCode, GACC_FIXED_YEARS, FDA_FIXED_YEARS } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -53,8 +53,8 @@ export async function PUT(req: Request, ctx: Ctx) {
       if (current.standard === "GACC" && renewalYears !== undefined && renewalYears !== GACC_FIXED_YEARS) {
         return NextResponse.json({ error: "GACC renewal is fixed 5 years." }, { status: 400 });
       }
-      if (current.standard === "FDA" && renewalYears !== undefined && !isValidValidityYearsForStandard(renewalYears, "FDA")) {
-        return NextResponse.json({ error: "FDA renewal duration must be between 1 and 10 years." }, { status: 400 });
+      if (current.standard === "FDA" && renewalYears !== undefined && renewalYears !== FDA_FIXED_YEARS) {
+        return NextResponse.json({ error: "FDA renewal is fixed 2 years." }, { status: 400 });
       }
       const item = await renewCertificate(id, extraFee, renewalYears);
       return NextResponse.json({ item });
@@ -63,8 +63,8 @@ export async function PUT(req: Request, ctx: Ctx) {
     let validity_years = body.validity_years ? Number(body.validity_years) : undefined;
     if (standard === "GACC") {
       validity_years = GACC_FIXED_YEARS;
-    } else if (validity_years && !isValidValidityYearsForStandard(validity_years, standard as Standard)) {
-      return NextResponse.json({ error: "FDA contract duration must be between 1 and 10 years." }, { status: 400 });
+    } else if (validity_years && validity_years !== FDA_FIXED_YEARS) {
+      return NextResponse.json({ error: "FDA validity is fixed 2 years." }, { status: 400 });
     }
     const isGacc = standard === "GACC";
     if (!isGacc && body.duns_code) {

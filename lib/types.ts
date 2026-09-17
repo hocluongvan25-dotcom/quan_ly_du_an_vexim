@@ -31,7 +31,7 @@ export type Certificate = {
   scope: string;
   registered_at: string;
   expires_at: string;
-  validity_years: number; // FDA 1-10 years flexible, GACC fixed 5 years
+  validity_years: number; // FDA fixed 2 years (biennial renewal), GACC fixed 5 years
   validity_confirmed: number;
   status: CertificateStatus;
   published_at: string | null;
@@ -82,10 +82,12 @@ export const STANDARD_YEARS: Record<Standard, number> = {
   GACC: 5,
 };
 
-// FDA flexible 1-10 years, GACC fixed 5 years
-export const FDA_VALIDITY_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+// FDA fixed 2 years (đăng ký 2 năm/lần vào năm chẵn), GACC fixed 5 years
+// US Agent là dịch vụ thuê riêng theo năm, không phải hiệu lực đăng ký FDA
+export const FDA_FIXED_YEARS = 2 as const;
 export const GACC_FIXED_YEARS = 5 as const;
-export const VALIDITY_OPTIONS = FDA_VALIDITY_OPTIONS; // backward compat, FDA options
+export const FDA_VALIDITY_OPTIONS = [2] as const; // giữ tên cũ để không vỡ chỗ dùng
+export const VALIDITY_OPTIONS = FDA_VALIDITY_OPTIONS;
 export type ValidityYears = (typeof FDA_VALIDITY_OPTIONS)[number];
 
 export const DEFAULT_VALIDITY: Record<Standard, number> = {
@@ -105,12 +107,12 @@ export function isValidValidityYearsForStandard(n: number, standard: Standard): 
   if (standard === "GACC") {
     return n === GACC_FIXED_YEARS;
   }
-  return Number.isInteger(n) && n >= 1 && n <= 10;
+  return n === FDA_FIXED_YEARS;
 }
 
 export function getValidityOptionsForStandard(standard: Standard): number[] {
   if (standard === "GACC") return [GACC_FIXED_YEARS];
-  return [...FDA_VALIDITY_OPTIONS];
+  return [FDA_FIXED_YEARS];
 }
 
 // DUNS validation - 9 digits, but allow with dashes/spaces, store normalized

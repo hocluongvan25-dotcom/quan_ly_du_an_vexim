@@ -94,7 +94,7 @@ export function addYears(isoDate: string, years: number) {
   return toIsoDate(next);
 }
 
-// FDA flexible 1-10 years, GACC fixed 5 years
+// FDA fixed 2 years, GACC fixed 5 years
 export function expiryFromStandard(
   registeredAt: string,
   standard: Standard,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatDate, formatVnd, remainingDays, statusLabel, getValidityYears } from "@/lib/utils";
-import { FDA_VALIDITY_OPTIONS, GACC_FIXED_YEARS } from "@/lib/types";
+import { FDA_FIXED_YEARS, GACC_FIXED_YEARS } from "@/lib/types";
 import { AlertTriangle, FileBadge2, ShieldCheck, Wallet, MessageSquare } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
 import type { Certificate } from "@/lib/types";
@@ -50,7 +50,7 @@ export default function DashboardPage() {
     return d >= 0 && d <= 90;
   });
 
-  const validityStats = [...FDA_VALIDITY_OPTIONS, GACC_FIXED_YEARS]
+  const validityStats = [FDA_FIXED_YEARS, GACC_FIXED_YEARS]
     .filter((v, i, a) => a.indexOf(v) === i)
     .sort((a, b) => a - b)
     .map((y) => ({
@@ -179,12 +179,10 @@ export default function DashboardPage() {
               <div className="text-xs uppercase tracking-wider text-teal-300">{t("dashboard.fdaFlexible")}</div>
               <div className="mt-1 text-2xl font-extrabold">{t("dashboard.fdaYears")}</div>
               <p className="mt-1 text-sm text-white/65">{t("dashboard.fdaDesc")}</p>
-              <div className="mt-2 flex flex-wrap gap-1">
-                {FDA_VALIDITY_OPTIONS.map((y) => (
-                  <span key={y} className="rounded-full bg-white/10 px-2 py-0.5 text-[10px]">
-                    {y}Y
-                  </span>
-                ))}
+              <div className="mt-2">
+                <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold">
+                  {FDA_FIXED_YEARS}Y fixed
+                </span>
               </div>
             </div>
             <div className="rounded-2xl bg-white/10 p-4">
@@ -204,7 +202,7 @@ export default function DashboardPage() {
                   {validityStats.map((s) => (
                     <div key={s.years} className="flex justify-between text-sm">
                       <span>
-                        {s.years} {s.years === 1 ? t("common.year") : t("common.years")}
+                        {s.years} {t("common.years")}
                       </span>
                       <span className="font-bold">
                         {s.count} {t("dashboard.records")}

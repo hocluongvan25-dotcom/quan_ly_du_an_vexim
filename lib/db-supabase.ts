@@ -511,7 +511,7 @@ export async function publishCertificate(id: number) {
 export async function renewCertificate(id: number, extraFee = 0, renewalYears?: number) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  // FDA flexible 1-10, GACC fixed 5
+  // FDA fixed 2, GACC fixed 5
   let validity: number;
   if (current.standard === "GACC") {
     validity = GACC_FIXED_YEARS;

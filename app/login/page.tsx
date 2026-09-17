@@ -54,8 +54,8 @@ export default function LoginPage() {
             </p>
             <ul className="mt-8 space-y-3 text-sm text-white/80">
               {[
-                "FDA flexible 1-10 years per contract",
-                "GACC flexible 1-10 years per contract",
+                "FDA fixed 2 years (biennial renewal)",
+                "GACC fixed 5 years",
                 "Mobile-optimized verification landing page",
               ].map((txt) => (
                 <li key={txt} className="flex items-center gap-2">

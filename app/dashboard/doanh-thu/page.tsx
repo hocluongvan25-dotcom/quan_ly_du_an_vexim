@@ -64,8 +64,8 @@ export default function RevenuePage() {
       </div>
       <div className="grid gap-4 md:grid-cols-3">
         <Card label={t("revenue.totalRevenue")} value={formatVnd(stats.total)} hint={`${stats.count} ${t("revenue.publishedCount")}`} />
-        <Card label={t("revenue.fdaRevenue")} value={formatVnd(stats.fda)} hint="Flexible 1-10 years" />
-        <Card label={t("revenue.gaccRevenue")} value={formatVnd(stats.gacc)} hint="Flexible 1-10 years" />
+        <Card label={t("revenue.fdaRevenue")} value={formatVnd(stats.fda)} hint="Fixed 2 years" />
+        <Card label={t("revenue.gaccRevenue")} value={formatVnd(stats.gacc)} hint="Fixed 5 years" />
       </div>
       <section className="rounded-3xl bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-wrap gap-2">

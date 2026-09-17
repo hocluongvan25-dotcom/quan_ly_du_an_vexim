@@ -6,7 +6,7 @@ import { CountdownRing } from "./CountdownRing";
 import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
 import { expiryFromStandard, formatDate, remainingDays, getValidityYears, formatDuns, todayLocalIso, todayUtcIso } from "@/lib/utils";
-import { FDA_VALIDITY_OPTIONS, GACC_FIXED_YEARS, DEFAULT_VALIDITY, type Certificate, type Standard } from "@/lib/types";
+import { FDA_FIXED_YEARS, GACC_FIXED_YEARS, type Certificate, type Standard } from "@/lib/types";
 import { CheckCircle2, Loader2, X, Building2, Mail, EyeOff, Search } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
 
@@ -44,7 +44,7 @@ export function CertificateForm({
     company_email: (initial as any)?.company_email || prefill?.email || "",
     scope: initial?.scope || "",
     registered_at: initial?.registered_at?.slice(0, 10) || todayLocalIso(),
-    validity_years: initial?.standard === "GACC" ? GACC_FIXED_YEARS : initial?.validity_years || DEFAULT_VALIDITY[initial?.standard || "FDA"] || 2,
+    validity_years: initial?.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS,
   });
   const [item, setItem] = useState<Certificate | undefined>(initial);
   const [msg, setMsg] = useState("");
@@ -55,7 +55,7 @@ export function CertificateForm({
   const companyWrapRef = useRef<HTMLDivElement>(null);
 
   const [showRenewDialog, setShowRenewDialog] = useState(false);
-  const [renewYears, setRenewYears] = useState<number>(initial?.standard === "GACC" ? GACC_FIXED_YEARS : initial?.validity_years || 2);
+  const [renewYears, setRenewYears] = useState<number>(initial?.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS);
   const [renewFee, setRenewFee] = useState<string>("0");
 
   useEffect(() => {
@@ -95,7 +95,7 @@ export function CertificateForm({
 
   useEffect(() => {
     if (item) {
-      setRenewYears(getValidityYears(item));
+      setRenewYears(item.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS);
     }
   }, [item?.id]);
 
@@ -166,7 +166,7 @@ export function CertificateForm({
         return;
       }
     }
-    const finalValidity = form.standard === "GACC" ? GACC_FIXED_YEARS : Number(form.validity_years);
+    const finalValidity = form.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS;
     const isGacc = form.standard === "GACC";
     const payload = {
       ...form,
@@ -234,7 +234,7 @@ export function CertificateForm({
     if (!item) return;
     setBusy("renew");
     setMsg("");
-    const finalRenewYears = item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears;
+    const finalRenewYears = item.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS;
     const payload = {
       action: "renew",
       validity_years: finalRenewYears,
@@ -299,7 +299,7 @@ export function CertificateForm({
                 setForm((s) => ({
                   ...s,
                   standard: newStd,
-                  validity_years: newStd === "GACC" ? GACC_FIXED_YEARS : s.validity_years,
+                  validity_years: newStd === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS,
                   duns_code: newStd === "GACC" ? "" : s.duns_code,
                   us_agent: newStd === "GACC" ? "" : s.us_agent || "Vexim Global LLC",
                 }));
@@ -318,20 +318,8 @@ export function CertificateForm({
               </>
             ) : (
               <>
-                <select
-                  value={form.validity_years}
-                  onChange={(e) => patch("validity_years", Number(e.target.value))}
-                  className="input font-semibold"
-                >
-                  {FDA_VALIDITY_OPTIONS.map((y) => (
-                    <option key={y} value={y}>
-                      {y} {y === 1 ? t("common.year") : t("common.years")}{" "}
-                      {y === DEFAULT_VALIDITY[form.standard] ? t("form.default", { standard: form.standard }) : ""}{" "}
-                      {y === 1 ? t("form.shortTerm") : y >= 8 ? t("form.longTerm") : ""}
-                    </option>
-                  ))}
-                </select>
-                <div className="mt-1 text-[11px] text-navy-900/50">{t("form.fdaFlexible")}</div>
+                <input className="input bg-slate-50 font-bold" readOnly value={`2 ${t("common.years")} (fixed)`} />
+                <div className="mt-1 text-[11px] text-navy-900/50">{t("form.fdaFixed")}</div>
               </>
             )}
           </Field>
@@ -594,7 +582,7 @@ export function CertificateForm({
               type="button"
               disabled={!!busy}
               onClick={() => {
-                setRenewYears(item ? getValidityYears(item) : displayValidity);
+                setRenewYears(item ? (item.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS) : displayValidity);
                 setRenewFee("0");
                 setShowRenewDialog(true);
               }}
@@ -636,7 +624,7 @@ export function CertificateForm({
                 {displayValidity} {displayValidity === 1 ? t("common.year") : t("common.years")}
               </b>{" "}
               · {t("form.renewal")}:{" "}
-              <b>{isGacc ? `5 ${t("common.years")} fixed` : t("form.selectable")}</b>
+              <b>{isGacc ? `5 ${t("common.years")} fixed` : `2 ${t("common.years")} fixed`}</b>
             </div>
             {isFda && form.duns_code && (
               <div className="mt-2">
@@ -688,16 +676,8 @@ export function CertificateForm({
                   </>
                 ) : (
                   <>
-                    <select value={renewYears} onChange={(e) => setRenewYears(Number(e.target.value))} className="input font-semibold">
-                      {FDA_VALIDITY_OPTIONS.map((y) => (
-                        <option key={y} value={y}>
-                          {y} {y === 1 ? t("common.year") : t("common.years")}{" "}
-                          {y === savedValidity ? t("form.currentContract") : ""}{" "}
-                          {y === 1 ? t("form.oneYearRenewal") : y === 2 ? t("form.twoYears") : y >= 5 ? t("form.multiYear") : ""}
-                        </option>
-                      ))}
-                    </select>
-                    <div className="mt-1 text-[11px] text-navy-900/50">{t("form.exampleRenew")}</div>
+                    <input className="input bg-slate-50 font-bold" readOnly value={`2 ${t("common.years")} (fixed)`} />
+                    <div className="mt-1 text-[11px] text-navy-900/50">{t("form.fdaFixed")}</div>
                   </>
                 )}
               </label>
