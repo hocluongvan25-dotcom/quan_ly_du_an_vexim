@@ -6,6 +6,7 @@ import { scopeFilter, scopeOf } from "@/lib/permissions";
 import {
   CRM_STAGES,
   LEAD_SOURCE_LABEL,
+  LEAD_STATUS_LABEL,
   ROLE_DUTY,
   STALE_DAYS,
   type Role,
@@ -257,6 +258,40 @@ export default async function CrmOverviewPage() {
           </div>
         </section>
       </div>
+
+      {/* Lead chưa ai đụng tới — "không có khách hàng bị bỏ quên" */}
+      {stats.health.untouchedLeadsCount > 0 && (
+        <section className="rounded-3xl bg-white p-5 shadow-card">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-lg font-bold">Lead chưa ai đụng tới trên 7 ngày</h2>
+            <Link href="/dashboard/crm/leads" className="text-sm font-semibold text-teal-700">
+              Mở danh sách lead →
+            </Link>
+          </div>
+          <p className="mt-1 text-sm text-navy-900/55">
+            Đây là chỗ khách hàng bị bỏ quên. AE cần phân công hoặc tự research ngay.
+          </p>
+          <ul className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {stats.health.untouchedLeads.map((l) => (
+              <li key={l.id}>
+                <Link
+                  href={`/dashboard/crm/leads/${l.id}`}
+                  className="block rounded-2xl border border-amber-100 bg-amber-50/60 p-3 hover:border-amber-300"
+                >
+                  <div className="text-sm font-semibold text-navy-900">{l.company_name}</div>
+                  <div className="mt-0.5 text-[11px] text-navy-900/50">
+                    {l.code} · {LEAD_STATUS_LABEL[l.status as keyof typeof LEAD_STATUS_LABEL] || l.status}
+                  </div>
+                  <div className="mt-1 text-[11px] font-bold text-amber-700">
+                    {l.owner_name ? `owner ${l.owner_name}` : "chưa phân công"} · im lặng{" "}
+                    {l.age_days ?? "—"} ngày
+                  </div>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* Follow-up checklist */}
       <section className="rounded-3xl bg-white p-5 shadow-card">

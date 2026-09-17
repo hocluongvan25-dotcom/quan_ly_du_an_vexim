@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import { RoleBadge } from "@/components/CrmBits";
-import { ROLE_LABEL, type Role } from "@/lib/types";
-import { cn, compactVnd, formatVnd } from "@/lib/utils";
+import { ActivityTypeBadge, RoleBadge } from "@/components/CrmBits";
+import { ROLE_LABEL, type CrmActivity, type Role } from "@/lib/types";
+import { cn, compactVnd, formatVnd, fromNow } from "@/lib/utils";
 
 type Member = {
   id: number;
@@ -50,7 +50,11 @@ type Team = {
  * ai đang tạo pipeline, ai đang để cơ hội ngủ quên, thay vì hỏi từng người.
  */
 export default function CrmPerformancePage() {
-  const [data, setData] = useState<{ members: Member[]; teams: Team[] } | null>(null);
+  const [data, setData] = useState<{
+    members: Member[];
+    teams: Team[];
+    activities: CrmActivity[];
+  } | null>(null);
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -225,6 +229,53 @@ export default function CrmPerformancePage() {
           </table>
         </div>
       </div>
+
+      {/* Review hoạt động SR/LR — AE không cần hỏi từng người */}
+      <section className="rounded-3xl bg-white p-5 shadow-card">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-lg font-bold">Review hoạt động SR / LR</h2>
+          <span className="text-xs text-navy-900/50">
+            {data.activities.length} hoạt động gần nhất trong phạm vi của bạn
+          </span>
+        </div>
+        <p className="mt-1 text-sm text-navy-900/55">
+          Research note, qualification, cuộc gọi và follow-up do đội sales ghi nhận — AE xem ở đây
+          thay vì đi hỏi từng người.
+        </p>
+        <ul className="mt-4 divide-y divide-navy-900/5">
+          {data.activities.map((a) => (
+            <li key={a.id} className="flex flex-wrap items-start gap-3 py-3">
+              <div className="min-w-[220px] flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <ActivityTypeBadge type={a.type} />
+                  <span className="text-sm font-semibold text-navy-900">{a.subject}</span>
+                  {Boolean(a.is_follow_up) && (
+                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                      follow-up
+                    </span>
+                  )}
+                </div>
+                {a.content && (
+                  <p className="mt-1 line-clamp-2 text-sm text-navy-900/65">{a.content}</p>
+                )}
+              </div>
+              <div className="text-right text-xs text-navy-900/55">
+                <div className="font-semibold text-navy-900/75">
+                  {a.company_name || (a.lead_id ? `Lead #${a.lead_id}` : "—")}
+                </div>
+                <div>
+                  {a.created_by_name || "—"} · {fromNow(a.performed_at)}
+                </div>
+              </div>
+            </li>
+          ))}
+          {data.activities.length === 0 && (
+            <li className="py-6 text-sm text-navy-900/50">
+              Chưa có hoạt động nào được ghi nhận trong phạm vi này.
+            </li>
+          )}
+        </ul>
+      </section>
     </div>
   );
 }

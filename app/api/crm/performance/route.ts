@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { crmPerformanceFor } from "@/lib/db";
+import { crmListActivities, crmPerformanceFor } from "@/lib/db";
 import { can, scopeFilter } from "@/lib/permissions";
 
 export const runtime = "nodejs";
@@ -13,5 +13,10 @@ export async function GET() {
   if (!can(user.role, "crm.review_activity")) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
-  return NextResponse.json(await crmPerformanceFor(scopeFilter(user)));
+  const f = scopeFilter(user);
+  const [perf, activities] = await Promise.all([
+    crmPerformanceFor(f),
+    crmListActivities(f, 40),
+  ]);
+  return NextResponse.json({ ...perf, activities });
 }
