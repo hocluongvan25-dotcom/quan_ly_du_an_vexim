@@ -41,6 +41,7 @@ export default function OverviewPage() {
   const [growthTab, setGrowthTab] = useState<Period>("months");
   const [empId, setEmpId] = useState<number | null>(null);
   const [empTab, setEmpTab] = useState<Period>("months");
+  const [mainTab, setMainTab] = useState<"growth" | "employees">("growth");
 
   useEffect(() => {
     fetch("/api/overview")
@@ -121,20 +122,28 @@ export default function OverviewPage() {
         </p>
       </section>
 
-      {/* Tăng trưởng */}
+      {/* Tăng trưởng + KPI nhân viên — 2 tab ngang */}
       <section className="rounded-3xl bg-white p-5 shadow-card">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-display text-lg font-bold">📈 Tăng trưởng toàn công ty</h2>
-          <PeriodTabs tab={growthTab} onTab={setGrowthTab} />
+        <div className="no-scrollbar mb-4 flex gap-2 overflow-x-auto border-b border-navy-900/10 pb-3">
+          <MainTab active={mainTab === "growth"} onClick={() => setMainTab("growth")} label="📈 Tăng trưởng toàn công ty" />
+          <MainTab active={mainTab === "employees"} onClick={() => setMainTab("employees")} label={`👥 KPI nhân viên (${data.employees.length})`} />
         </div>
+        {mainTab === "growth" && (
+          <>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-navy-900/55">Giá trị chốt CRM + doanh thu ghi nhận + leads theo kỳ.</p>
+              <PeriodTabs tab={growthTab} onTab={setGrowthTab} />
+            </div>
         <GrowthCharts rows={growthRows} />
         <GrowthTable rows={growthRows} showRevenue showLeads />
-      </section>
 
-      {/* KPI nhân viên */}
-      <section className="rounded-3xl bg-white p-5 shadow-card">
-        <h2 className="font-display text-lg font-bold">👥 KPI từng nhân viên (12 tháng)</h2>
-        <p className="mt-0.5 text-xs text-navy-900/55">Bấm vào thẻ nhân viên để xem biểu đồ chi tiết theo kỳ.</p>
+          </>
+        )}
+        {mainTab === "employees" && (
+          <>
+            <p className="mb-3 text-xs text-navy-900/55">
+              Số liệu 12 tháng — bấm vào thẻ nhân viên để xem biểu đồ chi tiết theo kỳ.
+            </p>
         <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {data.employees.map((e) => (
             <button
@@ -199,12 +208,27 @@ export default function OverviewPage() {
             <GrowthTable rows={empRows} showRevenue showActivities />
           </div>
         )}
+          </>
+        )}
       </section>
     </div>
   );
 }
 
 /* --------------------------------- pieces -------------------------------- */
+
+function MainTab({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`shrink-0 rounded-full px-5 py-2.5 text-sm font-extrabold transition ${
+        active ? "bg-navy-900 text-white shadow-card" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+      }`}
+    >
+      {label}
+    </button>
+  );
+}
 
 function PeriodTabs({ tab, onTab }: { tab: Period; onTab: (t: Period) => void }) {
   return (
