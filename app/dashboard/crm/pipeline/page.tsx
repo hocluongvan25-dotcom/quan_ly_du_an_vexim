@@ -1,11 +1,48 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Plus, Search } from "lucide-react";
+import { ArrowUpDown, Plus, Search } from "lucide-react";
 import type { CrmOpportunityEnriched, CrmPipeline } from "@/lib/crm-types";
 import { MigrationWarning, MoveStageModal, OppCard } from "@/components/crm/CrmWidgets";
+
+/** Số thẻ hiển thị ban đầu mỗi cột — chống lag khi 1 giai đoạn có hàng trăm khách */
+const PAGE_SIZE = 12;
+
+type SortKey = "priority" | "followup" | "value" | "updated";
+type AlertKey = "all" | "sla" | "stale" | "followup" | "no_action";
+
+const SORT_OPTIONS: Array<{ key: SortKey; label: string }> = [
+  { key: "priority", label: "🚨 Cần xử lý trước" },
+  { key: "followup", label: "⏰ Hẹn follow-up gần nhất" },
+  { key: "value", label: "💰 Giá trị cao trước" },
+  { key: "updated", label: "🕒 Mới cập nhật" },
+];
+
+const ALERT_OPTIONS: Array<{ key: AlertKey; label: string }> = [
+  { key: "all", label: "Tất cả" },
+  { key: "sla", label: "⚠️ Quá SLA" },
+  { key: "stale", label: "🔕 Bị bỏ quên" },
+  { key: "followup", label: "⏰ Trễ hẹn" },
+  { key: "no_action", label: "📌 Thiếu next action" },
+];
+
+function compareOpps(a: CrmOpportunityEnriched, b: CrmOpportunityEnriched, sort: SortKey): number {
+  if (sort === "priority") {
+    const rank = (o: CrmOpportunityEnriched) => (o.health === "danger" ? 0 : o.health === "warning" ? 1 : 2);
+    return rank(a) - rank(b) || b.days_in_stage - a.days_in_stage;
+  }
+  if (sort === "followup") {
+    const da = a.days_to_followup ?? 9999;
+    const db = b.days_to_followup ?? 9999;
+    return da - db || b.days_in_stage - a.days_in_stage;
+  }
+  if (sort === "value") {
+    return (b.estimated_value || 0) - (a.estimated_value || 0);
+  }
+  return String(b.updated_at).localeCompare(String(a.updated_at));
+}
 
 function PipelineBoard() {
   const searchParams = useSearchParams();
@@ -18,6 +55,9 @@ function PipelineBoard() {
   const [warning, setWarning] = useState<string | null>(null);
   const [moving, setMoving] = useState<CrmOpportunityEnriched | null>(null);
   const [me, setMe] = useState<{ id: number; role: string } | null>(null);
+  const [sortBy, setSortBy] = useState<SortKey>("priority");
+  const [alertFilter, setAlertFilter] = useState<AlertKey>("all");
+  const [visibleCount, setVisibleCount] = useState<Record<number, number>>({});
 
   useEffect(() => {
     fetch("/api/auth/me")
@@ -58,6 +98,18 @@ function PipelineBoard() {
     const t = setTimeout(load, q ? 350 : 0);
     return () => clearTimeout(t);
   }, [load, q]);
+
+  // Đổi bộ lọc / pipeline → thu gọn các cột về PAGE_SIZE
+  useEffect(() => {
+    setVisibleCount({});
+  }, [pipelineKey, scope, q, sortBy, alertFilter]);
+
+  // Lọc + sắp xếp phía client (chịu được hàng trăm thẻ, chỉ render PAGE_SIZE thẻ/cột)
+  const visible = useMemo(() => {
+    const filtered =
+      alertFilter === "all" ? items : items.filter((o) => o.alerts.some((a) => a.type === alertFilter));
+    return [...filtered].sort((a, b) => compareOpps(a, b, sortBy));
+  }, [items, alertFilter, sortBy]);
 
   const pipe = pipelines.find((p) => p.key === pipelineKey) || pipelines[0];
   const stages = [...(pipe?.stages || [])].sort((a, b) => a.sort_order - b.sort_order);
@@ -133,13 +185,62 @@ function PipelineBoard() {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1.5 rounded-2xl border bg-white px-3 py-1.5 shadow-sm">
+          <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
+          <span className="text-xs font-bold text-slate-500">Sắp xếp:</span>
+          <select
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value as SortKey)}
+            className="bg-transparent text-xs font-bold outline-none"
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>
+                {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-wrap gap-1 rounded-2xl border bg-white p-1 shadow-sm">
+          {ALERT_OPTIONS.map((o) => {
+            const count =
+              o.key === "all" ? items.length : items.filter((x) => x.alerts.some((a) => a.type === o.key)).length;
+            return (
+              <button
+                key={o.key}
+                onClick={() => setAlertFilter(o.key)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-bold transition ${
+                  alertFilter === o.key ? "bg-rose-600 text-white" : "text-slate-600 hover:bg-slate-100"
+                }`}
+              >
+                {o.label} <span className="opacity-70">({count})</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="ml-auto text-xs font-semibold text-navy-900/50">
+          {alertFilter !== "all" || q ? (
+            <>
+              Đang hiện <span className="font-extrabold text-navy-900">{visible.length}</span> / {items.length} cơ hội
+            </>
+          ) : (
+            <>
+              Tổng <span className="font-extrabold text-navy-900">{items.length}</span> cơ hội
+            </>
+          )}
+        </div>
+      </div>
+
       {loading ? (
         <div className="rounded-3xl bg-white p-12 text-center text-slate-400 shadow-card">Đang tải...</div>
       ) : (
         <>
           <div className="flex gap-4 overflow-x-auto pb-4">
             {openStages.map((s) => {
-              const cards = items.filter((o) => o.stage_id === s.id);
+              const cards = visible.filter((o) => o.stage_id === s.id);
+              const shown = visibleCount[s.id] ?? PAGE_SIZE;
+              const slice = cards.slice(0, shown);
+              const remaining = cards.length - slice.length;
               return (
                 <div key={s.id} className="w-[300px] shrink-0 rounded-3xl bg-white/70 p-3 shadow-sm">
                   <div className="mb-2 flex items-center gap-2 px-1">
@@ -152,17 +253,38 @@ function PipelineBoard() {
                   {s.sla_days > 0 && (
                     <div className="mb-2 px-1 text-[11px] font-semibold text-navy-900/45">
                       Chuẩn: ≤ {s.sla_days} ngày
+                      {cards.length > shown && (
+                        <span className="ml-1 font-bold text-teal-700">
+                          · hiện {slice.length}/{cards.length}
+                        </span>
+                      )}
                     </div>
                   )}
                   <div className="max-h-[62vh] space-y-2 overflow-y-auto pr-0.5">
                     {cards.length === 0 && (
                       <div className="rounded-2xl border border-dashed border-navy-900/15 p-4 text-center text-xs text-navy-900/35">
-                        Trống
+                        {alertFilter !== "all" ? "Không có khách nào khớp bộ lọc" : "Trống"}
                       </div>
                     )}
-                    {cards.map((o) => (
+                    {slice.map((o) => (
                       <OppCard key={o.id} opp={o} onMove={setMoving} />
                     ))}
+                    {remaining > 0 && (
+                      <button
+                        onClick={() => setVisibleCount((v) => ({ ...v, [s.id]: shown + PAGE_SIZE }))}
+                        className="w-full rounded-2xl border-2 border-dashed border-teal-600/40 bg-teal-50/50 py-2.5 text-xs font-bold text-teal-700 hover:bg-teal-50"
+                      >
+                        Xem thêm {Math.min(PAGE_SIZE, remaining)} / còn {remaining} khách ↓
+                      </button>
+                    )}
+                    {shown > PAGE_SIZE && remaining === 0 && cards.length > PAGE_SIZE && (
+                      <button
+                        onClick={() => setVisibleCount((v) => ({ ...v, [s.id]: PAGE_SIZE }))}
+                        className="w-full rounded-2xl py-1.5 text-[11px] font-bold text-slate-400 hover:text-slate-600"
+                      >
+                        Thu gọn ↑
+                      </button>
+                    )}
                   </div>
                 </div>
               );
