@@ -14,6 +14,8 @@ import {
   MessageSquare,
   Building2,
   Bell,
+  Handshake,
+  ReceiptText,
 } from "lucide-react";
 import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
@@ -32,6 +34,8 @@ export function Sidebar({ user }: { user: SessionUser }) {
     { href: "/dashboard/crm", labelKey: "CRM Vận hành", icon: Briefcase, adminOnly: false },
     { href: "/dashboard/crm/pipeline", labelKey: "CRM Pipeline", icon: KanbanSquare, adminOnly: false },
     { href: "/dashboard/ho-so", labelKey: "nav.records", icon: FileBadge2, adminOnly: false },
+    { href: "/dashboard/dich-vu", labelKey: "Hợp Đồng Dịch Vụ", icon: Handshake, adminOnly: false },
+    { href: "/dashboard/ke-toan", labelKey: "Kế Toán Thu Chi", icon: ReceiptText, adminOnly: true },
     { href: "/dashboard/doanh-nghiep", labelKey: "Doanh Nghiệp", icon: Building2, adminOnly: false },
     { href: "/dashboard/canh-bao", labelKey: "Cảnh Báo Hết Hạn", icon: Bell, adminOnly: false },
     { href: "/dashboard/leads", labelKey: "Leads Tư Vấn", icon: MessageSquare, adminOnly: false },

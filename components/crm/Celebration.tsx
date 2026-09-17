@@ -99,15 +99,21 @@ export function WinCelebration({
   estimatedValue?: number;
   onClose: () => void;
 }) {
-  const needsRecord = pipelineKey === "FDA" || pipelineKey === "GACC";
-  const recordHref = needsRecord
-    ? `/dashboard/ho-so/moi?${new URLSearchParams({
-        standard: pipelineKey,
-        company: companyName,
-        ...(contactEmail ? { email: contactEmail } : {}),
-        ...(estimatedValue ? { price: String(estimatedValue) } : {}),
-      }).toString()}`
-    : "";
+  const isCert = pipelineKey === "FDA" || pipelineKey === "GACC";
+  const isService = pipelineKey === "SALE_EXPORT" || pipelineKey === "AMAZON_OPS";
+  const needsRecord = isCert || isService;
+  const recordLabel =
+    pipelineKey === "SALE_EXPORT" ? "Sale XK" : pipelineKey === "AMAZON_OPS" ? "Amazon" : pipelineKey;
+  const sharedQs = new URLSearchParams({
+    company: companyName,
+    ...(contactEmail ? { email: contactEmail } : {}),
+    ...(estimatedValue ? { price: String(estimatedValue) } : {}),
+  }).toString();
+  const recordHref = isCert
+    ? `/dashboard/ho-so/moi?standard=${pipelineKey}&${sharedQs}`
+    : isService
+      ? `/dashboard/dich-vu/moi?service=${pipelineKey}&${sharedQs}`
+      : "";
   useEffect(() => {
     fireCelebration();
     playFanfare();
@@ -150,12 +156,12 @@ export function WinCelebration({
               onClick={onClose}
               className="mt-4 block rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-navy-950 shadow-lift hover:bg-teal-400"
             >
-              📁 Tạo hồ sơ {pipelineKey} cho khách này →
+              📁 Tạo {isService ? "hợp đồng" : "hồ sơ"} {recordLabel} cho khách này →
             </Link>
           )}
           {needsRecord && (
             <p className="mt-2 text-[11px] font-semibold text-navy-900/50">
-              Nhớ tạo hồ sơ để bắt đầu triển khai nhé! (Đã điền sẵn tên công ty & giá trị deal)
+              Nhớ tạo {isService ? "hợp đồng dịch vụ" : "hồ sơ"} để bắt đầu triển khai nhé! (Đã điền sẵn tên công ty & giá trị deal)
             </p>
           )}
 

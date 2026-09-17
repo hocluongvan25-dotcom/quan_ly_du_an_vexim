@@ -60,6 +60,21 @@ export function todayUtcIso(now = new Date()): string {
 }
 
 /**
+ * Add months preserving UTC, clamping day to end of month (Jan 31 + 1mo -> Feb 28)
+ */
+export function addMonths(isoDate: string, months: number) {
+  const d = parseDate(isoDate);
+  if (!d) return isoDate;
+  const y = d.getUTCFullYear();
+  const m = d.getUTCMonth() + months;
+  const day = d.getUTCDate();
+  const targetY = new Date(Date.UTC(y, m, 1)).getUTCFullYear();
+  const targetM = new Date(Date.UTC(y, m, 1)).getUTCMonth();
+  const lastDay = new Date(Date.UTC(targetY, targetM + 1, 0)).getUTCDate();
+  return toIsoDate(new Date(Date.UTC(targetY, targetM, Math.min(day, lastDay), 0, 0, 0, 0)));
+}
+
+/**
  * Add years preserving UTC and handling Feb 29 -> Feb 28
  */
 export function addYears(isoDate: string, years: number) {

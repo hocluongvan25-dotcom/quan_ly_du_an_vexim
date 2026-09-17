@@ -369,12 +369,17 @@ export function NotificationBell() {
                     </div>
                   )}
                   {records.map((r) => {
-                    const qs = new URLSearchParams({
-                      standard: r.pipeline_key,
+                    const isService = r.pipeline_key === "SALE_EXPORT" || r.pipeline_key === "AMAZON_OPS";
+                    const svcLabel =
+                      r.pipeline_key === "SALE_EXPORT" ? "Sale XK" : r.pipeline_key === "AMAZON_OPS" ? "Amazon" : r.pipeline_key;
+                    const sharedQs = new URLSearchParams({
                       company: r.company_name,
                       ...(r.contact_email ? { email: r.contact_email } : {}),
                       ...(r.estimated_value ? { price: String(r.estimated_value) } : {}),
                     }).toString();
+                    const createHref = isService
+                      ? `/dashboard/dich-vu/moi?service=${r.pipeline_key}&${sharedQs}`
+                      : `/dashboard/ho-so/moi?standard=${r.pipeline_key}&${sharedQs}`;
                     return (
                       <div
                         key={r.id}
@@ -400,11 +405,11 @@ export function NotificationBell() {
                             onClick={(e) => {
                               e.stopPropagation();
                               setOpen(false);
-                              router.push(`/dashboard/ho-so/moi?${qs}`);
+                              router.push(createHref);
                             }}
                             className="mt-2 rounded-full bg-teal-500 px-3 py-1.5 text-[11px] font-extrabold text-navy-950 hover:bg-teal-400"
                           >
-                            📁 Tạo hồ sơ {r.pipeline_key} →
+                            📁 Tạo {isService ? "hợp đồng" : "hồ sơ"} {svcLabel} →
                           </button>
                         </div>
                       </div>

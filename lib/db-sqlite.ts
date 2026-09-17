@@ -18,6 +18,17 @@ import {
   type CrmStageHistory,
 } from "./crm-types";
 import { buildOverview } from "./overview";
+import { addMonths } from "./utils";
+import {
+  calcInvoiceTotals,
+  invoiceState,
+  overdueDays,
+  SERVICE_CYCLES,
+  type Invoice,
+  type InvoicePayment,
+  type ServiceContract,
+  type ServiceType,
+} from "./accounting";
 const dataDir = path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "vexim.db");
 
@@ -200,6 +211,63 @@ function migrate(db: DatabaseSync) {
       UNIQUE (opportunity_id, stage_key, criterion_key)
     );
 
+    CREATE TABLE IF NOT EXISTS service_contracts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      contract_no TEXT NOT NULL UNIQUE,
+      service_type TEXT NOT NULL CHECK (service_type IN ('SALE_EXPORT','AMAZON_OPS')),
+      company_name TEXT NOT NULL DEFAULT '',
+      company_email TEXT NOT NULL DEFAULT '',
+      contact_name TEXT NOT NULL DEFAULT '',
+      contact_phone TEXT NOT NULL DEFAULT '',
+      scope TEXT NOT NULL DEFAULT '',
+      cycle_months INTEGER NOT NULL DEFAULT 6 CHECK (cycle_months IN (3, 6, 12)),
+      started_at TEXT NOT NULL,
+      ends_at TEXT NOT NULL,
+      contract_value INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','expired','terminated')),
+      renewal_count INTEGER NOT NULL DEFAULT 0,
+      last_renewed_at TEXT,
+      opportunity_id INTEGER REFERENCES crm_opportunities(id) ON DELETE SET NULL,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS invoices (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      invoice_no TEXT NOT NULL UNIQUE,
+      ref_type TEXT NOT NULL CHECK (ref_type IN ('certificate','service_contract')),
+      ref_id INTEGER NOT NULL,
+      installment_no INTEGER NOT NULL DEFAULT 1,
+      title TEXT NOT NULL DEFAULT '',
+      subtotal INTEGER NOT NULL DEFAULT 0,
+      vat_rate REAL NOT NULL DEFAULT 8,
+      vat_amount INTEGER NOT NULL DEFAULT 0,
+      total INTEGER NOT NULL DEFAULT 0,
+      issue_date TEXT NOT NULL,
+      due_date TEXT,
+      status TEXT NOT NULL DEFAULT 'issued' CHECK (status IN ('issued','cancelled')),
+      notes TEXT NOT NULL DEFAULT '',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS invoice_payments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+      amount INTEGER NOT NULL DEFAULT 0,
+      paid_at TEXT NOT NULL,
+      method TEXT NOT NULL DEFAULT '',
+      reference TEXT NOT NULL DEFAULT '',
+      note TEXT NOT NULL DEFAULT '',
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS service_contracts_company_idx ON service_contracts (company_name);
+    CREATE INDEX IF NOT EXISTS invoices_ref_idx ON invoices (ref_type, ref_id);
+    CREATE INDEX IF NOT EXISTS invoice_payments_invoice_idx ON invoice_payments (invoice_id);
     CREATE INDEX IF NOT EXISTS crm_stages_pipeline_idx ON crm_stages (pipeline_id, sort_order);
     CREATE INDEX IF NOT EXISTS crm_opportunities_pipeline_stage_idx ON crm_opportunities (pipeline_id, stage_id);
     CREATE INDEX IF NOT EXISTS crm_opportunities_owner_idx ON crm_opportunities (owner_id);
@@ -1888,4 +1956,559 @@ export function overviewStats() {
     open.length,
     open.reduce((t, o) => t + (o.estimated_value || 0), 0)
   );
+}
+
+/* ==================== HỢP ĐỒNG DỊCH VỤ + KẾ TOÁN ==================== */
+
+function mapServiceContract(row: any): ServiceContract {
+  const item: ServiceContract = {
+    id: Number(row.id),
+    contract_no: String(row.contract_no),
+    service_type: row.service_type as ServiceType,
+    company_name: String(row.company_name || ""),
+    company_email: String(row.company_email || ""),
+    contact_name: String(row.contact_name || ""),
+    contact_phone: String(row.contact_phone || ""),
+    scope: String(row.scope || ""),
+    cycle_months: Number(row.cycle_months || 6),
+    started_at: String(row.started_at).slice(0, 10),
+    ends_at: String(row.ends_at).slice(0, 10),
+    contract_value: Number(row.contract_value || 0),
+    status: row.status as ServiceContract["status"],
+    renewal_count: Number(row.renewal_count || 0),
+    last_renewed_at: row.last_renewed_at ? String(row.last_renewed_at) : null,
+    opportunity_id: row.opportunity_id === null ? null : Number(row.opportunity_id),
+    created_by: row.created_by === null ? null : Number(row.created_by),
+    created_at: String(row.created_at || ""),
+    updated_at: String(row.updated_at || ""),
+    created_by_name: row.created_by_name ? String(row.created_by_name) : undefined,
+  };
+  if (item.status === "active" && remainingDays(item.ends_at) < 0) item.status = "expired";
+  return item;
+}
+
+function serviceContractPrefix(t: ServiceType): string {
+  return t === "SALE_EXPORT" ? "VXM-SALE" : "VXM-AMZ";
+}
+
+export function nextServiceContractNo(service_type: ServiceType): string {
+  const year = new Date().getFullYear();
+  const prefix = `${serviceContractPrefix(service_type)}-${year}-`;
+  const row = db()
+    .prepare("SELECT contract_no FROM service_contracts WHERE contract_no LIKE ? ORDER BY contract_no DESC LIMIT 1")
+    .get(`${prefix}%`) as { contract_no: string } | undefined;
+  let seq = 1;
+  if (row?.contract_no) {
+    const n = Number(row.contract_no.split("-").pop());
+    if (Number.isFinite(n)) seq = n + 1;
+  }
+  return `${prefix}${String(seq).padStart(4, "0")}`;
+}
+
+export function nextInvoiceNo(): string {
+  const year = new Date().getFullYear();
+  const prefix = `VXM-INV-${year}-`;
+  const row = db()
+    .prepare("SELECT invoice_no FROM invoices WHERE invoice_no LIKE ? ORDER BY invoice_no DESC LIMIT 1")
+    .get(`${prefix}%`) as { invoice_no: string } | undefined;
+  let seq = 1;
+  if (row?.invoice_no) {
+    const n = Number(row.invoice_no.split("-").pop());
+    if (Number.isFinite(n)) seq = n + 1;
+  }
+  return `${prefix}${String(seq).padStart(4, "0")}`;
+}
+
+function refInfo(ref_type: string, ref_id: number): { company_name: string; ref_label: string } {
+  if (ref_type === "certificate") {
+    const r = db().prepare("SELECT certificate_no, company_name, standard FROM certificates WHERE id = ?").get(ref_id) as any;
+    if (!r) return { company_name: "", ref_label: "" };
+    return { company_name: String(r.company_name || ""), ref_label: `${r.standard} · ${r.certificate_no}` };
+  }
+  const r = db().prepare("SELECT contract_no, company_name, service_type FROM service_contracts WHERE id = ?").get(ref_id) as any;
+  if (!r) return { company_name: "", ref_label: "" };
+  const svc = r.service_type === "SALE_EXPORT" ? "Sale XK" : "Amazon";
+  return { company_name: String(r.company_name || ""), ref_label: `${svc} · ${r.contract_no}` };
+}
+
+function invoicePaidSum(invoice_id: number): number {
+  const r = db().prepare("SELECT COALESCE(SUM(amount),0) AS s FROM invoice_payments WHERE invoice_id = ?").get(invoice_id) as { s: number };
+  return Number(r?.s || 0);
+}
+
+function mapInvoice(row: any): Invoice {
+  const paid = invoicePaidSum(Number(row.id));
+  const info = refInfo(String(row.ref_type), Number(row.ref_id));
+  const base = {
+    id: Number(row.id),
+    invoice_no: String(row.invoice_no),
+    ref_type: row.ref_type as Invoice["ref_type"],
+    ref_id: Number(row.ref_id),
+    installment_no: Number(row.installment_no || 1),
+    title: String(row.title || ""),
+    subtotal: Number(row.subtotal || 0),
+    vat_rate: Number(row.vat_rate ?? 8),
+    vat_amount: Number(row.vat_amount || 0),
+    total: Number(row.total || 0),
+    issue_date: String(row.issue_date).slice(0, 10),
+    due_date: row.due_date ? String(row.due_date).slice(0, 10) : null,
+    status: row.status as Invoice["status"],
+    notes: String(row.notes || ""),
+    created_by: row.created_by === null ? null : Number(row.created_by),
+    created_at: String(row.created_at || ""),
+    updated_at: String(row.updated_at || ""),
+    created_by_name: row.created_by_name ? String(row.created_by_name) : undefined,
+    company_name: info.company_name,
+    ref_label: info.ref_label,
+  };
+  return {
+    ...base,
+    paid_amount: paid,
+    remaining: Math.max(0, base.total - paid),
+    state: invoiceState({ status: base.status, total: base.total, paid_amount: paid, due_date: base.due_date }),
+    days_overdue: overdueDays(base.due_date),
+  };
+}
+
+function mapPayment(row: any): InvoicePayment {
+  return {
+    id: Number(row.id),
+    invoice_id: Number(row.invoice_id),
+    amount: Number(row.amount || 0),
+    paid_at: String(row.paid_at).slice(0, 10),
+    method: String(row.method || ""),
+    reference: String(row.reference || ""),
+    note: String(row.note || ""),
+    created_by: row.created_by === null ? null : Number(row.created_by),
+    created_by_name: row.created_by_name ? String(row.created_by_name) : undefined,
+    created_at: String(row.created_at || ""),
+  };
+}
+
+export function listServiceContracts(filter: { service_type?: string; status?: string; q?: string } = {}): ServiceContract[] {
+  const where: string[] = [];
+  const params: any[] = [];
+  if (filter.service_type) {
+    where.push("s.service_type = ?");
+    params.push(filter.service_type);
+  }
+  if (filter.q) {
+    where.push("(s.company_name LIKE ? OR s.contract_no LIKE ? OR s.contact_name LIKE ?)");
+    const q = `%${filter.q}%`;
+    params.push(q, q, q);
+  }
+  const rows = db()
+    .prepare(
+      `SELECT s.*, u.name AS created_by_name FROM service_contracts s
+       LEFT JOIN users u ON u.id = s.created_by
+       ${where.length ? "WHERE " + where.join(" AND ") : ""}
+       ORDER BY s.updated_at DESC`
+    )
+    .all(...params) as any[];
+  let items = plain(rows).map(mapServiceContract);
+  if (filter.status) items = items.filter((i) => i.status === filter.status);
+  return items;
+}
+
+export function getServiceContract(id: number): ServiceContract | undefined {
+  const row = db()
+    .prepare(
+      `SELECT s.*, u.name AS created_by_name FROM service_contracts s
+       LEFT JOIN users u ON u.id = s.created_by WHERE s.id = ?`
+    )
+    .get(id) as any;
+  return row ? mapServiceContract(plain(row)) : undefined;
+}
+
+export function createServiceContract(
+  input: {
+    service_type: ServiceType;
+    company_name: string;
+    company_email?: string;
+    contact_name?: string;
+    contact_phone?: string;
+    scope?: string;
+    cycle_months?: number;
+    started_at: string;
+    contract_value?: number;
+    opportunity_id?: number | null;
+  },
+  createdBy: number
+): number {
+  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+  if (!input.started_at) throw new Error("START_DATE_REQUIRED");
+  const cycle = (SERVICE_CYCLES as readonly number[]).includes(Number(input.cycle_months)) ? Number(input.cycle_months) : 6;
+  const ends = addMonths(input.started_at.slice(0, 10), cycle);
+  const now = nowSql();
+  const info = db()
+    .prepare(
+      `INSERT INTO service_contracts (
+        contract_no, service_type, company_name, company_email, contact_name, contact_phone,
+        scope, cycle_months, started_at, ends_at, contract_value, opportunity_id, status, created_by, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`
+    )
+    .run(
+      nextServiceContractNo(input.service_type),
+      input.service_type,
+      input.company_name.trim(),
+      (input.company_email || "").trim(),
+      (input.contact_name || "").trim(),
+      (input.contact_phone || "").trim(),
+      (input.scope || "").trim(),
+      cycle,
+      input.started_at.slice(0, 10),
+      ends,
+      Math.max(0, Math.round(input.contract_value || 0)),
+      input.opportunity_id ?? null,
+      createdBy,
+      now,
+      now
+    );
+  return Number(info.lastInsertRowid);
+}
+
+export function updateServiceContract(
+  id: number,
+  input: {
+    company_name?: string;
+    company_email?: string;
+    contact_name?: string;
+    contact_phone?: string;
+    scope?: string;
+    cycle_months?: number;
+    started_at?: string;
+    contract_value?: number;
+  }
+) {
+  const cur = db().prepare("SELECT * FROM service_contracts WHERE id = ?").get(id) as any;
+  if (!cur) throw new Error("NOT_FOUND");
+  const val = (v: any, fb: any) => (v === undefined ? fb : v);
+  const cycle = input.cycle_months !== undefined
+    ? ((SERVICE_CYCLES as readonly number[]).includes(Number(input.cycle_months)) ? Number(input.cycle_months) : Number(cur.cycle_months))
+    : Number(cur.cycle_months);
+  const started = (input.started_at !== undefined ? input.started_at : cur.started_at).slice(0, 10);
+  const ends = addMonths(started, cycle);
+  db().prepare(
+    `UPDATE service_contracts SET company_name=?, company_email=?, contact_name=?, contact_phone=?,
+     scope=?, cycle_months=?, started_at=?, ends_at=?, contract_value=?, updated_at=? WHERE id=?`
+  ).run(
+    val(input.company_name?.trim(), cur.company_name),
+    val(input.company_email?.trim(), cur.company_email),
+    val(input.contact_name?.trim(), cur.contact_name),
+    val(input.contact_phone?.trim(), cur.contact_phone),
+    val(input.scope?.trim(), cur.scope),
+    cycle,
+    started,
+    ends,
+    input.contract_value === undefined ? cur.contract_value : Math.max(0, Math.round(input.contract_value || 0)),
+    nowSql(),
+    id
+  );
+}
+
+export function setServiceContractStatus(id: number, status: "active" | "terminated") {
+  const cur = db().prepare("SELECT * FROM service_contracts WHERE id = ?").get(id) as any;
+  if (!cur) throw new Error("NOT_FOUND");
+  db().prepare("UPDATE service_contracts SET status=?, updated_at=? WHERE id=?").run(status, nowSql(), id);
+}
+
+export function renewServiceContract(id: number, cycleMonths?: number) {
+  const cur = getServiceContract(id);
+  if (!cur) throw new Error("NOT_FOUND");
+  const cycle = cycleMonths && (SERVICE_CYCLES as readonly number[]).includes(Number(cycleMonths))
+    ? Number(cycleMonths)
+    : cur.cycle_months;
+  const base = remainingDays(cur.ends_at) >= 0 ? cur.ends_at : todayUtcIso();
+  const ends = addMonths(base, cycle);
+  db().prepare(
+    "UPDATE service_contracts SET ends_at=?, cycle_months=?, renewal_count=renewal_count+1, last_renewed_at=?, status='active', updated_at=? WHERE id=?"
+  ).run(ends, cycle, nowSql(), nowSql(), id);
+  return getServiceContract(id)!;
+}
+
+export function deleteServiceContract(id: number) {
+  const inv = db().prepare("SELECT COUNT(*) AS c FROM invoices WHERE ref_type='service_contract' AND ref_id=?").get(id) as { c: number };
+  if (inv.c > 0) throw new Error("HAS_INVOICES");
+  db().prepare("DELETE FROM service_contracts WHERE id = ?").run(id);
+}
+
+export function listInvoices(filter: { ref_type?: string; ref_id?: number; state?: string; q?: string } = {}): Invoice[] {
+  const where: string[] = [];
+  const params: any[] = [];
+  if (filter.ref_type) {
+    where.push("i.ref_type = ?");
+    params.push(filter.ref_type);
+  }
+  if (filter.ref_id) {
+    where.push("i.ref_id = ?");
+    params.push(filter.ref_id);
+  }
+  const rows = db()
+    .prepare(
+      `SELECT i.*, u.name AS created_by_name FROM invoices i
+       LEFT JOIN users u ON u.id = i.created_by
+       ${where.length ? "WHERE " + where.join(" AND ") : ""}
+       ORDER BY i.issue_date DESC, i.id DESC`
+    )
+    .all(...params) as any[];
+  let items = plain(rows).map(mapInvoice);
+  if (filter.state) items = items.filter((i) => i.state === filter.state);
+  if (filter.q) {
+    const q = filter.q.toLowerCase();
+    items = items.filter(
+      (i) =>
+        (i.company_name || "").toLowerCase().includes(q) ||
+        i.invoice_no.toLowerCase().includes(q) ||
+        (i.ref_label || "").toLowerCase().includes(q)
+    );
+  }
+  return items;
+}
+
+export function getInvoice(id: number): (Invoice & { payments: InvoicePayment[] }) | undefined {
+  const row = db()
+    .prepare(
+      `SELECT i.*, u.name AS created_by_name FROM invoices i
+       LEFT JOIN users u ON u.id = i.created_by WHERE i.id = ?`
+    )
+    .get(id) as any;
+  if (!row) return undefined;
+  const inv = mapInvoice(plain(row));
+  const pays = db()
+    .prepare(
+      `SELECT p.*, u.name AS created_by_name FROM invoice_payments p
+       LEFT JOIN users u ON u.id = p.created_by WHERE p.invoice_id = ? ORDER BY p.paid_at ASC, p.id ASC`
+    )
+    .all(id) as any[];
+  return { ...inv, payments: plain(pays).map(mapPayment) };
+}
+
+export function nextInstallmentNo(ref_type: string, ref_id: number): number {
+  const r = db()
+    .prepare("SELECT COALESCE(MAX(installment_no),0)+1 AS n FROM invoices WHERE ref_type=? AND ref_id=?")
+    .get(ref_type, ref_id) as { n: number };
+  return Number(r?.n || 1);
+}
+
+export function createInvoice(
+  input: {
+    ref_type: "certificate" | "service_contract";
+    ref_id: number;
+    installment_no?: number;
+    title?: string;
+    subtotal: number;
+    vat_rate?: number;
+    issue_date?: string;
+    due_date?: string | null;
+    notes?: string;
+  },
+  createdBy: number
+): number {
+  const info = refInfo(input.ref_type, input.ref_id);
+  if (!info.ref_label) throw new Error("REF_NOT_FOUND");
+  const t = calcInvoiceTotals(input.subtotal, input.vat_rate ?? 8);
+  const now = nowSql();
+  const today = todayUtcIso();
+  const data = db()
+    .prepare(
+      `INSERT INTO invoices (
+        invoice_no, ref_type, ref_id, installment_no, title, subtotal, vat_rate, vat_amount, total,
+        issue_date, due_date, notes, created_by, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      nextInvoiceNo(),
+      input.ref_type,
+      input.ref_id,
+      input.installment_no || nextInstallmentNo(input.ref_type, input.ref_id),
+      (input.title || "").trim(),
+      t.subtotal,
+      t.vat_rate,
+      t.vat_amount,
+      t.total,
+      (input.issue_date || today).slice(0, 10),
+      input.due_date ? input.due_date.slice(0, 10) : null,
+      (input.notes || "").trim(),
+      createdBy,
+      now,
+      now
+    );
+  return Number(data.lastInsertRowid);
+}
+
+export function updateInvoice(
+  id: number,
+  input: { title?: string; due_date?: string | null; notes?: string; subtotal?: number; vat_rate?: number }
+) {
+  const row = db().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as any;
+  if (!row) throw new Error("NOT_FOUND");
+  if (row.status === "cancelled") throw new Error("CANCELLED");
+  const paid = invoicePaidSum(id);
+  const patch: string[] = [];
+  const params: any[] = [];
+  if (input.title !== undefined) {
+    patch.push("title=?");
+    params.push(input.title.trim());
+  }
+  if (input.due_date !== undefined) {
+    patch.push("due_date=?");
+    params.push(input.due_date ? input.due_date.slice(0, 10) : null);
+  }
+  if (input.notes !== undefined) {
+    patch.push("notes=?");
+    params.push(input.notes.trim());
+  }
+  if (input.subtotal !== undefined || input.vat_rate !== undefined) {
+    if (paid > 0) throw new Error("HAS_PAYMENTS");
+    const t = calcInvoiceTotals(
+      input.subtotal !== undefined ? input.subtotal : row.subtotal,
+      input.vat_rate !== undefined ? input.vat_rate : row.vat_rate
+    );
+    patch.push("subtotal=?", "vat_rate=?", "vat_amount=?", "total=?");
+    params.push(t.subtotal, t.vat_rate, t.vat_amount, t.total);
+  }
+  if (!patch.length) return;
+  patch.push("updated_at=?");
+  params.push(nowSql(), id);
+  db().prepare(`UPDATE invoices SET ${patch.join(", ")} WHERE id=?`).run(...params);
+}
+
+export function cancelInvoice(id: number) {
+  const row = db().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as any;
+  if (!row) throw new Error("NOT_FOUND");
+  if (invoicePaidSum(id) > 0) throw new Error("HAS_PAYMENTS");
+  db().prepare("UPDATE invoices SET status='cancelled', updated_at=? WHERE id=?").run(nowSql(), id);
+}
+
+export function deleteInvoice(id: number) {
+  if (invoicePaidSum(id) > 0) throw new Error("HAS_PAYMENTS");
+  db().prepare("DELETE FROM invoices WHERE id = ?").run(id);
+}
+
+export function listPayments(invoice_id: number): InvoicePayment[] {
+  const rows = db()
+    .prepare(
+      `SELECT p.*, u.name AS created_by_name FROM invoice_payments p
+       LEFT JOIN users u ON u.id = p.created_by WHERE p.invoice_id = ? ORDER BY p.paid_at ASC, p.id ASC`
+    )
+    .all(invoice_id) as any[];
+  return plain(rows).map(mapPayment);
+}
+
+export function createPayment(
+  invoice_id: number,
+  input: { amount: number; paid_at?: string; method?: string; reference?: string; note?: string },
+  createdBy: number
+): number {
+  const row = db().prepare("SELECT * FROM invoices WHERE id = ?").get(invoice_id) as any;
+  if (!row) throw new Error("NOT_FOUND");
+  if (row.status === "cancelled") throw new Error("CANCELLED");
+  const amt = Math.max(0, Math.round(input.amount || 0));
+  if (amt <= 0) throw new Error("AMOUNT_REQUIRED");
+  const info = db()
+    .prepare(
+      "INSERT INTO invoice_payments (invoice_id, amount, paid_at, method, reference, note, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    .run(
+      invoice_id,
+      amt,
+      (input.paid_at || todayUtcIso()).slice(0, 10),
+      (input.method || "").trim(),
+      (input.reference || "").trim(),
+      (input.note || "").trim(),
+      createdBy,
+      nowSql()
+    );
+  db().prepare("UPDATE invoices SET updated_at=? WHERE id=?").run(nowSql(), invoice_id);
+  return Number(info.lastInsertRowid);
+}
+
+export function deletePayment(id: number) {
+  const row = db().prepare("SELECT * FROM invoice_payments WHERE id = ?").get(id) as any;
+  if (!row) throw new Error("NOT_FOUND");
+  db().prepare("DELETE FROM invoice_payments WHERE id = ?").run(id);
+  db().prepare("UPDATE invoices SET updated_at=? WHERE id=?").run(nowSql(), row.invoice_id);
+}
+
+export function refSummary(ref_type: string, ref_id: number) {
+  const invs = listInvoices({ ref_type, ref_id }).filter((i) => i.status !== "cancelled");
+  const invoiced = invs.reduce((t, i) => t + i.total, 0);
+  const paid = invs.reduce((t, i) => t + (i.paid_amount || 0), 0);
+  return {
+    invoiced,
+    paid,
+    remaining: Math.max(0, invoiced - paid),
+    invoice_count: invs.length,
+    overdue_count: invs.filter((i) => i.state === "overdue").length,
+  };
+}
+
+export type AccountingSummary = {
+  invoiced: number;
+  paid: number;
+  remaining: number;
+  overdueAmount: number;
+  overdueCount: number;
+  invoiceCount: number;
+  dueSoon: Invoice[];
+  overdue: Invoice[];
+  recentPayments: Array<InvoicePayment & { invoice_no: string; company_name: string }>;
+  monthly: Array<{ month: string; label: string; invoiced: number; collected: number }>;
+};
+
+export function accountingSummary(): AccountingSummary {
+  const invs = listInvoices().filter((i) => i.status !== "cancelled");
+  const invoiced = invs.reduce((t, i) => t + i.total, 0);
+  const paid = invs.reduce((t, i) => t + (i.paid_amount || 0), 0);
+  const overdue = invs.filter((i) => i.state === "overdue").sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""));
+  const dueSoon = invs.filter((i) => i.state === "due_soon").sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""));
+
+  const payRows = db()
+    .prepare(
+      `SELECT p.*, u.name AS created_by_name FROM invoice_payments p
+       LEFT JOIN users u ON u.id = p.created_by ORDER BY p.paid_at DESC, p.id DESC LIMIT 10`
+    )
+    .all() as any[];
+  const invById = new Map(invs.map((i) => [i.id, i]));
+  const recentPayments = plain(payRows).map((r: any) => {
+    const inv = invById.get(Number(r.invoice_id));
+    return {
+      ...mapPayment(r),
+      invoice_no: inv?.invoice_no || "",
+      company_name: inv?.company_name || "",
+    };
+  });
+
+  // 12 tháng: đã xuất hóa đơn vs đã thu
+  const monthly: AccountingSummary["monthly"] = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const [y, m] = key.split("-");
+    monthly.push({ month: key, label: `${m}/${y}`, invoiced: 0, collected: 0 });
+  }
+  const byMonth = new Map(monthly.map((x) => [x.month, x]));
+  for (const i of invs) {
+    const b = byMonth.get(i.issue_date.slice(0, 7));
+    if (b) b.invoiced += i.total;
+  }
+  const allPays = db().prepare("SELECT amount, paid_at FROM invoice_payments").all() as any[];
+  for (const p of allPays) {
+    const b = byMonth.get(String(p.paid_at).slice(0, 7));
+    if (b) b.collected += Number(p.amount || 0);
+  }
+
+  return {
+    invoiced,
+    paid,
+    remaining: Math.max(0, invoiced - paid),
+    overdueAmount: overdue.reduce((t, i) => t + (i.remaining || 0), 0),
+    overdueCount: overdue.length,
+    invoiceCount: invs.length,
+    dueSoon: dueSoon.slice(0, 10),
+    overdue: overdue.slice(0, 10),
+    recentPayments,
+    monthly,
+  };
 }

@@ -323,3 +323,123 @@ export function isCrmSchemaError(e: any): boolean {
 export async function overviewStats() {
   return isSupabaseEnabled() ? cloud.overviewStats() : sqlite.overviewStats();
 }
+
+/* --------------------- Hợp đồng dịch vụ + Kế toán --------------------- */
+
+export async function listServiceContracts(filter: { service_type?: string; status?: string; q?: string } = {}) {
+  return isSupabaseEnabled() ? cloud.listServiceContracts(filter) : sqlite.listServiceContracts(filter);
+}
+
+export async function getServiceContract(id: number) {
+  return isSupabaseEnabled() ? cloud.getServiceContract(id) : sqlite.getServiceContract(id);
+}
+
+export async function createServiceContract(
+  input: {
+    service_type: "SALE_EXPORT" | "AMAZON_OPS";
+    company_name: string;
+    company_email?: string;
+    contact_name?: string;
+    contact_phone?: string;
+    scope?: string;
+    cycle_months?: number;
+    started_at: string;
+    contract_value?: number;
+    opportunity_id?: number | null;
+  },
+  createdBy: number
+) {
+  return isSupabaseEnabled() ? cloud.createServiceContract(input, createdBy) : sqlite.createServiceContract(input, createdBy);
+}
+
+export async function updateServiceContract(
+  id: number,
+  input: {
+    company_name?: string;
+    company_email?: string;
+    contact_name?: string;
+    contact_phone?: string;
+    scope?: string;
+    cycle_months?: number;
+    started_at?: string;
+    contract_value?: number;
+  }
+) {
+  return isSupabaseEnabled() ? cloud.updateServiceContract(id, input) : sqlite.updateServiceContract(id, input);
+}
+
+export async function setServiceContractStatus(id: number, status: "active" | "terminated") {
+  return isSupabaseEnabled() ? cloud.setServiceContractStatus(id, status) : sqlite.setServiceContractStatus(id, status);
+}
+
+export async function renewServiceContract(id: number, cycleMonths?: number) {
+  return isSupabaseEnabled() ? cloud.renewServiceContract(id, cycleMonths) : sqlite.renewServiceContract(id, cycleMonths);
+}
+
+export async function deleteServiceContract(id: number) {
+  return isSupabaseEnabled() ? cloud.deleteServiceContract(id) : sqlite.deleteServiceContract(id);
+}
+
+export async function listInvoices(filter: { ref_type?: string; ref_id?: number; state?: string; q?: string } = {}) {
+  return isSupabaseEnabled() ? cloud.listInvoices(filter) : sqlite.listInvoices(filter);
+}
+
+export async function getInvoice(id: number) {
+  return isSupabaseEnabled() ? cloud.getInvoice(id) : sqlite.getInvoice(id);
+}
+
+export async function createInvoice(
+  input: {
+    ref_type: "certificate" | "service_contract";
+    ref_id: number;
+    installment_no?: number;
+    title?: string;
+    subtotal: number;
+    vat_rate?: number;
+    issue_date?: string;
+    due_date?: string | null;
+    notes?: string;
+  },
+  createdBy: number
+) {
+  return isSupabaseEnabled() ? cloud.createInvoice(input, createdBy) : sqlite.createInvoice(input, createdBy);
+}
+
+export async function updateInvoice(
+  id: number,
+  input: { title?: string; due_date?: string | null; notes?: string; subtotal?: number; vat_rate?: number }
+) {
+  return isSupabaseEnabled() ? cloud.updateInvoice(id, input) : sqlite.updateInvoice(id, input);
+}
+
+export async function cancelInvoice(id: number) {
+  return isSupabaseEnabled() ? cloud.cancelInvoice(id) : sqlite.cancelInvoice(id);
+}
+
+export async function deleteInvoice(id: number) {
+  return isSupabaseEnabled() ? cloud.deleteInvoice(id) : sqlite.deleteInvoice(id);
+}
+
+export async function listPayments(invoice_id: number) {
+  return isSupabaseEnabled() ? cloud.listPayments(invoice_id) : sqlite.listPayments(invoice_id);
+}
+
+export async function createPayment(
+  invoice_id: number,
+  input: { amount: number; paid_at?: string; method?: string; reference?: string; note?: string },
+  createdBy: number
+) {
+  return isSupabaseEnabled() ? cloud.createPayment(invoice_id, input, createdBy) : sqlite.createPayment(invoice_id, input, createdBy);
+}
+
+export async function deletePayment(id: number) {
+  return isSupabaseEnabled() ? cloud.deletePayment(id) : sqlite.deletePayment(id);
+}
+
+export async function refSummary(ref_type: string, ref_id: number) {
+  return isSupabaseEnabled() ? cloud.refSummary(ref_type, ref_id) : sqlite.refSummary(ref_type, ref_id);
+}
+
+export async function accountingSummary() {
+  return isSupabaseEnabled() ? cloud.accountingSummary() : sqlite.accountingSummary();
+}

@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { listCrmOpportunities, listLeads, listCertificates, isCrmSchemaError } from "@/lib/db";
+import {
+  listCrmOpportunities,
+  listLeads,
+  listCertificates,
+  listServiceContracts,
+  isCrmSchemaError,
+} from "@/lib/db";
 import type { CrmOpportunityEnriched } from "@/lib/crm-types";
 import { daysBetween, todayUtcIso } from "@/lib/utils";
 
@@ -73,20 +79,37 @@ export async function GET(req: NextRequest) {
         return rank(a) - rank(b) || b.days_in_stage - a.days_in_stage;
       });
 
-    // Deal FDA/GACC đã chốt nhưng chưa có hồ sơ cùng công ty + cùng chuẩn
+    // Deal đã chốt nhưng chưa có hồ sơ (FDA/GACC) hoặc hợp đồng (Sale XK/Amazon), cùng công ty + cùng tuyến
     let missingRecords: any[] = [];
     try {
       const wonOpps = await listCrmOpportunities({ stage_filter: "won" });
       const mine = scope === "mine" ? wonOpps.filter((o) => o.owner_id === user.id) : wonOpps;
-      const targets = mine.filter((o) => o.pipeline_key === "FDA" || o.pipeline_key === "GACC");
+      const targets = mine.filter((o) =>
+        ["FDA", "GACC", "SALE_EXPORT", "AMAZON_OPS"].includes(o.pipeline_key)
+      );
       if (targets.length > 0) {
-        const certs = await listCertificates();
-        const have = new Set(
-          certs.map((c) => `${c.standard}|${normCompany(c.company_name || "")}`)
+        const certs = await listCertificates().catch(() => [] as any[]);
+        let contracts: any[] = [];
+        try {
+          contracts = await listServiceContracts();
+        } catch (e) {
+          if (!isCrmSchemaError(e)) throw e;
+        }
+        const haveCert = new Set(
+          (certs || []).map((c) => `${c.standard}|${normCompany(c.company_name || "")}`)
         );
+        const haveContract = new Set(
+          (contracts || []).map((c) => `${c.service_type}|${normCompany(c.company_name || "")}`)
+        );
+        const hasDoc = (o: (typeof targets)[number]) => {
+          const key = `${o.pipeline_key}|${normCompany(o.company_name || "")}`;
+          return o.pipeline_key === "FDA" || o.pipeline_key === "GACC"
+            ? haveCert.has(key)
+            : haveContract.has(key);
+        };
         const today = todayUtcIso();
         missingRecords = targets
-          .filter((o) => !have.has(`${o.pipeline_key}|${normCompany(o.company_name || "")}`))
+          .filter((o) => !hasDoc(o))
           .map((o) => ({
             ...slimOpp(o),
             waiting_days: Math.max(0, daysBetween(String(o.updated_at).slice(0, 10), today)),

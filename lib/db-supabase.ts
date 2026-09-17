@@ -16,6 +16,17 @@ import {
   type CrmStageHistory,
 } from "./crm-types";
 import { buildOverview } from "./overview";
+import { addMonths } from "./utils";
+import {
+  calcInvoiceTotals,
+  invoiceState,
+  overdueDays,
+  SERVICE_CYCLES,
+  type Invoice,
+  type InvoicePayment,
+  type ServiceContract,
+  type ServiceType,
+} from "./accounting";
 
 function mapUser(row: Record<string, unknown>): User {
   return {
@@ -1697,4 +1708,623 @@ export async function overviewStats() {
     open.length,
     open.reduce((t, o) => t + (o.estimated_value || 0), 0)
   );
+}
+
+/* ==================== HỢP ĐỒNG DỊCH VỤ + KẾ TOÁN ==================== */
+
+function mapServiceContract(row: Record<string, any>): ServiceContract {
+  const item: ServiceContract = {
+    id: Number(row.id),
+    contract_no: String(row.contract_no),
+    service_type: row.service_type as ServiceType,
+    company_name: String(row.company_name || ""),
+    company_email: String(row.company_email || ""),
+    contact_name: String(row.contact_name || ""),
+    contact_phone: String(row.contact_phone || ""),
+    scope: String(row.scope || ""),
+    cycle_months: Number(row.cycle_months || 6),
+    started_at: String(row.started_at).slice(0, 10),
+    ends_at: String(row.ends_at).slice(0, 10),
+    contract_value: Number(row.contract_value || 0),
+    status: row.status as ServiceContract["status"],
+    renewal_count: Number(row.renewal_count || 0),
+    last_renewed_at: row.last_renewed_at ? String(row.last_renewed_at) : null,
+    opportunity_id: row.opportunity_id === null ? null : Number(row.opportunity_id),
+    created_by: row.created_by === null ? null : Number(row.created_by),
+    created_at: String(row.created_at || ""),
+    updated_at: String(row.updated_at || ""),
+  };
+  if (item.status === "active" && remainingDays(item.ends_at) < 0) item.status = "expired";
+  return item;
+}
+
+function serviceContractPrefix(t: ServiceType): string {
+  return t === "SALE_EXPORT" ? "VXM-SALE" : "VXM-AMZ";
+}
+
+export async function nextServiceContractNo(service_type: ServiceType): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `${serviceContractPrefix(service_type)}-${year}-`;
+  const { data, error } = await supabaseAdmin()
+    .from("service_contracts")
+    .select("contract_no")
+    .like("contract_no", `${prefix}%`)
+    .order("contract_no", { ascending: false })
+    .limit(1);
+  if (error) assertNoSupabaseError(error, "service_contracts");
+  let seq = 1;
+  const no = (data as any)?.[0]?.contract_no;
+  if (no) {
+    const n = Number(String(no).split("-").pop());
+    if (Number.isFinite(n)) seq = n + 1;
+  }
+  return `${prefix}${String(seq).padStart(4, "0")}`;
+}
+
+export async function nextInvoiceNo(): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `VXM-INV-${year}-`;
+  const { data, error } = await supabaseAdmin()
+    .from("invoices")
+    .select("invoice_no")
+    .like("invoice_no", `${prefix}%`)
+    .order("invoice_no", { ascending: false })
+    .limit(1);
+  if (error) assertNoSupabaseError(error, "invoices");
+  let seq = 1;
+  const no = (data as any)?.[0]?.invoice_no;
+  if (no) {
+    const n = Number(String(no).split("-").pop());
+    if (Number.isFinite(n)) seq = n + 1;
+  }
+  return `${prefix}${String(seq).padStart(4, "0")}`;
+}
+
+async function refInfoCloud(
+  ref_type: string,
+  ref_id: number
+): Promise<{ company_name: string; ref_label: string }> {
+  const sb = supabaseAdmin();
+  if (ref_type === "certificate") {
+    const { data, error } = await sb
+      .from("certificates")
+      .select("certificate_no, company_name, standard")
+      .eq("id", ref_id)
+      .maybeSingle();
+    if (error) assertNoSupabaseError(error, "certificates");
+    if (!data) return { company_name: "", ref_label: "" };
+    return {
+      company_name: String((data as any).company_name || ""),
+      ref_label: `${(data as any).standard} · ${(data as any).certificate_no}`,
+    };
+  }
+  const { data, error } = await sb
+    .from("service_contracts")
+    .select("contract_no, company_name, service_type")
+    .eq("id", ref_id)
+    .maybeSingle();
+  if (error) assertNoSupabaseError(error, "service_contracts");
+  if (!data) return { company_name: "", ref_label: "" };
+  const svc = (data as any).service_type === "SALE_EXPORT" ? "Sale XK" : "Amazon";
+  return {
+    company_name: String((data as any).company_name || ""),
+    ref_label: `${svc} · ${(data as any).contract_no}`,
+  };
+}
+
+async function invoicePaidSumCloud(invoice_id: number): Promise<number> {
+  const { data, error } = await supabaseAdmin()
+    .from("invoice_payments")
+    .select("amount")
+    .eq("invoice_id", invoice_id);
+  if (error) assertNoSupabaseError(error, "invoice_payments");
+  return (data || []).reduce((t: number, r: any) => t + Number(r.amount || 0), 0);
+}
+
+function hydrateInvoice(
+  row: Record<string, any>,
+  paid: number,
+  info: { company_name: string; ref_label: string },
+  creatorName?: string
+): Invoice {
+  const base = {
+    id: Number(row.id),
+    invoice_no: String(row.invoice_no),
+    ref_type: row.ref_type as Invoice["ref_type"],
+    ref_id: Number(row.ref_id),
+    installment_no: Number(row.installment_no || 1),
+    title: String(row.title || ""),
+    subtotal: Number(row.subtotal || 0),
+    vat_rate: Number(row.vat_rate ?? 8),
+    vat_amount: Number(row.vat_amount || 0),
+    total: Number(row.total || 0),
+    issue_date: String(row.issue_date).slice(0, 10),
+    due_date: row.due_date ? String(row.due_date).slice(0, 10) : null,
+    status: row.status as Invoice["status"],
+    notes: String(row.notes || ""),
+    created_by: row.created_by === null ? null : Number(row.created_by),
+    created_at: String(row.created_at || ""),
+    updated_at: String(row.updated_at || ""),
+    created_by_name: creatorName,
+    company_name: info.company_name,
+    ref_label: info.ref_label,
+  };
+  return {
+    ...base,
+    paid_amount: paid,
+    remaining: Math.max(0, base.total - paid),
+    state: invoiceState({ status: base.status, total: base.total, paid_amount: paid, due_date: base.due_date }),
+    days_overdue: overdueDays(base.due_date),
+  };
+}
+
+function mapPaymentCloud(row: Record<string, any>, creatorName?: string): InvoicePayment {
+  return {
+    id: Number(row.id),
+    invoice_id: Number(row.invoice_id),
+    amount: Number(row.amount || 0),
+    paid_at: String(row.paid_at).slice(0, 10),
+    method: String(row.method || ""),
+    reference: String(row.reference || ""),
+    note: String(row.note || ""),
+    created_by: row.created_by === null ? null : Number(row.created_by),
+    created_by_name: creatorName,
+    created_at: String(row.created_at || ""),
+  };
+}
+
+export async function listServiceContracts(
+  filter: { service_type?: string; status?: string; q?: string } = {}
+): Promise<ServiceContract[]> {
+  const sb = supabaseAdmin();
+  let query = sb.from("service_contracts").select("*").order("updated_at", { ascending: false });
+  if (filter.service_type) query = query.eq("service_type", filter.service_type);
+  if (filter.q) {
+    const q = filter.q.replace(/[%_]/g, "");
+    query = query.or(`company_name.ilike.%${q}%,contract_no.ilike.%${q}%,contact_name.ilike.%${q}%`);
+  }
+  const { data, error } = await query;
+  if (error) assertNoSupabaseError(error, "service_contracts");
+  const names = await crmUserNameMap();
+  let items = (data || []).map((r: any) => ({
+    ...mapServiceContract(r),
+    created_by_name: r.created_by ? names.get(Number(r.created_by)) : undefined,
+  }));
+  if (filter.status) items = items.filter((i) => i.status === filter.status);
+  return items;
+}
+
+export async function getServiceContract(id: number): Promise<ServiceContract | undefined> {
+  const { data, error } = await supabaseAdmin().from("service_contracts").select("*").eq("id", id).maybeSingle();
+  if (error) assertNoSupabaseError(error, "service_contracts");
+  if (!data) return undefined;
+  const names = await crmUserNameMap();
+  return {
+    ...mapServiceContract(data),
+    created_by_name: (data as any).created_by ? names.get(Number((data as any).created_by)) : undefined,
+  };
+}
+
+export async function createServiceContract(
+  input: {
+    service_type: ServiceType;
+    company_name: string;
+    company_email?: string;
+    contact_name?: string;
+    contact_phone?: string;
+    scope?: string;
+    cycle_months?: number;
+    started_at: string;
+    contract_value?: number;
+    opportunity_id?: number | null;
+  },
+  createdBy: number
+): Promise<number> {
+  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+  if (!input.started_at) throw new Error("START_DATE_REQUIRED");
+  const cycle = (SERVICE_CYCLES as readonly number[]).includes(Number(input.cycle_months))
+    ? Number(input.cycle_months)
+    : 6;
+  const started = input.started_at.slice(0, 10);
+  const { data, error } = await supabaseAdmin()
+    .from("service_contracts")
+    .insert({
+      contract_no: await nextServiceContractNo(input.service_type),
+      service_type: input.service_type,
+      status: "active",
+      company_name: input.company_name.trim(),
+      company_email: (input.company_email || "").trim(),
+      contact_name: (input.contact_name || "").trim(),
+      contact_phone: (input.contact_phone || "").trim(),
+      scope: (input.scope || "").trim(),
+      cycle_months: cycle,
+      started_at: started,
+      ends_at: addMonths(started, cycle),
+      contract_value: Math.max(0, Math.round(input.contract_value || 0)),
+      opportunity_id: input.opportunity_id ?? null,
+      created_by: createdBy,
+    })
+    .select("id")
+    .single();
+  if (error) assertNoSupabaseError(error, "service_contracts");
+  return Number((data as any)?.id ?? 0);
+}
+
+export async function updateServiceContract(
+  id: number,
+  input: {
+    company_name?: string;
+    company_email?: string;
+    contact_name?: string;
+    contact_phone?: string;
+    scope?: string;
+    cycle_months?: number;
+    started_at?: string;
+    contract_value?: number;
+  }
+) {
+  const cur = await getServiceContract(id);
+  if (!cur) throw new Error("NOT_FOUND");
+  const cycle =
+    input.cycle_months !== undefined
+      ? (SERVICE_CYCLES as readonly number[]).includes(Number(input.cycle_months))
+        ? Number(input.cycle_months)
+        : cur.cycle_months
+      : cur.cycle_months;
+  const started = (input.started_at !== undefined ? input.started_at : cur.started_at).slice(0, 10);
+  const patch: Record<string, any> = {
+    cycle_months: cycle,
+    started_at: started,
+    ends_at: addMonths(started, cycle),
+    updated_at: new Date().toISOString(),
+  };
+  if (input.company_name !== undefined) patch.company_name = input.company_name.trim();
+  if (input.company_email !== undefined) patch.company_email = input.company_email.trim();
+  if (input.contact_name !== undefined) patch.contact_name = input.contact_name.trim();
+  if (input.contact_phone !== undefined) patch.contact_phone = input.contact_phone.trim();
+  if (input.scope !== undefined) patch.scope = input.scope.trim();
+  if (input.contract_value !== undefined) patch.contract_value = Math.max(0, Math.round(input.contract_value || 0));
+  const { error } = await supabaseAdmin().from("service_contracts").update(patch).eq("id", id);
+  if (error) assertNoSupabaseError(error, "service_contracts");
+}
+
+export async function setServiceContractStatus(id: number, status: "active" | "terminated") {
+  const cur = await getServiceContract(id);
+  if (!cur) throw new Error("NOT_FOUND");
+  const { error } = await supabaseAdmin()
+    .from("service_contracts")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) assertNoSupabaseError(error, "service_contracts");
+}
+
+export async function renewServiceContract(id: number, cycleMonths?: number) {
+  const cur = await getServiceContract(id);
+  if (!cur) throw new Error("NOT_FOUND");
+  const cycle =
+    cycleMonths && (SERVICE_CYCLES as readonly number[]).includes(Number(cycleMonths))
+      ? Number(cycleMonths)
+      : cur.cycle_months;
+  const base = remainingDays(cur.ends_at) >= 0 ? cur.ends_at : todayUtcIso();
+  const { error } = await supabaseAdmin()
+    .from("service_contracts")
+    .update({
+      ends_at: addMonths(base, cycle),
+      cycle_months: cycle,
+      renewal_count: cur.renewal_count + 1,
+      last_renewed_at: new Date().toISOString(),
+      status: "active",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) assertNoSupabaseError(error, "service_contracts");
+  return (await getServiceContract(id))!;
+}
+
+export async function deleteServiceContract(id: number) {
+  const { count, error } = await supabaseAdmin()
+    .from("invoices")
+    .select("id", { count: "exact", head: true })
+    .eq("ref_type", "service_contract")
+    .eq("ref_id", id);
+  if (error) assertNoSupabaseError(error, "invoices");
+  if ((count || 0) > 0) throw new Error("HAS_INVOICES");
+  const { error: delErr } = await supabaseAdmin().from("service_contracts").delete().eq("id", id);
+  if (delErr) assertNoSupabaseError(delErr, "service_contracts");
+}
+
+export async function listInvoices(
+  filter: { ref_type?: string; ref_id?: number; state?: string; q?: string } = {}
+): Promise<Invoice[]> {
+  let query = supabaseAdmin().from("invoices").select("*").order("issue_date", { ascending: false }).order("id", { ascending: false });
+  if (filter.ref_type) query = query.eq("ref_type", filter.ref_type);
+  if (filter.ref_id) query = query.eq("ref_id", filter.ref_id);
+  const { data, error } = await query;
+  if (error) assertNoSupabaseError(error, "invoices");
+  const names = await crmUserNameMap();
+  const items: Invoice[] = [];
+  for (const row of data || []) {
+    const paid = await invoicePaidSumCloud(Number((row as any).id));
+    const info = await refInfoCloud(String((row as any).ref_type), Number((row as any).ref_id));
+    items.push(hydrateInvoice(row, paid, info, (row as any).created_by ? names.get(Number((row as any).created_by)) : undefined));
+  }
+  let out = items;
+  if (filter.state) out = out.filter((i) => i.state === filter.state);
+  if (filter.q) {
+    const q = filter.q.toLowerCase();
+    out = out.filter(
+      (i) =>
+        (i.company_name || "").toLowerCase().includes(q) ||
+        i.invoice_no.toLowerCase().includes(q) ||
+        (i.ref_label || "").toLowerCase().includes(q)
+    );
+  }
+  return out;
+}
+
+export async function getInvoice(id: number): Promise<(Invoice & { payments: InvoicePayment[] }) | undefined> {
+  const { data, error } = await supabaseAdmin().from("invoices").select("*").eq("id", id).maybeSingle();
+  if (error) assertNoSupabaseError(error, "invoices");
+  if (!data) return undefined;
+  const paid = await invoicePaidSumCloud(id);
+  const info = await refInfoCloud(String((data as any).ref_type), Number((data as any).ref_id));
+  const names = await crmUserNameMap();
+  const inv = hydrateInvoice(
+    data,
+    paid,
+    info,
+    (data as any).created_by ? names.get(Number((data as any).created_by)) : undefined
+  );
+  const { data: pays, error: pErr } = await supabaseAdmin()
+    .from("invoice_payments")
+    .select("*")
+    .eq("invoice_id", id)
+    .order("paid_at", { ascending: true })
+    .order("id", { ascending: true });
+  if (pErr) assertNoSupabaseError(pErr, "invoice_payments");
+  return {
+    ...inv,
+    payments: (pays || []).map((r: any) =>
+      mapPaymentCloud(r, r.created_by ? names.get(Number(r.created_by)) : undefined)
+    ),
+  };
+}
+
+export async function nextInstallmentNo(ref_type: string, ref_id: number): Promise<number> {
+  const { data, error } = await supabaseAdmin()
+    .from("invoices")
+    .select("installment_no")
+    .eq("ref_type", ref_type)
+    .eq("ref_id", ref_id)
+    .order("installment_no", { ascending: false })
+    .limit(1);
+  if (error) assertNoSupabaseError(error, "invoices");
+  return Number((data as any)?.[0]?.installment_no || 0) + 1;
+}
+
+export async function createInvoice(
+  input: {
+    ref_type: "certificate" | "service_contract";
+    ref_id: number;
+    installment_no?: number;
+    title?: string;
+    subtotal: number;
+    vat_rate?: number;
+    issue_date?: string;
+    due_date?: string | null;
+    notes?: string;
+  },
+  createdBy: number
+): Promise<number> {
+  const info = await refInfoCloud(input.ref_type, input.ref_id);
+  if (!info.ref_label) throw new Error("REF_NOT_FOUND");
+  const t = calcInvoiceTotals(input.subtotal, input.vat_rate ?? 8);
+  const { data, error } = await supabaseAdmin()
+    .from("invoices")
+    .insert({
+      invoice_no: await nextInvoiceNo(),
+      ref_type: input.ref_type,
+      ref_id: input.ref_id,
+      installment_no: input.installment_no || (await nextInstallmentNo(input.ref_type, input.ref_id)),
+      title: (input.title || "").trim(),
+      subtotal: t.subtotal,
+      vat_rate: t.vat_rate,
+      vat_amount: t.vat_amount,
+      total: t.total,
+      issue_date: (input.issue_date || todayUtcIso()).slice(0, 10),
+      due_date: input.due_date ? input.due_date.slice(0, 10) : null,
+      notes: (input.notes || "").trim(),
+      created_by: createdBy,
+    })
+    .select("id")
+    .single();
+  if (error) assertNoSupabaseError(error, "invoices");
+  return Number((data as any)?.id ?? 0);
+}
+
+export async function updateInvoice(
+  id: number,
+  input: { title?: string; due_date?: string | null; notes?: string; subtotal?: number; vat_rate?: number }
+) {
+  const sb = supabaseAdmin();
+  const { data: row, error: gErr } = await sb.from("invoices").select("*").eq("id", id).maybeSingle();
+  if (gErr) assertNoSupabaseError(gErr, "invoices");
+  if (!row) throw new Error("NOT_FOUND");
+  if ((row as any).status === "cancelled") throw new Error("CANCELLED");
+  const paid = await invoicePaidSumCloud(id);
+  const patch: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (input.title !== undefined) patch.title = input.title.trim();
+  if (input.due_date !== undefined) patch.due_date = input.due_date ? input.due_date.slice(0, 10) : null;
+  if (input.notes !== undefined) patch.notes = input.notes.trim();
+  if (input.subtotal !== undefined || input.vat_rate !== undefined) {
+    if (paid > 0) throw new Error("HAS_PAYMENTS");
+    const t = calcInvoiceTotals(
+      input.subtotal !== undefined ? input.subtotal : Number((row as any).subtotal),
+      input.vat_rate !== undefined ? input.vat_rate : Number((row as any).vat_rate)
+    );
+    patch.subtotal = t.subtotal;
+    patch.vat_rate = t.vat_rate;
+    patch.vat_amount = t.vat_amount;
+    patch.total = t.total;
+  }
+  const { error } = await sb.from("invoices").update(patch).eq("id", id);
+  if (error) assertNoSupabaseError(error, "invoices");
+}
+
+export async function cancelInvoice(id: number) {
+  if ((await invoicePaidSumCloud(id)) > 0) throw new Error("HAS_PAYMENTS");
+  const { error } = await supabaseAdmin()
+    .from("invoices")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) assertNoSupabaseError(error, "invoices");
+}
+
+export async function deleteInvoice(id: number) {
+  if ((await invoicePaidSumCloud(id)) > 0) throw new Error("HAS_PAYMENTS");
+  const { error } = await supabaseAdmin().from("invoices").delete().eq("id", id);
+  if (error) assertNoSupabaseError(error, "invoices");
+}
+
+export async function listPayments(invoice_id: number): Promise<InvoicePayment[]> {
+  const { data, error } = await supabaseAdmin()
+    .from("invoice_payments")
+    .select("*")
+    .eq("invoice_id", invoice_id)
+    .order("paid_at", { ascending: true })
+    .order("id", { ascending: true });
+  if (error) assertNoSupabaseError(error, "invoice_payments");
+  const names = await crmUserNameMap();
+  return (data || []).map((r: any) =>
+    mapPaymentCloud(r, r.created_by ? names.get(Number(r.created_by)) : undefined)
+  );
+}
+
+export async function createPayment(
+  invoice_id: number,
+  input: { amount: number; paid_at?: string; method?: string; reference?: string; note?: string },
+  createdBy: number
+): Promise<number> {
+  const sb = supabaseAdmin();
+  const { data: row, error: gErr } = await sb.from("invoices").select("id,status").eq("id", invoice_id).maybeSingle();
+  if (gErr) assertNoSupabaseError(gErr, "invoices");
+  if (!row) throw new Error("NOT_FOUND");
+  if ((row as any).status === "cancelled") throw new Error("CANCELLED");
+  const amt = Math.max(0, Math.round(input.amount || 0));
+  if (amt <= 0) throw new Error("AMOUNT_REQUIRED");
+  const { data, error } = await sb
+    .from("invoice_payments")
+    .insert({
+      invoice_id,
+      amount: amt,
+      paid_at: (input.paid_at || todayUtcIso()).slice(0, 10),
+      method: (input.method || "").trim(),
+      reference: (input.reference || "").trim(),
+      note: (input.note || "").trim(),
+      created_by: createdBy,
+    })
+    .select("id")
+    .single();
+  if (error) assertNoSupabaseError(error, "invoice_payments");
+  await sb.from("invoices").update({ updated_at: new Date().toISOString() }).eq("id", invoice_id);
+  return Number((data as any)?.id ?? 0);
+}
+
+export async function deletePayment(id: number) {
+  const sb = supabaseAdmin();
+  const { data: row, error: gErr } = await sb.from("invoice_payments").select("id,invoice_id").eq("id", id).maybeSingle();
+  if (gErr) assertNoSupabaseError(gErr, "invoice_payments");
+  if (!row) throw new Error("NOT_FOUND");
+  const { error } = await sb.from("invoice_payments").delete().eq("id", id);
+  if (error) assertNoSupabaseError(error, "invoice_payments");
+  await sb.from("invoices").update({ updated_at: new Date().toISOString() }).eq("id", Number((row as any).invoice_id));
+}
+
+export async function refSummary(ref_type: string, ref_id: number) {
+  const invs = (await listInvoices({ ref_type, ref_id })).filter((i) => i.status !== "cancelled");
+  const invoiced = invs.reduce((t, i) => t + i.total, 0);
+  const paid = invs.reduce((t, i) => t + (i.paid_amount || 0), 0);
+  return {
+    invoiced,
+    paid,
+    remaining: Math.max(0, invoiced - paid),
+    invoice_count: invs.length,
+    overdue_count: invs.filter((i) => i.state === "overdue").length,
+  };
+}
+
+export type AccountingSummaryCloud = {
+  invoiced: number;
+  paid: number;
+  remaining: number;
+  overdueAmount: number;
+  overdueCount: number;
+  invoiceCount: number;
+  dueSoon: Invoice[];
+  overdue: Invoice[];
+  recentPayments: Array<InvoicePayment & { invoice_no: string; company_name: string }>;
+  monthly: Array<{ month: string; label: string; invoiced: number; collected: number }>;
+};
+
+export async function accountingSummary(): Promise<AccountingSummaryCloud> {
+  const invs = (await listInvoices()).filter((i) => i.status !== "cancelled");
+  const invoiced = invs.reduce((t, i) => t + i.total, 0);
+  const paid = invs.reduce((t, i) => t + (i.paid_amount || 0), 0);
+  const overdue = invs
+    .filter((i) => i.state === "overdue")
+    .sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""));
+  const dueSoon = invs
+    .filter((i) => i.state === "due_soon")
+    .sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""));
+
+  const { data: payRows, error: pErr } = await supabaseAdmin()
+    .from("invoice_payments")
+    .select("*")
+    .order("paid_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(10);
+  if (pErr) assertNoSupabaseError(pErr, "invoice_payments");
+  const names = await crmUserNameMap();
+  const invById = new Map(invs.map((i) => [i.id, i]));
+  const recentPayments = (payRows || []).map((r: any) => {
+    const inv = invById.get(Number(r.invoice_id));
+    return {
+      ...mapPaymentCloud(r, r.created_by ? names.get(Number(r.created_by)) : undefined),
+      invoice_no: inv?.invoice_no || "",
+      company_name: inv?.company_name || "",
+    };
+  });
+
+  const monthly: AccountingSummaryCloud["monthly"] = [];
+  const now = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    const [y, m] = key.split("-");
+    monthly.push({ month: key, label: `${m}/${y}`, invoiced: 0, collected: 0 });
+  }
+  const byMonth = new Map(monthly.map((x) => [x.month, x]));
+  for (const i of invs) {
+    const b = byMonth.get(i.issue_date.slice(0, 7));
+    if (b) b.invoiced += i.total;
+  }
+  const { data: allPays, error: aErr } = await supabaseAdmin().from("invoice_payments").select("amount,paid_at").limit(5000);
+  if (aErr) assertNoSupabaseError(aErr, "invoice_payments");
+  for (const p of allPays || []) {
+    const b = byMonth.get(String((p as any).paid_at).slice(0, 7));
+    if (b) b.collected += Number((p as any).amount || 0);
+  }
+
+  return {
+    invoiced,
+    paid,
+    remaining: Math.max(0, invoiced - paid),
+    overdueAmount: overdue.reduce((t, i) => t + (i.remaining || 0), 0),
+    overdueCount: overdue.length,
+    invoiceCount: invs.length,
+    dueSoon: dueSoon.slice(0, 10),
+    overdue: overdue.slice(0, 10),
+    recentPayments,
+    monthly,
+  };
 }

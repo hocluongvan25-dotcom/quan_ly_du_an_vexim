@@ -234,6 +234,63 @@ create table if not exists public.crm_checklists (
   unique(opportunity_id, stage_key, criterion_key)
 );
 
+-- ================= HỢP ĐỒNG DỊCH VỤ + KẾ TOÁN =================
+-- Hợp đồng Sale XK / Amazon theo chu kỳ 3-6-12 tháng + hóa đơn từng đợt + VAT
+
+create table if not exists public.service_contracts (
+  id bigint generated always as identity primary key,
+  contract_no text unique not null,
+  service_type text not null check (service_type in ('SALE_EXPORT', 'AMAZON_OPS')),
+  company_name text not null default '',
+  company_email text not null default '',
+  contact_name text not null default '',
+  contact_phone text not null default '',
+  scope text not null default '',
+  cycle_months int not null default 6 check (cycle_months in (3, 6, 12)),
+  started_at date not null,
+  ends_at date not null,
+  contract_value bigint not null default 0,
+  status text not null default 'draft' check (status in ('draft', 'active', 'expired', 'terminated')),
+  renewal_count int not null default 0,
+  last_renewed_at timestamptz,
+  opportunity_id bigint references public.crm_opportunities(id) on delete set null,
+  created_by bigint references public.staff_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.invoices (
+  id bigint generated always as identity primary key,
+  invoice_no text unique not null,
+  ref_type text not null check (ref_type in ('certificate', 'service_contract')),
+  ref_id bigint not null,
+  installment_no int not null default 1,
+  title text not null default '',
+  subtotal bigint not null default 0,
+  vat_rate numeric not null default 8,
+  vat_amount bigint not null default 0,
+  total bigint not null default 0,
+  issue_date date not null,
+  due_date date,
+  status text not null default 'issued' check (status in ('issued', 'cancelled')),
+  notes text not null default '',
+  created_by bigint references public.staff_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.invoice_payments (
+  id bigint generated always as identity primary key,
+  invoice_id bigint not null references public.invoices(id) on delete cascade,
+  amount bigint not null default 0,
+  paid_at date not null,
+  method text not null default '',
+  reference text not null default '',
+  note text not null default '',
+  created_by bigint references public.staff_users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
 -- Indexes
 create index if not exists certificates_public_code_idx on public.certificates (public_code);
 create index if not exists certificates_status_idx on public.certificates (status);
@@ -259,6 +316,13 @@ create index if not exists crm_opportunities_next_action_idx on public.crm_oppor
 create index if not exists crm_opportunities_updated_idx on public.crm_opportunities (updated_at desc);
 create index if not exists crm_history_opp_idx on public.crm_stage_history (opportunity_id, created_at desc);
 create index if not exists crm_activities_opp_idx on public.crm_activities (opportunity_id, created_at desc);
+create index if not exists service_contracts_no_idx on public.service_contracts (contract_no);
+create index if not exists service_contracts_company_idx on public.service_contracts (company_name);
+create index if not exists service_contracts_status_idx on public.service_contracts (status);
+create index if not exists invoices_ref_idx on public.invoices (ref_type, ref_id);
+create index if not exists invoices_no_idx on public.invoices (invoice_no);
+create index if not exists invoices_due_idx on public.invoices (due_date);
+create index if not exists invoice_payments_invoice_idx on public.invoice_payments (invoice_id);
 
 -- RLS
 alter table public.staff_users enable row level security;
@@ -272,6 +336,9 @@ alter table public.crm_opportunities enable row level security;
 alter table public.crm_stage_history enable row level security;
 alter table public.crm_activities enable row level security;
 alter table public.crm_checklists enable row level security;
+alter table public.service_contracts enable row level security;
+alter table public.invoices enable row level security;
+alter table public.invoice_payments enable row level security;
 
 -- Grants
 grant all on table public.staff_users to service_role;
@@ -285,6 +352,9 @@ grant all on table public.crm_opportunities to service_role;
 grant all on table public.crm_stage_history to service_role;
 grant all on table public.crm_activities to service_role;
 grant all on table public.crm_checklists to service_role;
+grant all on table public.service_contracts to service_role;
+grant all on table public.invoices to service_role;
+grant all on table public.invoice_payments to service_role;
 grant all on table public.staff_users to postgres;
 grant all on table public.certificates to postgres;
 grant all on table public.consultation_leads to postgres;
@@ -296,6 +366,9 @@ grant all on table public.crm_opportunities to postgres;
 grant all on table public.crm_stage_history to postgres;
 grant all on table public.crm_activities to postgres;
 grant all on table public.crm_checklists to postgres;
+grant all on table public.service_contracts to postgres;
+grant all on table public.invoices to postgres;
+grant all on table public.invoice_payments to postgres;
 grant usage, select on all sequences in schema public to service_role;
 grant usage, select on all sequences in schema public to postgres;
 
