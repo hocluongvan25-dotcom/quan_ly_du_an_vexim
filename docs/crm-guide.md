@@ -62,6 +62,9 @@ Bảng Supabase (chạy `supabase/schema.sql`): `crm_pipelines`, `crm_stages`,
 SQLite (`data/vexim.db`) tự migrate + seed demo.
 
 API:
+- `GET /api/notifications?scope=mine|all` — trung tâm thông báo cá nhân hóa
+  (hẹn follow-up đến hạn/trễ + cảnh báo SLA/bỏ quên/thiếu action + leads mới).
+  Chuông trên header tự quét 30 giây, kêu chuông + popup trình duyệt khi có hẹn mới đến hạn.
 - `GET /api/crm/pipelines` — pipeline + stages (SLA, criteria)
 - `GET /api/crm/owners` — danh sách nhân sự
 - `GET/POST /api/crm/opportunities` — list (lọc `pipeline/scope/owner/q/stage`) / tạo

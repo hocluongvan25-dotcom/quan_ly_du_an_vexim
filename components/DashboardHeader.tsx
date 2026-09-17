@@ -2,7 +2,7 @@
 
 import { MobileNav } from "./MobileNav";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { LeadsNotifier } from "./LeadsNotifier";
+import { NotificationBell } from "./NotificationBell";
 import { useI18n } from "@/lib/i18n/context";
 import type { SessionUser } from "@/lib/types";
 
@@ -17,7 +17,7 @@ export function DashboardHeader({ user }: { user: SessionUser }) {
         </div>
       </div>
       <div className="flex items-center gap-3 ml-auto">
-        <LeadsNotifier />
+        <NotificationBell />
         <LanguageSwitcher size="sm" />
         <div className="text-right text-xs text-navy-900/50 hidden sm:block">{user.email}</div>
       </div>
