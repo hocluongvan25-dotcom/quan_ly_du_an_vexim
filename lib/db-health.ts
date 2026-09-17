@@ -20,11 +20,18 @@ export type DbProblem = {
   code?: string;
 };
 
+/** Cảnh báo không chặn: app vẫn chạy nhưng database lệch chuẩn nên nên đồng bộ lại. */
+export type DbWarning = {
+  title: string;
+  fix: string;
+};
+
 export type DbStatus = {
   ready: boolean;
   /** Supabase hay SQLite. */
   driver: "supabase" | "sqlite";
   problem: DbProblem | null;
+  warnings: DbWarning[];
 };
 
 export const MIGRATION_FIX =
@@ -64,6 +71,17 @@ export function describeDbError(raw: unknown): DbProblem | null {
       };
     }
     return { title: "Dữ liệu vi phạm ràng buộc của database", detail, code, fix: MIGRATION_FIX };
+  }
+
+  // PGRST200 — PostgREST không thấy quan hệ giữa hai bảng (thiếu khoá ngoại).
+  // Điển hình: crm_leads.converted_opportunity_id chưa có FK tới crm_opportunities.
+  if (code === "PGRST200" || code === "PGRST201" || /could not find a relationship between/i.test(haystack)) {
+    return {
+      title: "Database thiếu khoá ngoại giữa các bảng CRM",
+      detail,
+      code,
+      fix: `Bảng crm_leads chưa có khoá ngoại tới crm_opportunities (cột converted_opportunity_id). ${MIGRATION_FIX}`,
+    };
   }
 
   // 42703 — cột không tồn tại; PGRST204 — cột không có trong schema cache.
@@ -121,42 +139,60 @@ const CACHE_MS = 30_000;
  */
 export async function dbStatus(force = false): Promise<DbStatus> {
   if (!isSupabaseEnabled()) {
-    return { ready: true, driver: "sqlite", problem: null };
+    return { ready: true, driver: "sqlite", problem: null, warnings: [] };
   }
   if (!force && cached && Date.now() - cached.at < CACHE_MS) return cached.status;
 
-  const problem = await probeSupabase();
-  const status: DbStatus = { ready: !problem, driver: "supabase", problem };
+  const { problem, warnings } = await probeSupabase();
+  const status: DbStatus = { ready: !problem, driver: "supabase", problem, warnings };
   cached = { at: Date.now(), status };
   return status;
 }
 
-async function probeSupabase(): Promise<DbProblem | null> {
+async function probeSupabase(): Promise<{ problem: DbProblem | null; warnings: DbWarning[] }> {
   const sb = supabaseAdmin();
 
   const users = await sb.from("staff_users").select("id, role, team_id").limit(1);
   if (users.error) {
-    return (
-      describeDbError(users.error) || {
-        title: "Không đọc được bảng staff_users",
-        detail: dbErrorMessage(users.error),
-        fix: "Kiểm tra NEXT_PUBLIC_SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY trong biến môi trường.",
-      }
-    );
+    return {
+      problem:
+        describeDbError(users.error) || {
+          title: "Không đọc được bảng staff_users",
+          detail: dbErrorMessage(users.error),
+          fix: "Kiểm tra NEXT_PUBLIC_SUPABASE_URL và SUPABASE_SERVICE_ROLE_KEY trong biến môi trường.",
+        },
+      warnings: [],
+    };
   }
 
   const teams = await sb.from("crm_teams").select("id").limit(1);
   if (teams.error) {
-    return (
-      describeDbError(teams.error) || {
-        title: "Chưa chạy được phần CRM của database",
-        detail: dbErrorMessage(teams.error),
-        fix: MIGRATION_FIX,
-      }
-    );
+    return {
+      problem:
+        describeDbError(teams.error) || {
+          title: "Chưa chạy được phần CRM của database",
+          detail: dbErrorMessage(teams.error),
+          fix: MIGRATION_FIX,
+        },
+      warnings: [],
+    };
   }
 
-  return null;
+  // Cảnh báo mềm: thiếu khoá ngoại crm_leads → crm_opportunities. App đã tự xử lý được
+  // (xem attachOpportunityCodes) nhưng database vẫn nên có FK để không sinh dữ liệu mồ côi.
+  const warnings: DbWarning[] = [];
+  const rel = await sb
+    .from("crm_leads")
+    .select("converted_opportunity:crm_opportunities!crm_leads_converted_opportunity_id_fkey(id)")
+    .limit(1);
+  if (rel.error) {
+    warnings.push({
+      title: "Thiếu khoá ngoại crm_leads → crm_opportunities (converted_opportunity_id)",
+      fix: `Chạy lại supabase/schema-crm.sql (mục 7) để bổ sung khoá ngoại và nạp lại schema cache của PostgREST. ${MIGRATION_FIX}`,
+    });
+  }
+
+  return { problem: null, warnings };
 }
 
 /** Xoá cache — gọi sau khi seed/migrate để lần kiểm tra sau là mới nhất. */

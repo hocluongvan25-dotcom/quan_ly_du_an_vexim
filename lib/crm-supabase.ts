@@ -22,9 +22,22 @@ import type { CrmScopeFilter } from "./permissions";
 import { supabaseAdmin } from "./supabase";
 import { ensureSeed } from "./db-supabase";
 
+/**
+ * Cột embed của PostgREST.
+ *
+ * Lưu ý về crm_leads → crm_opportunities: quan hệ này KHÔNG được embed bằng cú pháp
+ * `bảng!tên_khoá_ngoại`, vì nếu database chưa có khoá ngoại (hoặc PostgREST chưa nạp lại
+ * schema cache) thì PostgREST trả lỗi và **mọi truy vấn lead đều chết**:
+ *
+ *   PGRST200 · Could not find a relationship between 'crm_leads' and 'crm_opportunities'
+ *              in the schema cache
+ *
+ * Vì vậy `converted_opportunity` được nạp riêng trong `attachOpportunityCodes()` — thiếu
+ * khoá ngoại thì chỉ mất cột mã cơ hội, không làm hỏng trang lead. Khoá ngoại vẫn nên có,
+ * xem `supabase/schema-crm.sql` mục 7.
+ */
 const LEAD_COLS = `*, created_by_user:staff_users!crm_leads_created_by_fkey(name),
-  owner_user:staff_users!crm_leads_owner_id_fkey(name),
-  converted_opportunity:crm_opportunities!crm_leads_converted_opportunity_id_fkey(code)`;
+  owner_user:staff_users!crm_leads_owner_id_fkey(name)`;
 
 const OPP_COLS = `*, owner_user:staff_users!crm_opportunities_owner_id_fkey(name),
   next_action_owner_user:staff_users!crm_opportunities_next_action_owner_id_fkey(name),
@@ -45,6 +58,29 @@ function idOrNull(v: unknown) {
 function first(v: unknown): Record<string, unknown> | null {
   if (Array.isArray(v)) return (v[0] as Record<string, unknown>) || null;
   return (v as Record<string, unknown>) || null;
+}
+
+/**
+ * Điền `opportunity_code` cho các lead đã chuyển đổi — truy vấn riêng thay cho embed
+ * quan hệ, để thiếu khoá ngoại không làm hỏng trang.
+ */
+async function attachOpportunityCodes(leads: CrmLead[]): Promise<CrmLead[]> {
+  const ids = Array.from(
+    new Set(leads.map((l) => l.converted_opportunity_id).filter((id): id is number => id != null))
+  );
+  if (!ids.length) return leads;
+  const { data, error } = await supabaseAdmin()
+    .from("crm_opportunities")
+    .select("id, code")
+    .in("id", ids);
+  if (error) return leads;
+  const byId = new Map((data || []).map((r) => [Number(r.id), str(r.code)]));
+  for (const lead of leads) {
+    if (lead.converted_opportunity_id != null) {
+      lead.opportunity_code = byId.get(lead.converted_opportunity_id) || undefined;
+    }
+  }
+  return leads;
 }
 
 function mapLead(row: Record<string, unknown>): CrmLead {
@@ -291,9 +327,10 @@ export async function listLeads(f: CrmScopeFilter): Promise<CrmLead[]> {
     .select(LEAD_COLS)
     .order("updated_at", { ascending: false });
   if (error) throw error;
-  return (data || [])
+  const leads = (data || [])
     .map(mapLead)
     .filter((l) => scopeMatch(f, { owner_id: l.owner_id, created_by: l.created_by, team_id: l.team_id }));
+  return attachOpportunityCodes(leads);
 }
 
 export async function getLead(id: number) {
@@ -303,7 +340,9 @@ export async function getLead(id: number) {
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
-  return data ? mapLead(data) : undefined;
+  if (!data) return undefined;
+  const [lead] = await attachOpportunityCodes([mapLead(data)]);
+  return lead;
 }
 
 export async function updateLead(id: number, input: LeadInput) {
@@ -929,10 +968,54 @@ export async function ensureCrmSeed() {
   if (error) throw error;
   if ((count || 0) > 0) {
     crmSeeded = true;
+    await backfillConvertedLeads();
     return;
   }
   await seedCrmSupabase();
   crmSeeded = true;
+}
+
+let backfilled = false;
+
+/**
+ * Vá dữ liệu cũ: lead đang ở trạng thái "converted" nhưng chưa trỏ về cơ hội nào
+ * (bản seed trước đây bỏ sót `converted_opportunity_id`). Nhờ vậy danh sách lead và luồng
+ * "CRM → hồ sơ FDA/GACC" hiện lại mã cơ hội mà không cần xoá database làm lại.
+ * Lỗi ở đây không bao giờ được làm hỏng CRM nên chỉ ghi log.
+ */
+async function backfillConvertedLeads() {
+  if (backfilled) return;
+  backfilled = true;
+  try {
+    const sb = supabaseAdmin();
+    const { data: leads, error } = await sb
+      .from("crm_leads")
+      .select("id")
+      .eq("status", "converted")
+      .is("converted_opportunity_id", null);
+    if (error || !leads?.length) return;
+    const leadIds = leads.map((l) => Number(l.id));
+    const { data: opps, error: oppErr } = await sb
+      .from("crm_opportunities")
+      .select("id, lead_id")
+      .in("lead_id", leadIds)
+      .order("id");
+    if (oppErr || !opps?.length) return;
+    const firstOppByLead = new Map<number, number>();
+    for (const o of opps) {
+      const leadId = Number(o.lead_id);
+      if (!firstOppByLead.has(leadId)) firstOppByLead.set(leadId, Number(o.id));
+    }
+    for (const [leadId, oppId] of Array.from(firstOppByLead.entries())) {
+      await sb
+        .from("crm_leads")
+        .update({ converted_opportunity_id: oppId })
+        .eq("id", leadId)
+        .is("converted_opportunity_id", null);
+    }
+  } catch (e) {
+    console.warn("[vexim] không vá được liên kết lead → cơ hội:", e);
+  }
 }
 
 async function seedCrmSupabase() {
@@ -1062,6 +1145,14 @@ async function seedCrmSupabase() {
       .single();
     if (error) throw error;
     const oppId = Number(data.id);
+    // Lead nguồn phải trỏ ngược về cơ hội vừa tạo — giống createOpportunity() làm khi
+    // chuyển lead thật. Thiếu bước này thì danh sách lead không hiện mã cơ hội đã chuyển đổi.
+    await sb
+      .from("crm_leads")
+      .update({ converted_opportunity_id: oppId })
+      .eq("id", o.lead)
+      .eq("status", "converted")
+      .is("converted_opportunity_id", null);
     await sb.from("crm_stage_events").insert({
       opportunity_id: oppId,
       from_stage: null,

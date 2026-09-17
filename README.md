@@ -104,6 +104,24 @@ hệ thống tự chạy tiếp phần seed còn dang dở.
 Từ bản này, app **tự phát hiện** tình trạng trên và hiển thị hướng dẫn ngay trên giao diện thay vì
 báo lỗi 500 khó hiểu: API trả `503` kèm việc cần làm, trang CRM hiện thẻ "Cơ sở dữ liệu chưa sẵn sàng".
 
+### Sự cố thường gặp: `PGRST200` giữa `crm_leads` và `crm_opportunities`
+
+```
+Could not find a relationship between 'crm_leads' and 'crm_opportunities' in the schema cache
+Searched for a foreign key relationship ... using the hint 'crm_leads_converted_opportunity_id_fkey'
+```
+
+**Nguyên nhân:** bảng `crm_leads` thiếu khoá ngoại `converted_opportunity_id → crm_opportunities(id)`
+(bản schema đầu tiên khai báo cột này là `bigint` trơn). PostgREST cần khoá ngoại để "embed" dữ liệu
+liên quan, không có thì mọi truy vấn lead đều lỗi.
+
+**Cách xử lý:** chạy lại `supabase/schema-crm.sql` — mục 7 bổ sung khoá ngoại và nạp lại schema cache
+của PostgREST (`notify pgrst, 'reload schema'`). File chạy lại được nhiều lần.
+
+Từ bản này, tầng dữ liệu Supabase **không còn phụ thuộc khoá ngoại đó để hiển thị**: mã cơ hội của lead
+đã chuyển đổi được nạp bằng truy vấn riêng (`attachOpportunityCodes`), nên thiếu khoá ngoại thì trang
+vẫn chạy — chỉ hiện cảnh báo màu vàng trong CRM kèm việc cần làm.
+
 ## 5. Chạy local
 
 ```bash
@@ -150,7 +168,7 @@ lib/
   crm-sqlite.ts     tầng dữ liệu SQLite cho CRM (+ seed demo)
   crm-supabase.ts   tầng dữ liệu Supabase cho CRM (+ seed demo)
   db.ts             facade chuyển SQLite <-> Supabase
-  db-health.ts      dịch lỗi schema Supabase thành hướng dẫn cần chạy file SQL nào
+  db-health.ts      dịch lỗi schema Supabase (23514, PGRST200/205, 42P01, 42703) thành hướng dẫn
   api-error.ts      chuẩn hoá lỗi API (503 khi database thiếu migration)
 app/api/crm/        leads, opportunities, activities, customers, dashboard, performance, teams, members
 app/dashboard/crm/  các trang CRM

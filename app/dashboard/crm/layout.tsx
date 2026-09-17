@@ -52,5 +52,23 @@ export default async function CrmLayout({ children }: { children: React.ReactNod
     return <DbSetupNotice problem={db.problem} />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {db.warnings.length > 0 && (
+        <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-700">
+            Database cần đồng bộ thêm
+          </p>
+          <ul className="mt-1 space-y-1 text-sm text-navy-900/75">
+            {db.warnings.map((w) => (
+              <li key={w.title}>
+                <span className="font-semibold text-navy-900">{w.title}</span> — {w.fix}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {children}
+    </>
+  );
 }

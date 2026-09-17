@@ -866,9 +866,25 @@ export function crmPerformance(f: CrmScopeFilter) {
  * ------------------------------------------------------------------ */
 
 export function seedCrm(handle?: DatabaseSync) {
+  const conn = handle ?? db();
+  // Vá dữ liệu cũ: lead đã ở trạng thái "converted" nhưng chưa trỏ về cơ hội nào
+  // (bản seed trước đây bỏ sót bước này). Chạy lại nhiều lần không ảnh hưởng gì.
+  try {
+    conn.exec(`
+      UPDATE crm_leads
+         SET converted_opportunity_id = (
+               SELECT o.id FROM crm_opportunities o WHERE o.lead_id = crm_leads.id ORDER BY o.id LIMIT 1
+             ),
+             updated_at = datetime('now')
+       WHERE status = 'converted'
+         AND converted_opportunity_id IS NULL
+         AND EXISTS (SELECT 1 FROM crm_opportunities o WHERE o.lead_id = crm_leads.id);
+    `);
+  } catch (e) {
+    console.warn("[vexim] không vá được liên kết lead → cơ hội:", e);
+  }
   // Xem VEXIM_DISABLE_DEMO_SEED trong .env.example
   if (process.env.VEXIM_DISABLE_DEMO_SEED === "1") return;
-  const conn = handle ?? db();
   const count = conn.prepare("SELECT COUNT(*) AS c FROM crm_teams").get() as { c: number };
   if (count.c > 0) return;
 
@@ -1045,6 +1061,15 @@ export function seedCrm(handle?: DatabaseSync) {
           )
           .run(oppId, o.stage === "lost" ? "proposal" : o.stage, aeId, "Cập nhật từ buổi làm việc.", at(Math.max(1, o.createdDays - 6)));
       }
+      // Lead nguồn phải trỏ ngược về cơ hội vừa tạo — giống createOpportunity() làm khi
+      // chuyển lead thật. Thiếu bước này thì danh sách lead không hiện mã cơ hội đã chuyển đổi
+      // và luồng "CRM → hồ sơ FDA/GACC" mất dấu.
+      conn
+        .prepare(
+          `UPDATE crm_leads SET converted_opportunity_id = ?, updated_at = datetime('now')
+            WHERE id = ? AND status = 'converted' AND converted_opportunity_id IS NULL`
+        )
+        .run(oppId, o.lead as number);
       // Deal thắng thì nối thẳng với hồ sơ FDA/GACC đã xuất bản → Founder thấy lead → hồ sơ.
       if (o.stage === "won") {
         const cert = conn

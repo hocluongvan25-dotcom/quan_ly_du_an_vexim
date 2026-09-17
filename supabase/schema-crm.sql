@@ -4,10 +4,11 @@
 -- Next.js dùng SUPABASE_SERVICE_ROLE_KEY nên bỏ qua RLS.
 -- File này chạy lại được nhiều lần (idempotent).
 --
--- Nếu CHƯA chạy file này mà đã mở CRM, app sẽ báo:
+-- Nếu CHƯA chạy file này mà đã mở CRM, app sẽ báo một trong hai lỗi:
 --   23514 · new row for relation "staff_users" violates check constraint
 --           "staff_users_role_check"
--- vì bảng staff_users khi đó chỉ cho phép 'admin' và 'specialist'.
+--   PGRST200 · Could not find a relationship between 'crm_leads' and 'crm_opportunities'
+-- Cả hai đều do thiếu migration (file này tạo bảng CRM và bổ sung khoá ngoại còn thiếu).
 -- ============================================================================
 
 -- 0. Chặn chạy sai thứ tự: phải có bảng staff_users trước.
@@ -66,6 +67,7 @@ create table if not exists public.crm_leads (
   team_id bigint,
   assigned_at timestamptz,
   last_activity_at timestamptz,
+  -- Khoá ngoại được thêm ở mục 7 (sau khi crm_opportunities tồn tại).
   converted_opportunity_id bigint,
   certificate_id bigint references public.certificates(id),
   created_by bigint not null references public.staff_users(id),
@@ -138,6 +140,49 @@ create index if not exists crm_opps_stage_idx on public.crm_opportunities(stage)
 create index if not exists crm_activities_opp_idx on public.crm_activities(opportunity_id);
 create index if not exists crm_activities_lead_idx on public.crm_activities(lead_id);
 create index if not exists crm_stage_events_opp_idx on public.crm_stage_events(opportunity_id);
+
+-- 7. Khoá ngoại bổ sung cho crm_leads.converted_opportunity_id.
+-- Cột này KHÔNG có ràng buộc trong bản đầu tiên, nên PostgREST không embed được quan hệ
+-- và mọi truy vấn lead đều lỗi:
+--   PGRST200 · Could not find a relationship between 'crm_leads' and 'crm_opportunities'
+--   in the schema cache  (hint: crm_leads_converted_opportunity_id_fkey)
+-- Bảng certificates chưa chắc đã có ở đây nên phần này đặt sau cùng, chạy lại được nhiều lần.
+update public.crm_leads l
+   set converted_opportunity_id = null
+ where l.converted_opportunity_id is not null
+   and not exists (
+     select 1 from public.crm_opportunities o where o.id = l.converted_opportunity_id
+   );
+
+alter table public.crm_leads drop constraint if exists crm_leads_converted_opportunity_id_fkey;
+alter table public.crm_leads
+  add constraint crm_leads_converted_opportunity_id_fkey
+  foreign key (converted_opportunity_id)
+  references public.crm_opportunities(id)
+  on delete set null;
+
+alter table public.crm_opportunities drop constraint if exists crm_opportunities_lead_id_fkey;
+alter table public.crm_opportunities
+  add constraint crm_opportunities_lead_id_fkey
+  foreign key (lead_id)
+  references public.crm_leads(id)
+  on delete set null;
+
+create index if not exists crm_leads_converted_opp_idx on public.crm_leads(converted_opportunity_id);
+
+-- Vá dữ liệu seed cũ: lead đang ở trạng thái 'converted' nhưng chưa trỏ về cơ hội nào
+-- (bản seed trước đây bỏ sót converted_opportunity_id).
+update public.crm_leads l
+   set converted_opportunity_id = (
+         select o.id from public.crm_opportunities o where o.lead_id = l.id order by o.id limit 1
+       )
+ where l.status = 'converted'
+   and l.converted_opportunity_id is null
+   and exists (select 1 from public.crm_opportunities o where o.lead_id = l.id);
+
+-- 8. Bắt PostgREST nạp lại schema cache — nếu không, Postgres đã có khoá ngoại nhưng
+-- PostgREST vẫn báo PGRST200 cho tới khi cache hết hạn.
+notify pgrst, 'reload schema';
 
 alter table public.crm_teams enable row level security;
 alter table public.crm_leads enable row level security;
