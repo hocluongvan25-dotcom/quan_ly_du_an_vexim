@@ -25,17 +25,23 @@ type FormState = {
   validity_years: number;
 };
 
-export function CertificateForm({ initial }: { initial?: Certificate }) {
+export function CertificateForm({
+  initial,
+  prefill,
+}: {
+  initial?: Certificate;
+  prefill?: { standard?: string; company?: string; email?: string; price?: string };
+}) {
   const router = useRouter();
   const { t } = useI18n();
   const [form, setForm] = useState<FormState>({
-    standard: initial?.standard || "FDA",
+    standard: initial?.standard || (prefill?.standard === "GACC" ? "GACC" : "FDA"),
     registration_code: initial?.registration_code || "",
     duns_code: initial?.standard === "GACC" ? "" : initial?.duns_code || "",
     us_agent: initial?.standard === "GACC" ? "" : initial?.us_agent || "Vexim Global LLC",
-    service_price: initial ? String(initial.service_price) : "",
-    company_name: initial?.company_name || "",
-    company_email: (initial as any)?.company_email || "",
+    service_price: initial ? String(initial.service_price) : prefill?.price || "",
+    company_name: initial?.company_name || prefill?.company || "",
+    company_email: (initial as any)?.company_email || prefill?.email || "",
     scope: initial?.scope || "",
     registered_at: initial?.registered_at?.slice(0, 10) || todayLocalIso(),
     validity_years: initial?.standard === "GACC" ? GACC_FIXED_YEARS : initial?.validity_years || DEFAULT_VALIDITY[initial?.standard || "FDA"] || 2,

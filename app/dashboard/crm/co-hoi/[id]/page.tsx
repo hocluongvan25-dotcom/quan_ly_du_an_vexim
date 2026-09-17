@@ -106,6 +106,22 @@ export default function OppDetailPage() {
         <ArrowLeft className="h-4 w-4" /> Về Pipeline
       </Link>
 
+      {/* Nhắc tạo hồ sơ sau khi chốt FDA/GACC */}
+      {opp.is_won && (opp.pipeline_key === "FDA" || opp.pipeline_key === "GACC") && (
+        <Link
+          href={`/dashboard/ho-so/moi?standard=${opp.pipeline_key}&company=${encodeURIComponent(opp.company_name)}${opp.contact_email ? `&email=${encodeURIComponent(opp.contact_email)}` : ""}${opp.estimated_value ? `&price=${opp.estimated_value}` : ""}`}
+          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-400 p-5 text-navy-950 shadow-lift transition hover:shadow-card"
+        >
+          <div>
+            <div className="font-display text-base font-extrabold">📁 Deal đã chốt — tạo hồ sơ {opp.pipeline_key} ngay!</div>
+            <div className="mt-0.5 text-xs font-semibold opacity-70">
+              Bấm để sang trang tạo hồ sơ (đã điền sẵn tên công ty & giá trị deal)
+            </div>
+          </div>
+          <div className="shrink-0 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-bold text-white">Tạo hồ sơ →</div>
+        </Link>
+      )}
+
       {/* Header */}
       <div className="rounded-3xl bg-white p-6 shadow-card">
         <div className="flex flex-wrap items-start justify-between gap-3">

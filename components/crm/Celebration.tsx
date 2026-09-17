@@ -85,14 +85,29 @@ export function WinCelebration({
   valueLabel,
   ownerName,
   detailHref,
+  pipelineKey,
+  contactEmail,
+  estimatedValue,
   onClose,
 }: {
   companyName: string;
   valueLabel: string;
   ownerName: string;
   detailHref: string;
+  pipelineKey: string;
+  contactEmail?: string;
+  estimatedValue?: number;
   onClose: () => void;
 }) {
+  const needsRecord = pipelineKey === "FDA" || pipelineKey === "GACC";
+  const recordHref = needsRecord
+    ? `/dashboard/ho-so/moi?${new URLSearchParams({
+        standard: pipelineKey,
+        company: companyName,
+        ...(contactEmail ? { email: contactEmail } : {}),
+        ...(estimatedValue ? { price: String(estimatedValue) } : {}),
+      }).toString()}`
+    : "";
   useEffect(() => {
     fireCelebration();
     playFanfare();
@@ -128,6 +143,21 @@ export function WinCelebration({
           <div className="mx-auto mt-4 max-w-[280px] rounded-2xl bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-700">
             🎉 Tuyệt vời! Cứ thế phát huy nhé!
           </div>
+
+          {needsRecord && (
+            <Link
+              href={recordHref}
+              onClick={onClose}
+              className="mt-4 block rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-navy-950 shadow-lift hover:bg-teal-400"
+            >
+              📁 Tạo hồ sơ {pipelineKey} cho khách này →
+            </Link>
+          )}
+          {needsRecord && (
+            <p className="mt-2 text-[11px] font-semibold text-navy-900/50">
+              Nhớ tạo hồ sơ để bắt đầu triển khai nhé! (Đã điền sẵn tên công ty & giá trị deal)
+            </p>
+          )}
 
           <div className="mt-5 flex gap-2">
             <Link

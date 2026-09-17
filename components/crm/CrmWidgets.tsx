@@ -201,7 +201,13 @@ export function MoveStageModal({
   const [lostReason, setLostReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [wonInfo, setWonInfo] = useState<{ company: string; value: string; owner: string } | null>(null);
+  const [wonInfo, setWonInfo] = useState<{
+    company: string;
+    value: string;
+    owner: string;
+    email: string;
+    rawValue: number;
+  } | null>(null);
 
   const target = stages.find((s) => s.id === targetId);
   const isForward = target ? target.sort_order > (stages[currentIdx]?.sort_order ?? 0) : false;
@@ -231,6 +237,8 @@ export function MoveStageModal({
           company: d.opp.company_name || opp.company_name,
           value: formatCrmValue(d.opp.estimated_value || 0),
           owner: d.opp.owner_name || "",
+          email: d.opp.contact_email || "",
+          rawValue: d.opp.estimated_value || 0,
         });
       } else {
         onClose();
@@ -250,6 +258,9 @@ export function MoveStageModal({
           valueLabel={wonInfo.value}
           ownerName={wonInfo.owner}
           detailHref={`/dashboard/crm/co-hoi/${opp.id}`}
+          pipelineKey={pipeline.key}
+          contactEmail={wonInfo.email}
+          estimatedValue={wonInfo.rawValue}
           onClose={onClose}
         />
       )}
