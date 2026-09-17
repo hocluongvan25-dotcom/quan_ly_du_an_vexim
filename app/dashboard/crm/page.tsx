@@ -54,6 +54,7 @@ const PIPELINE_TABS = [
 
 export default function CrmDashboardPage() {
   const [pipeline, setPipeline] = useState("");
+  const [pipeTab, setPipeTab] = useState("");
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [warning, setWarning] = useState<string | null>(null);
@@ -79,6 +80,21 @@ export default function CrmDashboardPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Tự chọn tab pipeline: ưu tiên pipeline đang lọc, rồi pipeline có dữ liệu
+  useEffect(() => {
+    if (!data) return;
+    const keys = data.pipelineStats.map((p) => p.key);
+    if (pipeline && keys.includes(pipeline)) {
+      setPipeTab(pipeline);
+      return;
+    }
+    if (!pipeTab || !keys.includes(pipeTab)) {
+      const withData = data.pipelineStats.find((p) => p.openCount > 0);
+      setPipeTab(withData?.key || keys[0] || "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, pipeline]);
 
   const pick = (p: string) => {
     setPipeline(p);
@@ -167,64 +183,95 @@ export default function CrmDashboardPage() {
             />
           </div>
 
-          {/* Hàng 2: Pipeline hiện tại */}
+          {/* Hàng 2: Pipeline hiện tại — tab ngang theo dịch vụ */}
           <section className="rounded-3xl bg-white p-5 shadow-card">
-            <div className="mb-4 flex items-center justify-between">
+            <div className="mb-3 flex items-center justify-between">
               <h2 className="font-display text-lg font-bold">Pipeline hiện tại — mỗi khách ở giai đoạn nào?</h2>
-              <Link href="/dashboard/crm/pipeline" className="text-sm font-semibold text-teal-700">
+              <Link href="/dashboard/crm/pipeline" className="shrink-0 text-sm font-semibold text-teal-700">
                 Mở Kanban →
               </Link>
             </div>
-            <div className="space-y-5">
-              {data.pipelineStats.map((p) => {
-                const max = Math.max(1, ...p.stages.filter((s) => !s.is_lost).map((s) => s.count));
-                return (
-                  <div key={p.key}>
-                    <div className="mb-2 flex items-center justify-between text-sm">
-                      <span className="font-bold">
-                        {p.name}
-                        <span className="ml-2 rounded-full bg-navy-900 px-2 py-0.5 text-[11px] text-white">
-                          {p.openCount} đang mở · {formatCrmValue(p.openValue)}
-                        </span>
+            {data.pipelineStats.length > 1 && (
+              <div className="no-scrollbar mb-4 flex gap-2 overflow-x-auto border-b border-navy-900/10 pb-3">
+                {data.pipelineStats.map((p) => {
+                  const active = pipeTab === p.key;
+                  return (
+                    <button
+                      key={p.key}
+                      onClick={() => setPipeTab(p.key)}
+                      className={`flex shrink-0 items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition ${
+                        active
+                          ? "bg-navy-900 text-white shadow-card"
+                          : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                      }`}
+                    >
+                      {p.name}
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
+                          active ? "bg-teal-500 text-navy-950" : "bg-white text-navy-900"
+                        }`}
+                      >
+                        {p.openCount}
                       </span>
-                    </div>
-                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-                      {p.stages
-                        .filter((s) => !s.is_won && !s.is_lost)
-                        .map((s) => (
-                          <Link
-                            key={s.key}
-                            href={`/dashboard/crm/pipeline?pipeline=${p.key}`}
-                            className="rounded-2xl border border-navy-900/10 p-3 transition hover:shadow-card"
-                          >
-                            <div className="flex items-center gap-1.5 text-xs font-bold">
-                              <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
-                              {s.name}
-                            </div>
-                            <div className="mt-1 font-display text-2xl font-extrabold">{s.count}</div>
-                            <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                              <div
-                                className="h-full rounded-full"
-                                style={{ width: `${(s.count / max) * 100}%`, background: s.color }}
-                              />
-                            </div>
-                          </Link>
-                        ))}
-                    </div>
-                    <div className="mt-2 flex gap-3 text-xs font-semibold">
-                      {p.stages
-                        .filter((s) => s.is_won || s.is_lost)
-                        .map((s) => (
-                          <span key={s.key} className="inline-flex items-center gap-1 text-navy-900/60">
-                            <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
-                            {s.name}: {s.count}
-                          </span>
-                        ))}
-                    </div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+            {(() => {
+              const p = data.pipelineStats.find((x) => x.key === pipeTab) || data.pipelineStats[0];
+              if (!p) return <div className="text-sm text-slate-400">Chưa có pipeline nào.</div>;
+              const max = Math.max(1, ...p.stages.filter((s) => !s.is_lost).map((s) => s.count));
+              return (
+                <div>
+                  <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
+                    <span className="font-bold">{p.name}</span>
+                    <span className="rounded-full bg-navy-900 px-2.5 py-0.5 text-[11px] font-bold text-white">
+                      {p.openCount} đang mở · {formatCrmValue(p.openValue)}
+                    </span>
+                    <Link
+                      href={`/dashboard/crm/pipeline?pipeline=${p.key}`}
+                      className="ml-auto text-xs font-bold text-teal-700 hover:underline"
+                    >
+                      Kanban {p.name} →
+                    </Link>
                   </div>
-                );
-              })}
-            </div>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                    {p.stages
+                      .filter((s) => !s.is_won && !s.is_lost)
+                      .map((s) => (
+                        <Link
+                          key={s.key}
+                          href={`/dashboard/crm/pipeline?pipeline=${p.key}`}
+                          className="rounded-2xl border border-navy-900/10 p-3 transition hover:shadow-card"
+                        >
+                          <div className="flex items-center gap-1.5 text-xs font-bold">
+                            <span className="h-2.5 w-2.5 rounded-full" style={{ background: s.color }} />
+                            {s.name}
+                          </div>
+                          <div className="mt-1 font-display text-2xl font-extrabold">{s.count}</div>
+                          <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                            <div
+                              className="h-full rounded-full"
+                              style={{ width: `${(s.count / max) * 100}%`, background: s.color }}
+                            />
+                          </div>
+                        </Link>
+                      ))}
+                  </div>
+                  <div className="mt-3 flex gap-3 text-xs font-semibold">
+                    {p.stages
+                      .filter((s) => s.is_won || s.is_lost)
+                      .map((s) => (
+                        <span key={s.key} className="inline-flex items-center gap-1 text-navy-900/60">
+                          <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />
+                          {s.name}: {s.count}
+                        </span>
+                      ))}
+                  </div>
+                </div>
+              );
+            })()}
           </section>
 
           {/* Hàng 3: Cảnh báo + Việc của tôi */}
