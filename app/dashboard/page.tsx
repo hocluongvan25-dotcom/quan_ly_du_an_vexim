@@ -5,6 +5,8 @@ import { crmStatsFor, listCertificates, revenueStats } from "@/lib/db";
 import { scopeFilter } from "@/lib/permissions";
 import { formatDate, formatVnd, remainingDays, statusLabel } from "@/lib/utils";
 import { STANDARD_YEARS } from "@/lib/types";
+import { DbSetupNotice } from "@/components/DbSetupNotice";
+import { describeDbError } from "@/lib/db-health";
 import { AlertTriangle, FileBadge2, ShieldCheck, Wallet } from "lucide-react";
 
 export const runtime = "nodejs";
@@ -13,7 +15,15 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const user = getSession();
   if (!user) redirect("/login");
-  const items = await listCertificates();
+
+  let items;
+  try {
+    items = await listCertificates();
+  } catch (e) {
+    const problem = describeDbError(e);
+    if (problem) return <DbSetupNotice problem={problem} />;
+    throw e;
+  }
   const published = items.filter((i) => i.status !== "draft");
   const valid = published.filter((i) => remainingDays(i.expires_at) >= 0);
   const expiring = published.filter((i) => {

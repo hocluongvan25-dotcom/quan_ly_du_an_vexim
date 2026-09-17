@@ -77,12 +77,32 @@ Pipeline: `contacted (20%) → qualified (40%) → proposal (60%) → negotiatio
 
 1. Tạo project tại [supabase.com](https://supabase.com)
 2. SQL Editor → chạy `supabase/schema.sql` **rồi** chạy `supabase/schema-crm.sql`
+   (cả hai file đều **chạy lại được nhiều lần**, không sợ chạy trùng)
 3. Settings → API, copy:
    - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon` `public` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `service_role` → `SUPABASE_SERVICE_ROLE_KEY` (chỉ dùng phía server)
 
 Lần đăng nhập đầu tiên hệ thống tự tạo tài khoản demo + dữ liệu CRM mẫu nếu bảng còn trống.
+Đặt biến `VEXIM_DISABLE_DEMO_SEED=1` để tắt việc tự tạo demo (nên bật khi chạy production thật).
+
+### Sự cố thường gặp: `23514 · staff_users_role_check`
+
+```
+new row for relation "staff_users" violates check constraint "staff_users_role_check"
+Failing row contains (3, ae@veximglobal.com, Lương Văn Học, $2a$10$..., ae, ...)
+```
+
+**Nguyên nhân:** database mới chỉ chạy `supabase/schema.sql`, chưa chạy `supabase/schema-crm.sql`.
+Bảng `staff_users` khi đó chỉ cho phép hai vai trò `admin` và `specialist`, nên bước tạo tài khoản
+demo `ae@veximglobal.com` (role `ae`) bị Postgres chặn. Lỗi xuất hiện ngay ở lần đăng nhập đầu tiên,
+khi CRM seed dữ liệu mẫu.
+
+**Cách xử lý:** mở Supabase → SQL Editor → chạy `supabase/schema-crm.sql`. Sau đó tải lại trang,
+hệ thống tự chạy tiếp phần seed còn dang dở.
+
+Từ bản này, app **tự phát hiện** tình trạng trên và hiển thị hướng dẫn ngay trên giao diện thay vì
+báo lỗi 500 khó hiểu: API trả `503` kèm việc cần làm, trang CRM hiện thẻ "Cơ sở dữ liệu chưa sẵn sàng".
 
 ## 5. Chạy local
 
@@ -95,6 +115,9 @@ npm run dev
 
 Kiểm tra nhanh: `npx tsc --noEmit` và `npm run build`.
 
+Yêu cầu **Node >= 22.5** (đã khai báo trong `package.json` → `engines`) vì chế độ chạy không cần
+Supabase dùng module `node:sqlite` của Node.
+
 ## 6. Deploy Vercel
 
 ```bash
@@ -103,6 +126,9 @@ npx vercel
 
 Thêm đúng 4 biến trong `.env.example` vào Project → Settings → Environment Variables, hoặc kết nối
 GitHub repo `hocluongvan25-dotcom/quan_ly_du_an_vexim`.
+
+Vercel cần Node 22.5+ (xem `engines` trong `package.json`). Trước khi mở cho khách dùng thật, nên:
+đổi `AUTH_SECRET`, đặt `VEXIM_DISABLE_DEMO_SEED=1`, và xoá khối "Tài khoản demo" ở `app/login/page.tsx`.
 
 ## Tài khoản demo
 
@@ -124,9 +150,13 @@ lib/
   crm-sqlite.ts     tầng dữ liệu SQLite cho CRM (+ seed demo)
   crm-supabase.ts   tầng dữ liệu Supabase cho CRM (+ seed demo)
   db.ts             facade chuyển SQLite <-> Supabase
-app/api/crm/        leads, opportunities, activities, customers, dashboard, performance, teams
+  db-health.ts      dịch lỗi schema Supabase thành hướng dẫn cần chạy file SQL nào
+  api-error.ts      chuẩn hoá lỗi API (503 khi database thiếu migration)
+app/api/crm/        leads, opportunities, activities, customers, dashboard, performance, teams, members
 app/dashboard/crm/  các trang CRM
-supabase/schema-crm.sql  schema CRM cho PostgreSQL
+components/DbSetupNotice.tsx  thẻ "Cơ sở dữ liệu chưa sẵn sàng"
+supabase/schema.sql      schema gốc (chạy được nhiều lần)
+supabase/schema-crm.sql  schema CRM cho PostgreSQL (chạy được nhiều lần)
 ```
 
 ## Liên hệ Vexim Global

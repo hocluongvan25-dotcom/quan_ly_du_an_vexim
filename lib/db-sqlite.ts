@@ -219,6 +219,7 @@ function migrateCrm(db: DatabaseSync) {
 }
 
 function seed(db: DatabaseSync) {
+  if (process.env.VEXIM_DISABLE_DEMO_SEED === "1") return;
   const count = db.prepare("SELECT COUNT(*) AS c FROM users").get() as { c: number };
   if (count.c > 0) return;
 
@@ -384,6 +385,10 @@ export function createUser(input: {
 
 export function updateUserTeam(userId: number, teamId: number | null) {
   db().prepare("UPDATE users SET team_id = ? WHERE id = ?").run(teamId, userId);
+}
+
+export function updateUserRole(userId: number, role: Role) {
+  db().prepare("UPDATE users SET role = ? WHERE id = ?").run(role, userId);
 }
 
 export function nextCertificateNo(standard: Standard) {

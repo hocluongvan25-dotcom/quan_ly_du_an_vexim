@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbFailure } from "@/lib/api-error";
 import { getSession } from "@/lib/auth";
 import { crmListCustomers } from "@/lib/db";
 import { scopeFilter, hasCrmAccess } from "@/lib/permissions";
@@ -16,5 +17,9 @@ export async function GET() {
       { status: 403 }
     );
   }
-  return NextResponse.json({ items: await crmListCustomers(scopeFilter(user)) });
+  try {
+    return NextResponse.json({ items: await crmListCustomers(scopeFilter(user)) });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }

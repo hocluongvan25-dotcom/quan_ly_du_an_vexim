@@ -54,6 +54,36 @@ export default function UsersPage() {
     load();
   }
 
+  async function saveUser(id: number, patch: { role?: Role; team_id?: number | null }) {
+    setErr("");
+    const r = await fetch(`/api/users/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      setErr(d.error || "Không cập nhật được người dùng.");
+      return;
+    }
+    load();
+  }
+
+  async function saveTeamLeader(teamId: number, aeId: number | null) {
+    setErr("");
+    const r = await fetch(`/api/crm/teams/${teamId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ae_id: aeId }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      setErr(d.error || "Không gán được AE cho team.");
+      return;
+    }
+    load();
+  }
+
   async function createTeam(e: FormEvent) {
     e.preventDefault();
     const r = await fetch("/api/crm/teams", {
@@ -104,6 +134,35 @@ export default function UsersPage() {
                   <div className="text-[11px] text-navy-900/50">{u.email}</div>
                   <div className="text-[11px] text-navy-900/45">
                     {teams.find((t) => t.id === u.team_id)?.name || "Chưa thuộc team nào"}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <select
+                      value={u.role}
+                      onChange={(e) => saveUser(u.id, { role: e.target.value as Role })}
+                      className="rounded-lg border border-navy-900/10 bg-white px-1.5 py-1 text-[11px]"
+                      title="Đổi vai trò"
+                    >
+                      {CRM_ROLES.map((role) => (
+                        <option key={role} value={role}>
+                          {ROLE_LABEL[role]}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      value={u.team_id == null ? "" : String(u.team_id)}
+                      onChange={(e) =>
+                        saveUser(u.id, { team_id: e.target.value ? Number(e.target.value) : null })
+                      }
+                      className="rounded-lg border border-navy-900/10 bg-white px-1.5 py-1 text-[11px]"
+                      title="Chuyển team"
+                    >
+                      <option value="">— Chưa thuộc team —</option>
+                      {teams.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </li>
               ))}
@@ -203,13 +262,28 @@ export default function UsersPage() {
             </p>
             <ul className="mt-3 divide-y divide-navy-900/5">
               {teams.map((t) => (
-                <li key={t.id} className="flex items-center justify-between py-2.5 text-sm">
+                <li key={t.id} className="flex items-center justify-between gap-2 py-2.5 text-sm">
                   <div>
                     <div className="font-semibold">{t.name}</div>
                     <div className="text-[11px] text-navy-900/45">
                       AE: {t.ae_name || "chưa gán"} · {t.member_count} thành viên
                     </div>
                   </div>
+                  <select
+                    value={t.ae_id == null ? "" : String(t.ae_id)}
+                    onChange={(e) => saveTeamLeader(t.id, e.target.value ? Number(e.target.value) : null)}
+                    className="rounded-lg border border-navy-900/10 bg-white px-2 py-1 text-xs"
+                    title="Gán AE phụ trách team"
+                  >
+                    <option value="">Chưa gán AE</option>
+                    {items
+                      .filter((u) => u.role === "ae")
+                      .map((u) => (
+                        <option key={u.id} value={u.id}>
+                          {u.name}
+                        </option>
+                      ))}
+                  </select>
                 </li>
               ))}
               {teams.length === 0 && (

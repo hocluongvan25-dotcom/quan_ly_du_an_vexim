@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbFailure } from "@/lib/api-error";
 import { getSession } from "@/lib/auth";
 import { hasCrmAccess } from "@/lib/permissions";
 import { crmCreateTeam, crmListTeams } from "@/lib/db";
@@ -15,7 +16,11 @@ export async function GET() {
       { status: 403 }
     );
   }
-  return NextResponse.json({ items: await crmListTeams() });
+  try {
+    return NextResponse.json({ items: await crmListTeams() });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }
 
 export async function POST(req: Request) {
@@ -26,6 +31,10 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const name = String(body.name || "").trim();
   if (!name) return NextResponse.json({ error: "Thiếu tên team." }, { status: 400 });
-  const id = await crmCreateTeam({ name, ae_id: body.ae_id ? Number(body.ae_id) : null });
-  return NextResponse.json({ id });
+  try {
+    const id = await crmCreateTeam({ name, ae_id: body.ae_id ? Number(body.ae_id) : null });
+    return NextResponse.json({ id });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }

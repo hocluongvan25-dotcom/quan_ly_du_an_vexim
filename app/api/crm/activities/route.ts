@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbFailure } from "@/lib/api-error";
 import { getSession } from "@/lib/auth";
 import {
   crmAddActivity,
@@ -25,7 +26,11 @@ export async function GET(req: Request) {
   }
   const url = new URL(req.url);
   const limit = Number(url.searchParams.get("limit") || 60);
-  return NextResponse.json({ items: await crmListActivities(scopeFilter(user), limit || 60) });
+  try {
+    return NextResponse.json({ items: await crmListActivities(scopeFilter(user), limit || 60) });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }
 
 /**
@@ -69,20 +74,24 @@ export async function POST(req: Request) {
   if (oppId) {
     const opp = await crmGetOpportunity(oppId);
     if (!opp) return NextResponse.json({ error: "Không tìm thấy cơ hội." }, { status: 404 });
-    if (!canSeeRecord(user, opp)) {
+    if (!canSeeRecord(user, opp, "opportunity")) {
       return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
     }
   }
 
-  const activity = await crmAddActivity({
+  try {
+    const activity = await crmAddActivity({
     lead_id: leadId,
     opportunity_id: oppId,
     type,
     subject: String(body.subject || ""),
     content: String(body.content || ""),
     created_by: user.id,
-    is_follow_up: Boolean(body.is_follow_up),
-    due_at: body.due_at ? String(body.due_at).slice(0, 10) : null,
-  });
-  return NextResponse.json({ item: activity });
+      is_follow_up: Boolean(body.is_follow_up),
+      due_at: body.due_at ? String(body.due_at).slice(0, 10) : null,
+    });
+    return NextResponse.json({ item: activity });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }

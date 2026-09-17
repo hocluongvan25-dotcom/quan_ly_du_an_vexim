@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbFailure } from "@/lib/api-error";
 import { getSession } from "@/lib/auth";
 import { crmListFollowUps, crmStatsFor } from "@/lib/db";
 import { can, scopeFilter, hasCrmAccess } from "@/lib/permissions";
@@ -23,6 +24,10 @@ export async function GET() {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
   const f = scopeFilter(user);
-  const [stats, followUps] = await Promise.all([crmStatsFor(f), crmListFollowUps(f)]);
-  return NextResponse.json({ stats, followUps, scope: f.scope, teamId: f.teamId });
+  try {
+    const [stats, followUps] = await Promise.all([crmStatsFor(f), crmListFollowUps(f)]);
+    return NextResponse.json({ stats, followUps, scope: f.scope, teamId: f.teamId });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }

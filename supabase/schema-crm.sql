@@ -2,7 +2,24 @@
 -- VEXIM CRM — Sales Operation Management
 -- Chạy file này trong Supabase SQL Editor SAU khi đã chạy schema.sql.
 -- Next.js dùng SUPABASE_SERVICE_ROLE_KEY nên bỏ qua RLS.
+-- File này chạy lại được nhiều lần (idempotent).
+--
+-- Nếu CHƯA chạy file này mà đã mở CRM, app sẽ báo:
+--   23514 · new row for relation "staff_users" violates check constraint
+--           "staff_users_role_check"
+-- vì bảng staff_users khi đó chỉ cho phép 'admin' và 'specialist'.
 -- ============================================================================
+
+-- 0. Chặn chạy sai thứ tự: phải có bảng staff_users trước.
+do $$
+begin
+  if not exists (
+    select 1 from information_schema.tables
+    where table_schema = 'public' and table_name = 'staff_users'
+  ) then
+    raise exception 'Chưa có bảng public.staff_users — hãy chạy supabase/schema.sql TRƯỚC file này.';
+  end if;
+end $$;
 
 -- 1. Mở rộng bảng người dùng: 4 role CRM (admin/founder, ae, sr, lr) + specialist
 alter table public.staff_users drop constraint if exists staff_users_role_check;

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbFailure } from "@/lib/api-error";
 import { getSession } from "@/lib/auth";
 import { createUser, listUsers } from "@/lib/db";
 import { CRM_ROLES, ROLE_LABEL, type Role } from "@/lib/types";
@@ -10,11 +11,15 @@ export async function GET() {
   if (!user || user.role !== "admin") {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
-  const items = await listUsers();
-  return NextResponse.json({
-    items,
-    roles: CRM_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r], duty: undefined })),
-  });
+  try {
+    const items = await listUsers();
+    return NextResponse.json({
+      items,
+      roles: CRM_ROLES.map((r) => ({ value: r, label: ROLE_LABEL[r] })),
+    });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }
 
 export async function POST(req: Request) {
@@ -39,7 +44,13 @@ export async function POST(req: Request) {
       team_id: body.team_id ? Number(body.team_id) : null,
     });
     return NextResponse.json({ id });
-  } catch {
-    return NextResponse.json({ error: "Email đã tồn tại." }, { status: 400 });
+  } catch (e) {
+    // Trước đây mọi lỗi đều bị báo thành "Email đã tồn tại", kể cả khi database chưa
+    // được nâng cấp cho vai trò CRM (23514 · staff_users_role_check) → rất khó đoán bệnh.
+    const code = (e as { code?: string } | null)?.code;
+    if (code === "23505") {
+      return NextResponse.json({ error: "Email đã tồn tại." }, { status: 400 });
+    }
+    return dbFailure(e);
   }
 }

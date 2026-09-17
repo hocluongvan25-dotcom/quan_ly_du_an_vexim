@@ -17,7 +17,7 @@ import {
   type Role,
   type Standard,
 } from "./types";
-import { computeCrmStats, computePerformance, hydrateOpp, scopeMatch } from "./crm-core";
+import { buildFollowUps, computeCrmStats, computePerformance, hydrateOpp, scopeMatch } from "./crm-core";
 import type { CrmScopeFilter } from "./permissions";
 import { supabaseAdmin } from "./supabase";
 import { ensureSeed } from "./db-supabase";
@@ -29,6 +29,9 @@ const LEAD_COLS = `*, created_by_user:staff_users!crm_leads_created_by_fkey(name
 const OPP_COLS = `*, owner_user:staff_users!crm_opportunities_owner_id_fkey(name),
   next_action_owner_user:staff_users!crm_opportunities_next_action_owner_id_fkey(name),
   lead:crm_leads!crm_opportunities_lead_id_fkey(code, company_name)`;
+
+const ACTIVITY_COLS = `*, created_by_user:staff_users!crm_activities_created_by_fkey(name),
+  opportunity:crm_opportunities(company_name), lead:crm_leads(company_name)`;
 
 function str(v: unknown) {
   return v == null ? "" : String(v);
@@ -593,7 +596,7 @@ export async function setNextAction(
   return (await getOpportunity(id))!;
 }
 
-export async function linkCertificate(opportunityId: number, certificateId: number) {
+export async function linkCertificate(opportunityId: number, certificateId: number, actorId: number) {
   const opp = await getOpportunity(opportunityId);
   if (!opp) throw new Error("NOT_FOUND");
   await supabaseAdmin()
@@ -615,7 +618,7 @@ export async function linkCertificate(opportunityId: number, certificateId: numb
       type: "note",
       subject: "Gắn hồ sơ",
       content: `Gắn hồ sơ ${str(cert.certificate_no)} (${str(cert.company_name)}) vào cơ hội.`,
-      created_by: opp.created_by,
+      created_by: actorId,
     });
   }
   return (await getOpportunity(opportunityId))!;
@@ -687,7 +690,7 @@ export async function listActivities(f: CrmScopeFilter, limit = 60): Promise<Crm
   const leadIds = new Set(leads.map((l) => l.id));
   const { data, error } = await supabaseAdmin()
     .from("crm_activities")
-    .select("*, created_by_user:staff_users!crm_activities_created_by_fkey(name), opportunity:crm_opportunities(company_name), lead:crm_leads(company_name)")
+    .select(ACTIVITY_COLS)
     .order("performed_at", { ascending: false })
     .limit(Math.max(limit * 4, 200));
   if (error) throw error;
@@ -707,7 +710,7 @@ export async function listOpportunityTimeline(opportunityId: number) {
   const [acts, evts] = await Promise.all([
     supabaseAdmin()
       .from("crm_activities")
-      .select("*, created_by_user:staff_users!crm_activities_created_by_fkey(name)")
+      .select(ACTIVITY_COLS)
       .eq("opportunity_id", opportunityId)
       .order("performed_at", { ascending: false }),
     supabaseAdmin()
@@ -738,7 +741,7 @@ export async function listOpportunityTimeline(opportunityId: number) {
 export async function getActivity(id: number) {
   const { data, error } = await supabaseAdmin()
     .from("crm_activities")
-    .select("*, created_by_user:staff_users!crm_activities_created_by_fkey(name), opportunity:crm_opportunities(company_name), lead:crm_leads(company_name)")
+    .select(ACTIVITY_COLS)
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
@@ -769,18 +772,63 @@ export async function completeActivity(id: number, actorId: number) {
   return (await getActivity(id))!;
 }
 
+/**
+ * Checklist follow-up: next action của cơ hội đang mở + follow-up hẹn hạn chưa xong.
+ * Trả về hàng đã chuẩn hoá (`kind` + `id`) để UI gọi đúng API khi bấm "Xong".
+ */
 export async function listFollowUps(f: CrmScopeFilter) {
-  const opps = await listOpportunities(f);
-  return opps
+  const [opps, leads] = await Promise.all([listOpportunities(f), listLeads(f)]);
+  const oppIds = new Set(opps.map((o) => o.id));
+  const leadIds = new Set(leads.map((l) => l.id));
+  const { data, error } = await supabaseAdmin()
+    .from("crm_activities")
+    .select(ACTIVITY_COLS)
+    .eq("is_follow_up", true)
+    .is("completed_at", null)
+    .order("due_at", { ascending: true, nullsFirst: false })
+    .limit(200);
+  if (error) throw error;
+  const pending = (data || [])
+    .map(mapActivity)
     .filter(
-      (o) =>
-        o.stage !== "won" && o.stage !== "lost" && String(o.next_action || "").trim() !== ""
-    )
-    .sort((a, b) => {
-      if (!a.next_action_due) return 1;
-      if (!b.next_action_due) return -1;
-      return a.next_action_due < b.next_action_due ? -1 : 1;
-    });
+      (a) =>
+        (a.opportunity_id != null && oppIds.has(a.opportunity_id)) ||
+        (a.lead_id != null && leadIds.has(a.lead_id))
+    );
+  return buildFollowUps(opps, pending);
+}
+
+/**
+ * Đóng next action của cơ hội ("Xong" trên checklist): xoá việc cũ, ghi log và
+ * làm mới đồng hồ stale — nếu không, cơ hội vẫn mãi nằm trong checklist.
+ */
+export async function clearNextAction(id: number, actorId: number) {
+  const current = await getOpportunity(id);
+  if (!current) throw new Error("NOT_FOUND");
+  const now = new Date().toISOString();
+  const action = String(current.next_action || "").trim();
+  const { error } = await supabaseAdmin()
+    .from("crm_opportunities")
+    .update({
+      next_action: "",
+      next_action_due: null,
+      next_action_owner_id: null,
+      last_activity_at: now,
+      updated_at: now,
+    })
+    .eq("id", id);
+  if (error) throw error;
+  await supabaseAdmin().from("crm_activities").insert({
+    lead_id: current.lead_id,
+    opportunity_id: id,
+    type: "task",
+    subject: "Hoàn thành next action",
+    content: action ? `Đã xong: ${action}` : "Đã xong next action.",
+    performed_at: now,
+    created_by: actorId,
+    is_follow_up: false,
+  });
+  return (await getOpportunity(id))!;
 }
 
 /* ---------------- Customers ---------------- */
@@ -874,7 +922,7 @@ export async function crmPerformance(f: CrmScopeFilter) {
 let crmSeeded = false;
 
 export async function ensureCrmSeed() {
-  if (crmSeeded) return;
+  if (crmSeeded || process.env.VEXIM_DISABLE_DEMO_SEED === "1") return;
   await ensureSeed();
   const sb = supabaseAdmin();
   const { count, error } = await sb.from("crm_teams").select("id", { count: "exact", head: true });

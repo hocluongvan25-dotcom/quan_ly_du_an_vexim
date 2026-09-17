@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbFailure } from "@/lib/api-error";
 import { getSession } from "@/lib/auth";
 import {
   crmAssignLead,
@@ -23,7 +24,9 @@ const ERROR_MAP: Record<string, string> = {
 };
 
 function fail(e: unknown) {
-  const msg = e instanceof Error ? e.message : "ERROR";
+  // Lỗi schema (thiếu bảng/cột, vi phạm ràng buộc) → 503 kèm hướng dẫn, không nuốt thành "ERROR".
+  if (!(e instanceof Error)) return dbFailure(e);
+  const msg = e.message;
   return NextResponse.json({ error: ERROR_MAP[msg] || msg }, { status: 400 });
 }
 
@@ -45,9 +48,13 @@ export async function GET(_: Request, ctx: Ctx) {
       { status: 403 }
     );
   }
-  const res = await load(user, Number(ctx.params.id));
-  if (res.error) return res.error;
-  return NextResponse.json({ item: res.lead });
+  try {
+    const res = await load(user, Number(ctx.params.id));
+    if (res.error) return res.error;
+    return NextResponse.json({ item: res.lead });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }
 
 export async function PUT(req: Request, ctx: Ctx) {
@@ -63,10 +70,16 @@ export async function PUT(req: Request, ctx: Ctx) {
     return NextResponse.json({ error: "Vai trò của bạn không được sửa lead." }, { status: 403 });
   }
   const id = Number(ctx.params.id);
-  const res = await load(user, id);
-  if (res.error) return res.error;
   const body = await req.json().catch(() => ({}));
   const action = String(body.action || "");
+  let lead;
+  try {
+    const res = await load(user, id);
+    if (res.error) return res.error;
+    lead = res.lead!;
+  } catch (e) {
+    return dbFailure(e);
+  }
 
   try {
     if (action === "status") {
@@ -98,7 +111,6 @@ export async function PUT(req: Request, ctx: Ctx) {
           { status: 403 }
         );
       }
-      const lead = res.lead!;
       const ownerId = body.owner_id ? Number(body.owner_id) : lead.owner_id ?? user.id;
       const opp = await crmCreateOpportunity({
         lead_id: id,
@@ -121,7 +133,7 @@ export async function PUT(req: Request, ctx: Ctx) {
       return NextResponse.json({ item: await crmGetLead(id), opportunity: opp });
     }
 
-    const cur = res.lead!;
+    const cur = lead;
     const pick = (key: string, fallback: unknown) =>
       body[key] === undefined ? fallback : body[key];
     const updated = await crmUpdateLead(id, {

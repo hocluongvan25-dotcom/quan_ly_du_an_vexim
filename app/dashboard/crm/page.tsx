@@ -11,7 +11,7 @@ import {
   STALE_DAYS,
   type Role,
 } from "@/lib/types";
-import { compactVnd, formatDate, formatVnd, fromNow } from "@/lib/utils";
+import { compactVnd, daysSince, formatDate, formatVnd, fromNow } from "@/lib/utils";
 import {
   AlertTriangle,
   CalendarClock,
@@ -26,6 +26,8 @@ import {
 } from "lucide-react";
 import { CrmFollowUps, StageStrip } from "@/components/CrmFollowUps";
 import { OwnerTag, StaleFlag } from "@/components/CrmBits";
+import { DbSetupNotice } from "@/components/DbSetupNotice";
+import { describeDbError } from "@/lib/db-health";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,10 +42,19 @@ export default async function CrmOverviewPage() {
   const user = getSession();
   if (!user) redirect("/login");
   const f = scopeFilter(user);
-  const stats = await crmStatsFor(f);
-  const followUps = await crmListFollowUps(f);
-  const customers = user.role === "admin" || user.role === "ae" ? await crmListCustomers(f) : [];
-  const certs = user.role === "admin" ? await listCertificates() : [];
+
+  let stats, followUps, customers, certs;
+  try {
+    stats = await crmStatsFor(f);
+    followUps = await crmListFollowUps(f);
+    customers = user.role === "admin" || user.role === "ae" ? await crmListCustomers(f) : [];
+    certs = user.role === "admin" ? await listCertificates() : [];
+  } catch (e) {
+    // Database thiếu migration (hoặc lỗi hạ tầng) → chỉ đúng việc cần làm.
+    const problem = describeDbError(e);
+    if (problem) return <DbSetupNotice problem={problem} />;
+    throw e;
+  }
 
   const openStages = CRM_STAGES.filter((s) => !s.closed);
   const maxStageValue = Math.max(1, ...stats.byStage.map((s) => s.value));
@@ -233,7 +244,7 @@ export default async function CrmOverviewPage() {
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-semibold text-navy-900">{o.company_name}</span>
-                      <StaleFlag stale days={Math.max(STALE_DAYS, Math.round(STALE_DAYS))} />
+                      <StaleFlag stale days={Math.max(STALE_DAYS, daysSince(o.last_activity_at) ?? STALE_DAYS)} />
                     </div>
                     <div className="mt-1 text-xs text-navy-900/60">
                       {o.owner_name} · hoạt động cuối {fromNow(o.last_activity_at)}

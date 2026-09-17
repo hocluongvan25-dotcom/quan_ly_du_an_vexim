@@ -40,6 +40,76 @@ export function isOverdueAction(o: { stage: OpportunityStage; next_action_due: s
   return due.getTime() < now.getTime();
 }
 
+/**
+ * Một dòng trên checklist follow-up của AE.
+ *
+ * Checklist gom hai nguồn việc thật của đội sales:
+ *  - `opportunity`: next action gắn trên cơ hội (mọi cơ hội phải có next action).
+ *  - `activity`   : follow-up có hạn mà SR/LR/AE đã hẹn (crm_activities.is_follow_up).
+ *
+ * `id` LUÔN là id của đúng bản ghi trong `kind` — trước đây UI dùng id của opportunity
+ * để gọi API hoàn thành activity nên bấm "Xong" là đóng nhầm bản ghi.
+ */
+export type FollowUpRow = {
+  kind: "opportunity" | "activity";
+  id: number;
+  label: string;
+  code: string;
+  subject: string;
+  due_at: string | null;
+  owner_name: string | null;
+  opportunity_id: number | null;
+  lead_id: number | null;
+  value: number | null;
+  overdue: boolean;
+};
+
+export function buildFollowUps(opps: OppRow[], activities: CrmActivity[]): FollowUpRow[] {
+  const rows: FollowUpRow[] = [];
+
+  for (const o of opps) {
+    if (o.stage === "won" || o.stage === "lost") continue;
+    if (!String(o.next_action || "").trim()) continue;
+    rows.push({
+      kind: "opportunity",
+      id: o.id,
+      label: o.company_name || o.title || o.code,
+      code: o.code,
+      subject: o.next_action,
+      due_at: o.next_action_due,
+      owner_name: o.next_action_owner_name || o.owner_name || null,
+      opportunity_id: o.id,
+      lead_id: o.lead_id,
+      value: Number(o.value || 0),
+      overdue: isOverdueAction(o),
+    });
+  }
+
+  for (const a of activities) {
+    if (!a.is_follow_up || a.completed_at) continue;
+    rows.push({
+      kind: "activity",
+      id: a.id,
+      label: a.company_name || (a.lead_id ? "Lead liên quan" : a.subject),
+      code: "",
+      subject: a.subject,
+      due_at: a.due_at,
+      owner_name: a.created_by_name || null,
+      opportunity_id: a.opportunity_id,
+      lead_id: a.lead_id,
+      value: null,
+      overdue: isOverdueAction({ stage: "contacted", next_action_due: a.due_at }),
+    });
+  }
+
+  return rows.sort((a, b) => {
+    if (a.due_at && b.due_at && a.due_at !== b.due_at) return a.due_at < b.due_at ? -1 : 1;
+    if (a.due_at && !b.due_at) return -1;
+    if (!a.due_at && b.due_at) return 1;
+    return a.id - b.id;
+  });
+}
+
 export function hydrateOpp(row: CrmOpportunity): OppRow {
   return {
     ...row,

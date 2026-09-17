@@ -1,14 +1,24 @@
--- Chạy file này trong Supabase SQL Editor (một lần).
+-- Chạy file này trong Supabase SQL Editor (một lần), SAU ĐÓ chạy supabase/schema-crm.sql.
 -- Service role từ Next.js sẽ bỏ qua RLS.
+-- File này chạy lại được nhiều lần (idempotent).
 
 create table if not exists public.staff_users (
   id bigint generated always as identity primary key,
   email text unique not null,
   name text not null,
   password_hash text not null,
-  role text not null check (role in ('admin', 'specialist')),
+  role text not null check (role in ('admin', 'specialist', 'ae', 'sr', 'lr')),
   created_at timestamptz not null default now()
 );
+
+-- Nâng cấp cho CRM (idempotent): 5 vai trò + cột team_id.
+-- Nếu bảng staff_users đã tồn tại từ bản cũ, hai câu lệnh dưới đây mở rộng ràng buộc role
+-- và thêm team_id — nhờ vậy lỗi 23514 "staff_users_role_check" không còn xảy ra.
+alter table public.staff_users drop constraint if exists staff_users_role_check;
+alter table public.staff_users
+  add constraint staff_users_role_check
+  check (role in ('admin', 'specialist', 'ae', 'sr', 'lr'));
+alter table public.staff_users add column if not exists team_id bigint;
 
 create table if not exists public.certificates (
   id bigint generated always as identity primary key,

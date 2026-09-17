@@ -62,14 +62,21 @@ export default function CrmLeadsPage() {
   });
 
   async function load() {
-    const [a, b] = await Promise.all([
-      fetch("/api/crm/leads").then((r) => r.json()),
+    const [ra, b] = await Promise.all([
+      fetch("/api/crm/leads"),
       fetch("/api/auth/me").then((r) => r.json()),
     ]);
+    const a = await ra.json();
+    if (!ra.ok) {
+      setErr(a.error || "Không tải được danh sách lead.");
+      return;
+    }
+    setErr("");
     setItems(a.items || []);
     setMe(b.user || null);
-    if (b.user?.role === "admin") {
-      const u = await fetch("/api/users").then((r) => r.json());
+    // AE là người phân công lead nên cũng cần danh sách thành viên trong team.
+    if (b.user?.role === "admin" || b.user?.role === "ae") {
+      const u = await fetch("/api/crm/members").then((r) => r.json());
       setUsers(u.items || []);
     }
   }

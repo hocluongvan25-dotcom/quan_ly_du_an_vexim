@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbFailure } from "@/lib/api-error";
 import { getSession } from "@/lib/auth";
 import { crmCreateLead, crmListLeads } from "@/lib/db";
 import { can, scopeFilter, hasCrmAccess } from "@/lib/permissions";
@@ -27,7 +28,11 @@ export async function GET() {
       { status: 403 }
     );
   }
-  return NextResponse.json({ items: await crmListLeads(scopeFilter(user)) });
+  try {
+    return NextResponse.json({ items: await crmListLeads(scopeFilter(user)) });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }
 
 export async function POST(req: Request) {
@@ -52,31 +57,35 @@ export async function POST(req: Request) {
   }
   const canAssign = can(user.role, "crm.assign_lead");
   const requestedOwner = body.owner_id ? Number(body.owner_id) : null;
-  const id = await crmCreateLead({
-    company_name: company,
-    contact_name: String(body.contact_name || ""),
-    contact_title: String(body.contact_title || ""),
-    email: String(body.email || ""),
-    phone: String(body.phone || ""),
-    website: String(body.website || ""),
-    address: String(body.address || ""),
-    country: String(body.country || "Việt Nam"),
-    industry: String(body.industry || ""),
-    employee_size: String(body.employee_size || ""),
-    annual_revenue: String(body.annual_revenue || ""),
-    main_products: String(body.main_products || ""),
-    target_market: String(body.target_market || ""),
-    current_standards: String(body.current_standards || ""),
-    pain_points: String(body.pain_points || ""),
-    notes: String(body.notes || ""),
-    source: (SOURCES.includes(body.source) ? body.source : "other") as LeadSource,
-    source_detail: String(body.source_detail || ""),
-    status: (STATUSES.includes(body.status) ? body.status : "new") as LeadStatus,
-    quality_score: Number(body.quality_score || 0),
-    // SR/LR tạo lead thì tự mình là owner tạm thời; AE/Admin có thể phân công ngay.
-    owner_id: canAssign && requestedOwner ? requestedOwner : user.id,
-    team_id: user.team_id,
-    created_by: user.id,
-  });
-  return NextResponse.json({ id });
+  try {
+    const id = await crmCreateLead({
+      company_name: company,
+      contact_name: String(body.contact_name || ""),
+      contact_title: String(body.contact_title || ""),
+      email: String(body.email || ""),
+      phone: String(body.phone || ""),
+      website: String(body.website || ""),
+      address: String(body.address || ""),
+      country: String(body.country || "Việt Nam"),
+      industry: String(body.industry || ""),
+      employee_size: String(body.employee_size || ""),
+      annual_revenue: String(body.annual_revenue || ""),
+      main_products: String(body.main_products || ""),
+      target_market: String(body.target_market || ""),
+      current_standards: String(body.current_standards || ""),
+      pain_points: String(body.pain_points || ""),
+      notes: String(body.notes || ""),
+      source: (SOURCES.includes(body.source) ? body.source : "other") as LeadSource,
+      source_detail: String(body.source_detail || ""),
+      status: (STATUSES.includes(body.status) ? body.status : "new") as LeadStatus,
+      quality_score: Number(body.quality_score || 0),
+      // SR/LR tạo lead thì tự mình là owner tạm thời; AE/Admin có thể phân công ngay.
+      owner_id: canAssign && requestedOwner ? requestedOwner : user.id,
+      team_id: user.team_id,
+      created_by: user.id,
+    });
+    return NextResponse.json({ id });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }

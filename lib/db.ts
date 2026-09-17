@@ -31,6 +31,12 @@ export async function setUserTeam(userId: number, teamId: number | null) {
     : sqlite.updateUserTeam(userId, teamId);
 }
 
+export async function setUserRole(userId: number, role: Role) {
+  return isSupabaseEnabled()
+    ? cloud.updateUserRole(userId, role)
+    : sqlite.updateUserRole(userId, role);
+}
+
 export async function listCertificates() {
   return isSupabaseEnabled() ? cloud.listCertificates() : sqlite.listCertificates();
 }
@@ -161,6 +167,14 @@ export async function crmCreateTeam(input: { name: string; ae_id: number | null 
   return isSupabaseEnabled() ? cloudCrm.createTeam(input) : sqliteCrm.createTeam(input);
 }
 
+/** Gán AE phụ trách (Pipeline Owner) cho team — trước đây hàm này có sẵn nhưng không ai gọi. */
+export async function crmSetTeamLeader(teamId: number, aeId: number | null) {
+  await ensureCrm();
+  return isSupabaseEnabled()
+    ? cloudCrm.setTeamLeader(teamId, aeId)
+    : sqliteCrm.setTeamLeader(teamId, aeId);
+}
+
 /* ---- Leads ---- */
 
 export async function crmListLeads(f: CrmScopeFilter): Promise<CrmLead[]> {
@@ -245,11 +259,22 @@ export async function crmSetNextAction(
   return isSupabaseEnabled() ? cloudCrm.setNextAction(id, input) : sqliteCrm.setNextAction(id, input);
 }
 
-export async function crmLinkCertificate(opportunityId: number, certificateId: number) {
+export async function crmLinkCertificate(
+  opportunityId: number,
+  certificateId: number,
+  actorId: number
+) {
   await ensureCrm();
   return isSupabaseEnabled()
-    ? cloudCrm.linkCertificate(opportunityId, certificateId)
-    : sqliteCrm.linkCertificate(opportunityId, certificateId);
+    ? cloudCrm.linkCertificate(opportunityId, certificateId, actorId)
+    : sqliteCrm.linkCertificate(opportunityId, certificateId, actorId);
+}
+
+export async function crmClearNextAction(id: number, actorId: number) {
+  await ensureCrm();
+  return isSupabaseEnabled()
+    ? cloudCrm.clearNextAction(id, actorId)
+    : sqliteCrm.clearNextAction(id, actorId);
 }
 
 export async function crmDeleteOpportunity(id: number) {
@@ -284,6 +309,11 @@ export async function crmTimeline(opportunityId: number) {
   return isSupabaseEnabled()
     ? cloudCrm.listOpportunityTimeline(opportunityId)
     : sqliteCrm.listOpportunityTimeline(opportunityId);
+}
+
+export async function crmGetActivity(id: number) {
+  await ensureCrm();
+  return isSupabaseEnabled() ? cloudCrm.getActivity(id) : sqliteCrm.getActivity(id);
 }
 
 export async function crmCompleteActivity(id: number, actorId: number) {

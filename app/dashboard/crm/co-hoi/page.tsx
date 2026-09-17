@@ -35,14 +35,20 @@ export default function CrmPipelinePage() {
   });
 
   async function load() {
-    const [o, m] = await Promise.all([
-      fetch("/api/crm/opportunities").then((r) => r.json()),
+    const [ro, m] = await Promise.all([
+      fetch("/api/crm/opportunities"),
       fetch("/api/auth/me").then((r) => r.json()),
     ]);
+    const o = await ro.json();
+    if (!ro.ok) {
+      setErr(o.error || "Không tải được pipeline.");
+      return;
+    }
+    setErr("");
     setItems(o.items || []);
     setMe(m.user || null);
     if (["admin", "ae"].includes(m.user?.role)) {
-      const u = await fetch("/api/users").then((r) => r.json());
+      const u = await fetch("/api/crm/members").then((r) => r.json());
       setUsers((u.items || []).filter((x: User) => ["ae", "sr", "lr"].includes(x.role)));
     }
   }
@@ -153,6 +159,8 @@ export default function CrmPipelinePage() {
           ))}
         </div>
       </div>
+
+      {err && <p className="rounded-xl bg-rose-50 px-4 py-2 text-sm text-rose-700">{err}</p>}
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-[240px] flex-1">

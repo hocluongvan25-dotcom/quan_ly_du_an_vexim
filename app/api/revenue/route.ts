@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbFailure } from "@/lib/api-error";
 import { getSession } from "@/lib/auth";
 import { revenueStats } from "@/lib/db";
 
@@ -10,5 +11,9 @@ export async function GET() {
   if (user.role !== "admin") {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
-  return NextResponse.json(await revenueStats());
+  try {
+    return NextResponse.json(await revenueStats());
+  } catch (e) {
+    return dbFailure(e);
+  }
 }

@@ -22,7 +22,7 @@ import {
   type Role,
   type Standard,
 } from "./types";
-import { computeCrmStats, computePerformance, hydrateOpp, type OppRow } from "./crm-core";
+import { buildFollowUps, computeCrmStats, computePerformance, hydrateOpp, type OppRow } from "./crm-core";
 import type { CrmScopeFilter } from "./permissions";
 import { db } from "./db-sqlite";
 
@@ -553,7 +553,7 @@ export function setNextAction(
   return getOpportunity(id)!;
 }
 
-export function linkCertificate(opportunityId: number, certificateId: number) {
+export function linkCertificate(opportunityId: number, certificateId: number, actorId: number) {
   const opp = getOpportunity(opportunityId);
   if (!opp) throw new Error("NOT_FOUND");
   db()
@@ -577,7 +577,7 @@ export function linkCertificate(opportunityId: number, certificateId: number) {
         opp.lead_id,
         opportunityId,
         `Gắn hồ sơ ${cert.certificate_no} (${cert.company_name}) vào cơ hội.`,
-        opp.created_by
+        actorId
       );
   }
   return getOpportunity(opportunityId)!;
@@ -739,10 +739,13 @@ export function completeActivity(id: number, actorId: number) {
   return getActivity(id)!;
 }
 
-/** Danh sách follow-up: các next action đến hạn / quá hạn của opportunity đang mở. */
-export function listFollowUps(f: CrmScopeFilter): OppRow[] {
+/**
+ * Checklist follow-up: next action của cơ hội đang mở + follow-up hẹn hạn chưa xong.
+ * Trả về hàng đã chuẩn hoá (`kind` + `id`) để UI gọi đúng API khi bấm "Xong".
+ */
+export function listFollowUps(f: CrmScopeFilter) {
   const scope = scopeSql(f, "o.owner_id", "o.created_by", "o.team_id");
-  return db()
+  const opps = db()
     .prepare(
       `${OPP_SELECT}
        WHERE ${scope.sql}
@@ -752,6 +755,34 @@ export function listFollowUps(f: CrmScopeFilter): OppRow[] {
     )
     .all(...scope.args)
     .map((r) => hydrateOpp(r as CrmOpportunity)) as OppRow[];
+
+  const pending = listActivities(f, 500).filter((a) => a.is_follow_up && !a.completed_at);
+  return buildFollowUps(opps, pending);
+}
+
+/**
+ * Đóng next action của cơ hội ("Xong" trên checklist): xoá việc cũ, ghi log và
+ * làm mới đồng hồ stale — nếu không, cơ hội vẫn mãi nằm trong checklist.
+ */
+export function clearNextAction(id: number, actorId: number) {
+  const current = getOpportunity(id);
+  if (!current) throw new Error("NOT_FOUND");
+  const action = String(current.next_action || "").trim();
+  db()
+    .prepare(
+      `UPDATE crm_opportunities SET
+        next_action = '', next_action_due = NULL, next_action_owner_id = NULL,
+        last_activity_at = datetime('now'), updated_at = datetime('now')
+       WHERE id = ?`
+    )
+    .run(id);
+  db()
+    .prepare(
+      `INSERT INTO crm_activities (lead_id, opportunity_id, type, subject, content, performed_at, created_by, is_follow_up)
+       VALUES (?, ?, 'task', 'Hoàn thành next action', ?, datetime('now'), ?, 0)`
+    )
+    .run(current.lead_id, id, action ? `Đã xong: ${action}` : "Đã xong next action.", actorId);
+  return getOpportunity(id)!;
 }
 
 /* ------------------------------------------------------------------ *
@@ -835,6 +866,8 @@ export function crmPerformance(f: CrmScopeFilter) {
  * ------------------------------------------------------------------ */
 
 export function seedCrm(handle?: DatabaseSync) {
+  // Xem VEXIM_DISABLE_DEMO_SEED trong .env.example
+  if (process.env.VEXIM_DISABLE_DEMO_SEED === "1") return;
   const conn = handle ?? db();
   const count = conn.prepare("SELECT COUNT(*) AS c FROM crm_teams").get() as { c: number };
   if (count.c > 0) return;

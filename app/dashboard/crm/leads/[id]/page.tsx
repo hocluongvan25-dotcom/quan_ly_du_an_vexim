@@ -64,7 +64,7 @@ export default function LeadDetailPage() {
     setMe(m.user || null);
     setActivities((a.items || []).filter((x: CrmActivity) => x.lead_id === id));
     if (m.user?.role === "admin" || m.user?.role === "ae") {
-      const u = await fetch("/api/users").then((r) => r.json());
+      const u = await fetch("/api/crm/members").then((r) => r.json());
       setUsers((u.items || []).filter((x: User) => ["ae", "sr", "lr"].includes(x.role)));
     }
   }

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbFailure } from "@/lib/api-error";
 import { getSession } from "@/lib/auth";
 import { crmCreateOpportunity, crmListOpportunities } from "@/lib/db";
 import { can, scopeFilter, hasCrmAccess } from "@/lib/permissions";
@@ -16,7 +17,11 @@ export async function GET() {
       { status: 403 }
     );
   }
-  return NextResponse.json({ items: await crmListOpportunities(scopeFilter(user)) });
+  try {
+    return NextResponse.json({ items: await crmListOpportunities(scopeFilter(user)) });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }
 
 /**
@@ -44,7 +49,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Thiếu tên doanh nghiệp." }, { status: 400 });
   }
   const ownerId = body.owner_id ? Number(body.owner_id) : user.id;
-  const opp = await crmCreateOpportunity({
+  try {
+    const opp = await crmCreateOpportunity({
     lead_id: body.lead_id ? Number(body.lead_id) : null,
     company_name: company,
     title: String(body.title || ""),
@@ -59,8 +65,11 @@ export async function POST(req: Request) {
       : null,
     next_action: String(body.next_action || ""),
     next_action_due: body.next_action_due ? String(body.next_action_due).slice(0, 10) : null,
-    next_action_owner_id: body.next_action_owner_id ? Number(body.next_action_owner_id) : ownerId,
-    created_by: user.id,
-  });
-  return NextResponse.json({ item: opp });
+      next_action_owner_id: body.next_action_owner_id ? Number(body.next_action_owner_id) : ownerId,
+      created_by: user.id,
+    });
+    return NextResponse.json({ item: opp });
+  } catch (e) {
+    return dbFailure(e);
+  }
 }

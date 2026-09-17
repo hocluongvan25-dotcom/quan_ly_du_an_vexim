@@ -157,14 +157,16 @@ export function inListScope(
 /**
  * Quyền MỞ một bản ghi cụ thể. Rộng hơn danh sách một chút:
  * SR/LR được research chéo lead trong cùng team (đúng trách nhiệm của họ),
- * nhưng không được nhìn pipeline của cả team như AE.
+ * nhưng KHÔNG được nhìn pipeline cơ hội của cả team — vì vậy phải truyền `kind`.
  */
 export function canSeeRecord(
   user: SessionUser | null,
-  record: { owner_id: number | null; team_id: number | null; created_by?: number }
+  record: { owner_id: number | null; team_id: number | null; created_by?: number },
+  kind: "lead" | "opportunity" = "lead"
 ) {
   if (!user) return false;
   if (inListScope(user, record)) return true;
+  if (kind === "opportunity") return false;
   return (
     ["sr", "lr"].includes(user.role) &&
     record.team_id != null &&

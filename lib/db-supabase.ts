@@ -109,8 +109,13 @@ const SAMPLE_CERTS: Array<{
 
 let seeded = false;
 
+/** Đặt VEXIM_DISABLE_DEMO_SEED=1 để không tự tạo tài khoản/dữ liệu demo (nên bật ở production). */
+function demoSeedDisabled() {
+  return process.env.VEXIM_DISABLE_DEMO_SEED === "1";
+}
+
 export async function ensureSeed() {
-  if (seeded) return;
+  if (seeded || demoSeedDisabled()) return;
   const sb = supabaseAdmin();
   const { count, error } = await sb.from("staff_users").select("id", { count: "exact", head: true });
   if (error) throw error;
@@ -206,6 +211,11 @@ export async function createUser(input: {
     .single();
   if (error) throw error;
   return Number(data.id);
+}
+
+export async function updateUserRole(userId: number, role: Role) {
+  const { error } = await supabaseAdmin().from("staff_users").update({ role }).eq("id", userId);
+  if (error) throw error;
 }
 
 export async function updateUserTeam(userId: number, teamId: number | null) {

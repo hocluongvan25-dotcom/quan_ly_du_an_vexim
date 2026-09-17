@@ -69,7 +69,7 @@ export default function OpportunityDetailPage() {
     setMe(m.user || null);
     if (["admin", "ae"].includes(m.user?.role)) {
       const [u, c] = await Promise.all([
-        fetch("/api/users").then((r) => r.json()),
+        fetch("/api/crm/members").then((r) => r.json()),
         fetch("/api/certificates").then((r) => r.json()),
       ]);
       setUsers((u.items || []).filter((x: User) => ["ae", "sr", "lr"].includes(x.role)));

@@ -2,15 +2,18 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { hasCrmAccess } from "@/lib/permissions";
+import { dbStatus } from "@/lib/db-health";
+import { DbSetupNotice } from "@/components/DbSetupNotice";
 import { ROLE_LABEL } from "@/lib/types";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 /**
  * Cổng vào CRM. Theo spec chỉ Founder/Admin, AE, SR, LR có vai trò trong CRM;
  * bộ phận chuyên môn hồ sơ không có, nên không được vào (kể cả gõ thẳng URL).
  */
-export default function CrmLayout({ children }: { children: React.ReactNode }) {
+export default async function CrmLayout({ children }: { children: React.ReactNode }) {
   const user = getSession();
   if (!user) redirect("/login");
   if (!hasCrmAccess(user)) {
@@ -41,5 +44,13 @@ export default function CrmLayout({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
+
+  // CRM cần bảng riêng (crm_teams, crm_leads...). Thiếu migration thì chặn tại đây
+  // và chỉ đúng file SQL cần chạy, thay vì để từng trang CRM vỡ.
+  const db = await dbStatus();
+  if (!db.ready && db.problem) {
+    return <DbSetupNotice problem={db.problem} />;
+  }
+
   return <>{children}</>;
 }

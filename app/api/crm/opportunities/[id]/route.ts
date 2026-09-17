@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import {
   crmAssignOpportunity,
   crmChangeStage,
+  crmClearNextAction,
   crmDeleteOpportunity,
   crmGetOpportunity,
   crmLinkCertificate,
@@ -10,6 +11,7 @@ import {
   crmTimeline,
   crmUpdateOpportunity,
 } from "@/lib/db";
+import { dbFailure } from "@/lib/api-error";
 import { can, canSeeRecord, hasCrmAccess } from "@/lib/permissions";
 import { CRM_STAGES, type OpportunityStage, type Standard } from "@/lib/types";
 
@@ -38,13 +40,17 @@ export async function GET(_: Request, ctx: Ctx) {
     );
   }
   const id = Number(ctx.params.id);
-  const item = await crmGetOpportunity(id);
-  if (!item) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  if (!canSeeRecord(user, item)) {
-    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  try {
+    const item = await crmGetOpportunity(id);
+    if (!item) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+    if (!canSeeRecord(user, item, "opportunity")) {
+      return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+    }
+    const timeline = await crmTimeline(id);
+    return NextResponse.json({ item, ...timeline });
+  } catch (e) {
+    return dbFailure(e);
   }
-  const timeline = await crmTimeline(id);
-  return NextResponse.json({ item, ...timeline });
 }
 
 export async function PUT(req: Request, ctx: Ctx) {
@@ -57,15 +63,32 @@ export async function PUT(req: Request, ctx: Ctx) {
     );
   }
   const id = Number(ctx.params.id);
-  const item = await crmGetOpportunity(id);
+  const body = await req.json().catch(() => ({}));
+  let item;
+  try {
+    item = await crmGetOpportunity(id);
+  } catch (e) {
+    return dbFailure(e);
+  }
   if (!item) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-  if (!canSeeRecord(user, item)) {
+  if (!canSeeRecord(user, item, "opportunity")) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }
-  const body = await req.json().catch(() => ({}));
   const action = String(body.action || "");
+  // Người được quyền đặt việc tiếp theo: AE/Founder hoặc chính owner của cơ hội.
+  const canDrive = can(user.role, "crm.edit_opportunity") || item.owner_id === user.id;
 
   try {
+    if (action === "complete_next_action") {
+      if (!canDrive) {
+        return NextResponse.json(
+          { error: "Chỉ owner / AE / Founder được đóng next action." },
+          { status: 403 }
+        );
+      }
+      return NextResponse.json({ item: await crmClearNextAction(id, user.id) });
+    }
+
     if (action === "stage") {
       if (!can(user.role, "crm.change_stage")) {
         return NextResponse.json(
@@ -85,6 +108,12 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
 
     if (action === "next_action") {
+      if (!canDrive) {
+        return NextResponse.json(
+          { error: "Chỉ owner / AE / Founder được đặt next action." },
+          { status: 403 }
+        );
+      }
       const updated = await crmSetNextAction(id, {
         next_action: String(body.next_action || ""),
         next_action_due: body.next_action_due ? String(body.next_action_due).slice(0, 10) : null,
@@ -108,11 +137,18 @@ export async function PUT(req: Request, ctx: Ctx) {
     }
 
     if (action === "link_certificate") {
+      if (!canDrive) {
+        return NextResponse.json(
+          { error: "Chỉ owner / AE / Founder được gắn hồ sơ vào cơ hội." },
+          { status: 403 }
+        );
+      }
       const certificateId = Number(body.certificate_id);
       if (!certificateId) {
         return NextResponse.json({ error: "Thiếu hồ sơ." }, { status: 400 });
       }
-      return NextResponse.json({ item: await crmLinkCertificate(id, certificateId) });
+      // Truyền actorId để nhật ký ghi đúng người thao tác (trước đây ghi nhầm người tạo cơ hội).
+      return NextResponse.json({ item: await crmLinkCertificate(id, certificateId, user.id) });
     }
 
     const updated = await crmUpdateOpportunity(id, {
@@ -148,8 +184,8 @@ export async function PUT(req: Request, ctx: Ctx) {
     });
     return NextResponse.json({ item: updated });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "ERROR";
-    return NextResponse.json({ error: ERROR_MAP[msg] || msg }, { status: 400 });
+    if (!(e instanceof Error)) return dbFailure(e);
+    return NextResponse.json({ error: ERROR_MAP[e.message] || e.message }, { status: 400 });
   }
 }
 
@@ -169,7 +205,7 @@ export async function DELETE(_: Request, ctx: Ctx) {
     await crmDeleteOpportunity(Number(ctx.params.id));
     return NextResponse.json({ ok: true });
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "ERROR";
-    return NextResponse.json({ error: ERROR_MAP[msg] || msg }, { status: 400 });
+    if (!(e instanceof Error)) return dbFailure(e);
+    return NextResponse.json({ error: ERROR_MAP[e.message] || e.message }, { status: 400 });
   }
 }
