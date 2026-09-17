@@ -3,6 +3,16 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   AlertTriangle,
   ArrowRight,
   Briefcase,
@@ -41,8 +51,46 @@ type DashboardData = {
   avgStageDays: Array<{ pipeline_key: string; pipeline_name: string; stage_key: string; stage_name: string; avg_days: number; samples: number }>;
   ownerStats: Array<{ owner_id: number | null; owner_name: string; open: number; openValue: number; won: number; lost: number; conversion: number }>;
   dropoff: Array<{ pipeline_key: string; pipeline_name: string; from_stage: string; count: number }>;
+  trend: Array<{ month: string; created: number; won: number; wonValue: number; lost: number }>;
   me: { id: number; role: string };
 };
+
+type PeriodRow = {
+  key: string;
+  label: string;
+  created: number;
+  won: number;
+  wonValue: number;
+  lost: number;
+  conversion: number;
+};
+
+/** Gộp trend tháng thành quý / năm */
+function groupTrend(
+  trend: DashboardData["trend"],
+  mode: "month" | "quarter" | "year"
+): PeriodRow[] {
+  const map = new Map<string, PeriodRow>();
+  for (const t of trend || []) {
+    const [y, m] = t.month.split("-");
+    const mi = Number(m);
+    const key = mode === "month" ? t.month : mode === "quarter" ? `${y}-Q${Math.floor((mi - 1) / 3) + 1}` : y;
+    const label =
+      mode === "month" ? `${m}/${y}` : mode === "quarter" ? `Q${Math.floor((mi - 1) / 3) + 1}/${y}` : y;
+    const cur = map.get(key) || { key, label, created: 0, won: 0, wonValue: 0, lost: 0, conversion: 0 };
+    cur.created += t.created;
+    cur.won += t.won;
+    cur.wonValue += t.wonValue;
+    cur.lost += t.lost;
+    map.set(key, cur);
+  }
+  return Array.from(map.values())
+    .sort((a, b) => a.key.localeCompare(b.key))
+    .map((r) => ({
+      ...r,
+      conversion: r.won + r.lost > 0 ? Math.round((r.won / (r.won + r.lost)) * 100) : 0,
+    }));
+}
 
 const PIPELINE_TABS = [
   { key: "", label: "Tất cả dịch vụ" },
@@ -55,6 +103,7 @@ const PIPELINE_TABS = [
 export default function CrmDashboardPage() {
   const [pipeline, setPipeline] = useState("");
   const [pipeTab, setPipeTab] = useState("");
+  const [periodTab, setPeriodTab] = useState<"month" | "quarter" | "year">("month");
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [warning, setWarning] = useState<string | null>(null);
@@ -274,6 +323,9 @@ export default function CrmDashboardPage() {
             })()}
           </section>
 
+          {/* Hàng 2.5: Tổng kết theo kỳ */}
+          <PeriodSummary trend={data.trend} tab={periodTab} onTab={setPeriodTab} />
+
           {/* Hàng 3: Cảnh báo + Việc của tôi */}
           <div className="grid gap-4 lg:grid-cols-5">
             <section className="rounded-3xl bg-white p-5 shadow-card lg:col-span-3">
@@ -472,6 +524,148 @@ export default function CrmDashboardPage() {
         </>
       ) : null}
     </div>
+  );
+}
+
+function PeriodSummary({
+  trend,
+  tab,
+  onTab,
+}: {
+  trend: DashboardData["trend"];
+  tab: "month" | "quarter" | "year";
+  onTab: (t: "month" | "quarter" | "year") => void;
+}) {
+  const rows = groupTrend(trend, tab);
+  const chartData = rows.map((r) => ({
+    label: r.label,
+    "Giá trị chốt (tr)": Math.round((r.wonValue / 1000000) * 10) / 10,
+    "Mới": r.created,
+    "Chốt": r.won,
+    "Mất": r.lost,
+  }));
+  const totals = rows.reduce(
+    (t, r) => ({ created: t.created + r.created, won: t.won + r.won, lost: t.lost + r.lost, wonValue: t.wonValue + r.wonValue }),
+    { created: 0, won: 0, lost: 0, wonValue: 0 }
+  );
+  const totalConv = totals.won + totals.lost > 0 ? Math.round((totals.won / (totals.won + totals.lost)) * 100) : 0;
+  const hasData = totals.created + totals.won + totals.lost > 0;
+
+  return (
+    <section className="rounded-3xl bg-white p-5 shadow-card">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h2 className="font-display text-lg font-bold">📊 Tổng kết theo kỳ</h2>
+          <p className="mt-0.5 text-xs text-navy-900/55">
+            Cơ hội mới · chốt · mất · tỷ lệ chốt từng {tab === "month" ? "tháng" : tab === "quarter" ? "quý" : "năm"} (12 tháng gần nhất)
+          </p>
+        </div>
+        <div className="flex gap-1 rounded-full border bg-slate-50 p-1">
+          {(
+            [
+              ["month", "Tháng"],
+              ["quarter", "Quý"],
+              ["year", "Năm"],
+            ] as const
+          ).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => onTab(k)}
+              className={`rounded-full px-4 py-1.5 text-xs font-bold transition ${
+                tab === k ? "bg-navy-900 text-white" : "text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {!hasData ? (
+        <div className="rounded-2xl bg-slate-50 p-8 text-center text-sm text-slate-400">
+          Chưa có dữ liệu trong 12 tháng gần nhất.
+        </div>
+      ) : (
+        <>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-2xl border border-navy-900/10 p-3">
+              <div className="mb-1 px-1 text-xs font-bold text-navy-900/60">Giá trị chốt được (triệu VND)</div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                  <XAxis dataKey="label" fontSize={11} />
+                  <YAxis fontSize={11} />
+                  <Tooltip formatter={(v: any) => [`${v} tr`, ""]} />
+                  <Bar dataKey="Giá trị chốt (tr)" fill="#E8B22A" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            <div className="rounded-2xl border border-navy-900/10 p-3">
+              <div className="mb-1 px-1 text-xs font-bold text-navy-900/60">Số lượng cơ hội</div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={chartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
+                  <XAxis dataKey="label" fontSize={11} />
+                  <YAxis fontSize={11} allowDecimals={false} />
+                  <Tooltip />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="Mới" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="Chốt" fill="#16a34a" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="Mất" fill="#dc2626" radius={[6, 6, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead className="text-[11px] uppercase tracking-wider text-navy-900/45">
+                <tr>
+                  <th className="pb-2">Kỳ</th>
+                  <th className="pb-2 text-right">Mới</th>
+                  <th className="pb-2 text-right">Chốt</th>
+                  <th className="pb-2 text-right">Mất</th>
+                  <th className="pb-2 text-right">Tỷ lệ chốt</th>
+                  <th className="pb-2 text-right">Giá trị chốt</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((r) => (
+                  <tr key={r.key} className="border-t border-navy-900/5">
+                    <td className="py-2 font-bold">{r.label}</td>
+                    <td className="py-2 text-right">{r.created}</td>
+                    <td className="py-2 text-right font-bold text-emerald-600">{r.won}</td>
+                    <td className="py-2 text-right text-rose-600">{r.lost}</td>
+                    <td className="py-2 text-right">
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                          r.conversion >= 50
+                            ? "bg-emerald-100 text-emerald-700"
+                            : r.conversion > 0
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {r.won + r.lost > 0 ? `${r.conversion}%` : "—"}
+                      </span>
+                    </td>
+                    <td className="py-2 text-right font-bold text-teal-700">{formatCrmValue(r.wonValue)}</td>
+                  </tr>
+                ))}
+                <tr className="border-t-2 border-navy-900/15 bg-[#fffaf0] font-extrabold">
+                  <td className="py-2">Tổng</td>
+                  <td className="py-2 text-right">{totals.created}</td>
+                  <td className="py-2 text-right text-emerald-600">{totals.won}</td>
+                  <td className="py-2 text-right text-rose-600">{totals.lost}</td>
+                  <td className="py-2 text-right">{totalConv}%</td>
+                  <td className="py-2 text-right text-teal-700">{formatCrmValue(totals.wonValue)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 

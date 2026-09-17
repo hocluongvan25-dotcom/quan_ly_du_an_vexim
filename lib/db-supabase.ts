@@ -1478,6 +1478,7 @@ export type CrmDashboardCloud = {
   dropoff: Array<{ pipeline_key: string; pipeline_name: string; from_stage: string; count: number }>;
   recentWon: CrmOpportunityEnriched[];
   recentLost: CrmOpportunityEnriched[];
+  trend: Array<{ month: string; created: number; won: number; wonValue: number; lost: number }>;
 };
 
 export async function crmDashboard(filter: { pipeline_key?: string; scope_user_id?: number | null } = {}): Promise<CrmDashboardCloud> {
@@ -1523,9 +1524,13 @@ export async function crmDashboard(filter: { pipeline_key?: string; scope_user_i
     };
   });
 
-  // History toàn cục để tính avg + dropoff
-  let histQuery = sb.from("crm_stage_history").select("duration_days, from_stage_id, to_stage_id");
-  const { data: histRows, error: histErr } = await histQuery.limit(5000);
+  // History toàn cục để tính avg + dropoff + trend
+  const { data: histRows, error: histErr } = await sb
+    .from("crm_stage_history")
+    .select("opportunity_id, duration_days, from_stage_id, to_stage_id, created_at")
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true })
+    .limit(5000);
   if (histErr) assertNoSupabaseError(histErr, "crm_stage_history");
   const { stageById, pipeById } = await crmStageMaps();
   const agg = new Map<string, { pipeline_key: string; pipeline_name: string; stage_key: string; stage_name: string; total: number; n: number }>();
@@ -1559,6 +1564,45 @@ export async function crmDashboard(filter: { pipeline_key?: string; scope_user_i
   }));
   const dropoff = Array.from(drop.values()).sort((a, b) => b.count - a.count);
 
+  // Xu hướng 12 tháng gần nhất — thời điểm chốt/mất lấy từ lịch sử chuyển giai đoạn
+  const trend: CrmDashboardCloud["trend"] = [];
+  const nowD = new Date();
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(Date.UTC(nowD.getUTCFullYear(), nowD.getUTCMonth() - i, 1));
+    trend.push({
+      month: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
+      created: 0, won: 0, wonValue: 0, lost: 0,
+    });
+  }
+  const trendByMonth = new Map(trend.map((t) => [t.month, t]));
+  const trendOppById = new Map(items.map((o) => [o.id, o]));
+  for (const o of items) {
+    const b = trendByMonth.get(String(o.created_at).slice(0, 7));
+    if (b) b.created += 1;
+  }
+  const lastTerminal = new Map<number, { won: boolean; month: string }>();
+  for (const r of histRows || []) {
+    const o = trendOppById.get(Number((r as any).opportunity_id));
+    if (!o) continue;
+    const st = stageById.get(Number((r as any).to_stage_id));
+    if (!st) continue;
+    if (st.is_won || st.is_lost) {
+      lastTerminal.set(o.id, { won: st.is_won, month: String((r as any).created_at).slice(0, 7) });
+    } else {
+      lastTerminal.delete(o.id);
+    }
+  }
+  for (const [oppId, t] of Array.from(lastTerminal.entries())) {
+    const b = trendByMonth.get(t.month);
+    if (!b) continue;
+    if (t.won) {
+      b.won += 1;
+      b.wonValue += trendOppById.get(oppId)?.estimated_value || 0;
+    } else {
+      b.lost += 1;
+    }
+  }
+
   const ownerMap = new Map<number | null, { owner_id: number | null; owner_name: string; open: number; openValue: number; won: number; lost: number }>();
   for (const o of items) {
     const k = o.owner_id ?? null;
@@ -1591,6 +1635,7 @@ export async function crmDashboard(filter: { pipeline_key?: string; scope_user_i
     dropoff,
     recentWon: items.filter((o) => o.is_won).slice(0, 5),
     recentLost: items.filter((o) => o.is_lost).slice(0, 5),
+    trend,
   };
 }
 
