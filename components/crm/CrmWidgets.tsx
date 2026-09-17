@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, ArrowRight, Clock, Phone, User, X } from "lucide-react";
+import { WinCelebration } from "./Celebration";
 import {
   LOST_REASONS,
   formatCrmValue,
@@ -200,6 +201,7 @@ export function MoveStageModal({
   const [lostReason, setLostReason] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [wonInfo, setWonInfo] = useState<{ company: string; value: string; owner: string } | null>(null);
 
   const target = stages.find((s) => s.id === targetId);
   const isForward = target ? target.sort_order > (stages[currentIdx]?.sort_order ?? 0) : false;
@@ -224,7 +226,15 @@ export function MoveStageModal({
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Chuyển giai đoạn thất bại");
       onMoved(d.opp);
-      onClose();
+      if (target.is_won) {
+        setWonInfo({
+          company: d.opp.company_name || opp.company_name,
+          value: formatCrmValue(d.opp.estimated_value || 0),
+          owner: d.opp.owner_name || "",
+        });
+      } else {
+        onClose();
+      }
     } catch (e: any) {
       setError(e.message);
     } finally {
@@ -233,6 +243,16 @@ export function MoveStageModal({
   }
 
   return (
+    <>
+      {wonInfo && target?.is_won && (
+        <WinCelebration
+          companyName={wonInfo.company}
+          valueLabel={wonInfo.value}
+          ownerName={wonInfo.owner}
+          detailHref={`/dashboard/crm/co-hoi/${opp.id}`}
+          onClose={onClose}
+        />
+      )}
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4" onClick={onClose}>
       <div
         className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-lift"
@@ -358,5 +378,6 @@ export function MoveStageModal({
         </div>
       </div>
     </div>
+    </>
   );
 }

@@ -392,11 +392,11 @@ export default function CrmDashboardPage() {
 
             <section className="rounded-3xl bg-navy-900 p-5 text-white shadow-card lg:col-span-2">
               <h2 className="font-display text-lg font-bold">📌 Việc của tôi</h2>
-              <p className="mt-0.5 text-xs text-white/55">Follow-up đến hạn & sắp đến hạn của bạn</p>
+              <p className="mt-0.5 text-xs text-white/55">Cùng xử lý từng việc một nhé 💪</p>
               <div className="mt-3 max-h-[420px] space-y-2 overflow-y-auto pr-1">
                 {data.myToday.length === 0 && (
                   <div className="rounded-2xl bg-white/10 px-4 py-3 text-sm text-white/70">
-                    Không có việc gấp. Hãy kiểm tra cơ hội thiếu next action.
+                    ✅ Thảnh thơi! Không có việc gấp hôm nay.
                   </div>
                 )}
                 {data.myToday.map((o) => (

@@ -71,6 +71,7 @@ export function NotificationBell() {
   const [scope, setScope] = useState("mine");
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("followups");
+  const [snoozing, setSnoozing] = useState<number | null>(null);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [hasPermission, setHasPermission] = useState(false);
   const seenLeadsRef = useRef<Set<number>>(new Set());
@@ -116,6 +117,23 @@ export function NotificationBell() {
     if (!("Notification" in window)) return;
     const perm = await Notification.requestPermission();
     setHasPermission(perm === "granted");
+  };
+
+  // Dời hẹn 1 chạm: +N ngày tính từ hôm nay
+  const snooze = async (e: React.MouseEvent, id: number, days: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSnoozing(id);
+    try {
+      const d = new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+      await fetch(`/api/crm/opportunities/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ next_action_date: d }),
+      });
+      await fetchAll();
+    } catch {}
+    setSnoozing(null);
   };
 
   const markLeadsSeen = () => {
@@ -269,7 +287,12 @@ export function NotificationBell() {
                 <>
                   {followups.length === 0 && (
                     <div className="px-4 py-10 text-center text-sm text-slate-400">
-                      ✅ Không có hẹn nào đến hạn hay trễ.
+                      ✅ Tuyệt vời! Không có hẹn nào cần lo hôm nay.
+                    </div>
+                  )}
+                  {followups.length > 0 && (
+                    <div className="border-b border-teal-100 bg-teal-50/70 px-4 py-2.5 text-xs font-bold text-teal-800">
+                      💪 Hôm nay bạn có {counts.followups} khách cần gọi — xử lý từng bạn một nhé!
                     </div>
                   )}
                   {followups.map((f) => (
@@ -295,6 +318,20 @@ export function NotificationBell() {
                           </span>
                           {scope === "all" && <span className="text-slate-400">· {f.owner_name}</span>}
                         </div>
+                        <div className="mt-2 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                          <span className="self-center text-[11px] text-slate-400">Dời hẹn:</span>
+                          {([1, 3] as const).map((n) => (
+                            <button
+                              key={n}
+                              onClick={(e) => snooze(e, f.id, n)}
+                              disabled={snoozing === f.id}
+                              onMouseDown={(e) => e.stopPropagation()}
+                              className="rounded-full border border-teal-200 bg-teal-50 px-2.5 py-1 text-[11px] font-bold text-teal-700 hover:bg-teal-100 disabled:opacity-40"
+                            >
+                              {snoozing === f.id ? "..." : `+${n} ngày`}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     </Link>
                   ))}
@@ -310,7 +347,12 @@ export function NotificationBell() {
                 <>
                   {alerts.length === 0 && (
                     <div className="px-4 py-10 text-center text-sm text-slate-400">
-                      ✅ Không có cơ hội nào cần cảnh báo.
+                      ✅ Mọi khách hàng đều đang được chăm tốt!
+                    </div>
+                  )}
+                  {alerts.length > 0 && (
+                    <div className="border-b border-amber-100 bg-amber-50/70 px-4 py-2.5 text-xs font-bold text-amber-800">
+                      💛 Có {counts.alerts} khách cần bạn quan tâm thêm chút nữa
                     </div>
                   )}
                   {alerts.map((a) => (
