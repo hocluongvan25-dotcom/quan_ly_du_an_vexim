@@ -11,8 +11,8 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 export default function LoginPage() {
   const router = useRouter();
   const { t } = useI18n();
-  const [email, setEmail] = useState("admin@veximglobal.com");
-  const [password, setPassword] = useState("Vexim@Admin2026");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -103,11 +103,6 @@ export default function LoginPage() {
           >
             {loading ? t("login.loggingIn") : t("login.loginButton")}
           </button>
-          <div className="mt-6 rounded-2xl bg-teal-50 p-4 text-xs leading-relaxed text-navy-900/70">
-            <div className="font-semibold text-navy-900">{t("login.demoAccounts")}</div>
-            <p className="mt-1">Admin: admin@veximglobal.com / Vexim@Admin2026</p>
-            <p>Specialist: chuyenmon@veximglobal.com / Vexim@CM2026</p>
-          </div>
         </form>
       </div>
     </div>
