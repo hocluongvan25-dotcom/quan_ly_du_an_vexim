@@ -21,7 +21,7 @@ import {
   calcInvoiceTotals,
   invoiceState,
   overdueDays,
-  SERVICE_CYCLES,
+  normalizeCycleMonths,
   type Invoice,
   type InvoicePayment,
   type ServiceContract,
@@ -1922,9 +1922,7 @@ export async function createServiceContract(
 ): Promise<number> {
   if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
   if (!input.started_at) throw new Error("START_DATE_REQUIRED");
-  const cycle = (SERVICE_CYCLES as readonly number[]).includes(Number(input.cycle_months))
-    ? Number(input.cycle_months)
-    : 6;
+  const cycle = normalizeCycleMonths(input.cycle_months, 6);
   const started = input.started_at.slice(0, 10);
   const { data, error } = await supabaseAdmin()
     .from("service_contracts")
@@ -1967,9 +1965,7 @@ export async function updateServiceContract(
   if (!cur) throw new Error("NOT_FOUND");
   const cycle =
     input.cycle_months !== undefined
-      ? (SERVICE_CYCLES as readonly number[]).includes(Number(input.cycle_months))
-        ? Number(input.cycle_months)
-        : cur.cycle_months
+      ? normalizeCycleMonths(input.cycle_months, cur.cycle_months)
       : cur.cycle_months;
   const started = (input.started_at !== undefined ? input.started_at : cur.started_at).slice(0, 10);
   const patch: Record<string, any> = {
@@ -2001,10 +1997,7 @@ export async function setServiceContractStatus(id: number, status: "active" | "t
 export async function renewServiceContract(id: number, cycleMonths?: number) {
   const cur = await getServiceContract(id);
   if (!cur) throw new Error("NOT_FOUND");
-  const cycle =
-    cycleMonths && (SERVICE_CYCLES as readonly number[]).includes(Number(cycleMonths))
-      ? Number(cycleMonths)
-      : cur.cycle_months;
+  const cycle = cycleMonths ? normalizeCycleMonths(cycleMonths, cur.cycle_months) : cur.cycle_months;
   const base = remainingDays(cur.ends_at) >= 0 ? cur.ends_at : todayUtcIso();
   const { error } = await supabaseAdmin()
     .from("service_contracts")

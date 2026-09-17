@@ -240,16 +240,25 @@ export default function ContractDetailPage() {
             <div className="text-sm font-extrabold text-navy-900">
               Gia hạn chu kỳ mới (bắt đầu từ ngày hết hạn cũ: {String(item.ends_at).slice(0, 10)})
             </div>
-            <div className="mt-2 flex gap-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={renewCycle}
+                onChange={(e) => setRenewCycle(Number(e.target.value))}
+                className="w-24 rounded-xl border border-navy-900/10 px-3 py-2 text-sm"
+              />
+              <span className="text-sm font-bold text-navy-900">tháng</span>
               {[3, 6, 12].map((m) => (
                 <button
                   key={m}
                   onClick={() => setRenewCycle(m)}
-                  className={`rounded-xl px-4 py-2 text-sm font-extrabold ${
+                  className={`rounded-lg px-3 py-1.5 text-xs font-extrabold ${
                     renewCycle === m ? "bg-navy-900 text-white" : "bg-white text-slate-500"
                   }`}
                 >
-                  {m} tháng
+                  {m}T
                 </button>
               ))}
               <button

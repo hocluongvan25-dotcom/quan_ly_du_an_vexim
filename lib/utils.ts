@@ -52,6 +52,11 @@ export function todayLocalIso(): string {
 }
 
 /** UTC date YYYY-MM-DD for server-side calculations */
+/** Chuẩn hóa tên công ty để khớp deal ↔ hồ sơ/hợp đồng */
+export function normCompany(s: string): string {
+  return (s || "").toLowerCase().trim().replace(/\s+/g, " ");
+}
+
 export function todayUtcIso(now = new Date()): string {
   const y = now.getUTCFullYear();
   const m = String(now.getUTCMonth() + 1).padStart(2, "0");

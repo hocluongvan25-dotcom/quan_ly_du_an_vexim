@@ -1,13 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Search } from "lucide-react";
 import { SERVICE_NAMES, type ServiceContract } from "@/lib/accounting";
 
-export default function ServiceContractsPage() {
+function ServiceContractsInner() {
+  const sp = useSearchParams();
   const [items, setItems] = useState<ServiceContract[]>([]);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(sp.get("q") || "");
   const [svc, setSvc] = useState("ALL");
   const [st, setSt] = useState("ALL");
 
@@ -137,5 +139,13 @@ export default function ServiceContractsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function ServiceContractsPage() {
+  return (
+    <Suspense>
+      <ServiceContractsInner />
+    </Suspense>
   );
 }

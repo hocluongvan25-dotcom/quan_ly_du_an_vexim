@@ -123,13 +123,21 @@ function NewContractForm() {
         </label>
         <div className="grid gap-4 md:grid-cols-3">
           <div>
-            <div className="text-xs font-bold">Chu kỳ</div>
-            <div className="mt-1 flex gap-2">
+            <div className="text-xs font-bold">Chu kỳ (tháng, 1–60)</div>
+            <input
+              type="number"
+              min={1}
+              max={60}
+              value={cycle}
+              onChange={(e) => setCycle(Number(e.target.value))}
+              className="mt-1 w-full rounded-xl border border-navy-900/10 px-3 py-2.5 text-sm font-normal"
+            />
+            <div className="mt-1.5 flex gap-1.5">
               {[3, 6, 12].map((m) => (
                 <button
                   key={m}
                   onClick={() => setCycle(m)}
-                  className={`flex-1 rounded-xl px-2 py-2.5 text-sm font-extrabold ${
+                  className={`flex-1 rounded-lg px-2 py-1 text-[11px] font-extrabold ${
                     cycle === m ? "bg-navy-900 text-white" : "bg-slate-100 text-slate-500"
                   }`}
                 >

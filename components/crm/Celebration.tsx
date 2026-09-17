@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import confetti from "canvas-confetti";
 import { PartyPopper, X } from "lucide-react";
@@ -80,6 +80,13 @@ function fireCelebration() {
   }, 1100);
 }
 
+export type AutoContractInfo = {
+  id: number;
+  contract_no: string;
+  started_at: string;
+  cycle_months: number;
+};
+
 export function WinCelebration({
   companyName,
   valueLabel,
@@ -88,6 +95,7 @@ export function WinCelebration({
   pipelineKey,
   contactEmail,
   estimatedValue,
+  autoContract,
   onClose,
 }: {
   companyName: string;
@@ -97,8 +105,34 @@ export function WinCelebration({
   pipelineKey: string;
   contactEmail?: string;
   estimatedValue?: number;
+  autoContract?: AutoContractInfo | null;
   onClose: () => void;
 }) {
+  const [confirmStart, setConfirmStart] = useState(autoContract?.started_at || "");
+  const [confirmCycle, setConfirmCycle] = useState(String(autoContract?.cycle_months || 6));
+  const [confirming, setConfirming] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [confirmErr, setConfirmErr] = useState("");
+
+  const confirmContract = async () => {
+    if (!autoContract || confirming) return;
+    setConfirming(true);
+    setConfirmErr("");
+    try {
+      const r = await fetch(`/api/service-contracts/${autoContract.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ started_at: confirmStart, cycle_months: Number(confirmCycle) }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Xác nhận thất bại");
+      setConfirmed(true);
+    } catch (e: any) {
+      setConfirmErr(e.message);
+    } finally {
+      setConfirming(false);
+    }
+  };
   const isCert = pipelineKey === "FDA" || pipelineKey === "GACC";
   const isService = pipelineKey === "SALE_EXPORT" || pipelineKey === "AMAZON_OPS";
   const needsRecord = isCert || isService;
@@ -150,19 +184,103 @@ export function WinCelebration({
             🎉 Tuyệt vời! Cứ thế phát huy nhé!
           </div>
 
-          {needsRecord && (
+          {isCert && (
             <Link
               href={recordHref}
               onClick={onClose}
               className="mt-4 block rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-navy-950 shadow-lift hover:bg-teal-400"
             >
-              📁 Tạo {isService ? "hợp đồng" : "hồ sơ"} {recordLabel} cho khách này →
+              📁 Tạo hồ sơ {recordLabel} cho khách này →
             </Link>
           )}
-          {needsRecord && (
+          {isCert && (
             <p className="mt-2 text-[11px] font-semibold text-navy-900/50">
-              Nhớ tạo {isService ? "hợp đồng dịch vụ" : "hồ sơ"} để bắt đầu triển khai nhé! (Đã điền sẵn tên công ty & giá trị deal)
+              Nhớ tạo hồ sơ để bắt đầu triển khai nhé! (Đã điền sẵn tên công ty & giá trị deal)
             </p>
+          )}
+
+          {/* Sale/Amazon: HĐ đã tự sinh từ deal — chỉ xác nhận ngày bắt đầu + chu kỳ */}
+          {isService && autoContract && !confirmed && (
+            <div className="mt-4 rounded-2xl border border-teal-200 bg-teal-50/70 p-4 text-left">
+              <div className="text-sm font-extrabold text-navy-900">
+                ✅ Đã tự tạo HĐ <span className="font-mono">{autoContract.contract_no}</span>
+              </div>
+              <p className="mt-0.5 text-[11px] font-semibold text-navy-900/55">
+                Thông tin lấy từ deal. Chốt giúp 2 dòng này là xong:
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <label className="block text-[11px] font-bold text-navy-900">
+                  Ngày bắt đầu
+                  <input
+                    type="date"
+                    value={confirmStart}
+                    onChange={(e) => setConfirmStart(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-navy-900/10 bg-white px-2 py-2 text-sm font-normal"
+                  />
+                </label>
+                <label className="block text-[11px] font-bold text-navy-900">
+                  Chu kỳ (tháng)
+                  <input
+                    type="number"
+                    min={1}
+                    max={60}
+                    value={confirmCycle}
+                    onChange={(e) => setConfirmCycle(e.target.value)}
+                    className="mt-1 w-full rounded-xl border border-navy-900/10 bg-white px-2 py-2 text-sm font-normal"
+                  />
+                </label>
+              </div>
+              <div className="mt-1.5 flex gap-1.5">
+                {[3, 6, 12].map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setConfirmCycle(String(m))}
+                    className={`rounded-lg px-2.5 py-1 text-[11px] font-extrabold ${
+                      Number(confirmCycle) === m ? "bg-navy-900 text-white" : "bg-white text-slate-500"
+                    }`}
+                  >
+                    {m}T
+                  </button>
+                ))}
+                <span className="ml-auto self-center text-[10px] font-semibold text-navy-900/45">
+                  nhập tay số khác đều được
+                </span>
+              </div>
+              {confirmErr && <div className="mt-2 text-xs font-bold text-red-600">{confirmErr}</div>}
+              <div className="mt-2.5 flex gap-2">
+                <button
+                  onClick={confirmContract}
+                  disabled={confirming || !confirmStart}
+                  className="flex-1 rounded-xl bg-teal-500 py-2.5 text-sm font-extrabold text-navy-950 disabled:opacity-50"
+                >
+                  {confirming ? "Đang lưu…" : "Xác nhận hợp đồng"}
+                </button>
+                <button
+                  onClick={onClose}
+                  className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold text-navy-900"
+                >
+                  Để sau
+                </button>
+              </div>
+            </div>
+          )}
+          {isService && autoContract && confirmed && (
+            <Link
+              href={`/dashboard/dich-vu/${autoContract.id}`}
+              onClick={onClose}
+              className="mt-4 block rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-navy-950 shadow-lift hover:bg-teal-400"
+            >
+              🎉 Đã xác nhận — xem hợp đồng {autoContract.contract_no} →
+            </Link>
+          )}
+          {isService && !autoContract && (
+            <Link
+              href={recordHref}
+              onClick={onClose}
+              className="mt-4 block rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-navy-950 shadow-lift hover:bg-teal-400"
+            >
+              📁 Tạo hợp đồng {recordLabel} cho khách này →
+            </Link>
           )}
 
           <div className="mt-5 flex gap-2">

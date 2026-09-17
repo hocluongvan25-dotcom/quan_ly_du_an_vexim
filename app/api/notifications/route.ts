@@ -8,12 +8,7 @@ import {
   isCrmSchemaError,
 } from "@/lib/db";
 import type { CrmOpportunityEnriched } from "@/lib/crm-types";
-import { daysBetween, todayUtcIso } from "@/lib/utils";
-
-/** Chuẩn hóa tên công ty để khớp deal ↔ hồ sơ */
-function normCompany(s: string): string {
-  return s.toLowerCase().trim().replace(/\s+/g, " ");
-}
+import { daysBetween, normCompany, todayUtcIso } from "@/lib/utils";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

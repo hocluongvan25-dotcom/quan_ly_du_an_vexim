@@ -246,7 +246,7 @@ create table if not exists public.service_contracts (
   contact_name text not null default '',
   contact_phone text not null default '',
   scope text not null default '',
-  cycle_months int not null default 6 check (cycle_months in (3, 6, 12)),
+  cycle_months int not null default 6 check (cycle_months between 1 and 60),
   started_at date not null,
   ends_at date not null,
   contract_value bigint not null default 0,

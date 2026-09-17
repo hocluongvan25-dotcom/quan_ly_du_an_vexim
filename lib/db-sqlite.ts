@@ -23,7 +23,7 @@ import {
   calcInvoiceTotals,
   invoiceState,
   overdueDays,
-  SERVICE_CYCLES,
+  normalizeCycleMonths,
   type Invoice,
   type InvoicePayment,
   type ServiceContract,
@@ -220,7 +220,7 @@ function migrate(db: DatabaseSync) {
       contact_name TEXT NOT NULL DEFAULT '',
       contact_phone TEXT NOT NULL DEFAULT '',
       scope TEXT NOT NULL DEFAULT '',
-      cycle_months INTEGER NOT NULL DEFAULT 6 CHECK (cycle_months IN (3, 6, 12)),
+      cycle_months INTEGER NOT NULL DEFAULT 6 CHECK (cycle_months BETWEEN 1 AND 60),
       started_at TEXT NOT NULL,
       ends_at TEXT NOT NULL,
       contract_value INTEGER NOT NULL DEFAULT 0,
@@ -277,6 +277,43 @@ function migrate(db: DatabaseSync) {
   `);
 
   // Migration for old DBs
+  // Nới CHECK chu kỳ 3/6/12 cứng -> 1..60 tháng (nhập tay): recreate bảng cũ 1 lần, giữ dữ liệu
+  try {
+    const svcSql = db.prepare(
+      "SELECT sql FROM sqlite_master WHERE type='table' AND name='service_contracts'"
+    ).get() as { sql?: string } | undefined;
+    if (svcSql?.sql && svcSql.sql.includes("IN (3, 6, 12)")) {
+      db.exec("ALTER TABLE service_contracts RENAME TO service_contracts_old");
+      db.exec(`
+        CREATE TABLE service_contracts (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          contract_no TEXT NOT NULL UNIQUE,
+          service_type TEXT NOT NULL CHECK (service_type IN ('SALE_EXPORT','AMAZON_OPS')),
+          company_name TEXT NOT NULL DEFAULT '',
+          company_email TEXT NOT NULL DEFAULT '',
+          contact_name TEXT NOT NULL DEFAULT '',
+          contact_phone TEXT NOT NULL DEFAULT '',
+          scope TEXT NOT NULL DEFAULT '',
+          cycle_months INTEGER NOT NULL DEFAULT 6 CHECK (cycle_months BETWEEN 1 AND 60),
+          started_at TEXT NOT NULL,
+          ends_at TEXT NOT NULL,
+          contract_value INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','expired','terminated')),
+          renewal_count INTEGER NOT NULL DEFAULT 0,
+          last_renewed_at TEXT,
+          opportunity_id INTEGER REFERENCES crm_opportunities(id) ON DELETE SET NULL,
+          created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        )
+      `);
+      db.exec("INSERT INTO service_contracts SELECT * FROM service_contracts_old");
+      db.exec("DROP TABLE service_contracts_old");
+    }
+  } catch (e) {
+    console.error("[migrate] widen service_contracts cycle check failed:", e);
+  }
+
   try {
     const cols = db.prepare("PRAGMA table_info(certificates)").all() as Array<{ name: string }>;
     const has = (name: string) => cols.some((c) => c.name === name);
@@ -2137,7 +2174,7 @@ export function createServiceContract(
 ): number {
   if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
   if (!input.started_at) throw new Error("START_DATE_REQUIRED");
-  const cycle = (SERVICE_CYCLES as readonly number[]).includes(Number(input.cycle_months)) ? Number(input.cycle_months) : 6;
+  const cycle = normalizeCycleMonths(input.cycle_months, 6);
   const ends = addMonths(input.started_at.slice(0, 10), cycle);
   const now = nowSql();
   const info = db()
@@ -2184,7 +2221,7 @@ export function updateServiceContract(
   if (!cur) throw new Error("NOT_FOUND");
   const val = (v: any, fb: any) => (v === undefined ? fb : v);
   const cycle = input.cycle_months !== undefined
-    ? ((SERVICE_CYCLES as readonly number[]).includes(Number(input.cycle_months)) ? Number(input.cycle_months) : Number(cur.cycle_months))
+    ? normalizeCycleMonths(input.cycle_months, Number(cur.cycle_months))
     : Number(cur.cycle_months);
   const started = (input.started_at !== undefined ? input.started_at : cur.started_at).slice(0, 10);
   const ends = addMonths(started, cycle);
@@ -2215,9 +2252,7 @@ export function setServiceContractStatus(id: number, status: "active" | "termina
 export function renewServiceContract(id: number, cycleMonths?: number) {
   const cur = getServiceContract(id);
   if (!cur) throw new Error("NOT_FOUND");
-  const cycle = cycleMonths && (SERVICE_CYCLES as readonly number[]).includes(Number(cycleMonths))
-    ? Number(cycleMonths)
-    : cur.cycle_months;
+  const cycle = cycleMonths ? normalizeCycleMonths(cycleMonths, cur.cycle_months) : cur.cycle_months;
   const base = remainingDays(cur.ends_at) >= 0 ? cur.ends_at : todayUtcIso();
   const ends = addMonths(base, cycle);
   db().prepare(

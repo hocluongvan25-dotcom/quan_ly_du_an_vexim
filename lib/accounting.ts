@@ -8,7 +8,18 @@ import { daysBetween, remainingDays, todayUtcIso } from "./utils";
  * ========================================================================== */
 
 export const DEFAULT_VAT_RATE = 8;
-export const SERVICE_CYCLES = [3, 6, 12] as const;
+/** Gợi ý nhanh chu kỳ (tháng) — người dùng được nhập tay số khác */
+export const SERVICE_CYCLE_PRESETS = [3, 6, 12] as const;
+export const SERVICE_CYCLES = SERVICE_CYCLE_PRESETS; // alias tương thích ngược
+export const MIN_CYCLE_MONTHS = 1;
+export const MAX_CYCLE_MONTHS = 60;
+
+/** Chuẩn hóa chu kỳ nhập tay: số nguyên 1..60, sai thì về mặc định */
+export function normalizeCycleMonths(v: unknown, fallback = 6): number {
+  const n = Math.floor(Number(v));
+  if (!Number.isFinite(n) || n < MIN_CYCLE_MONTHS || n > MAX_CYCLE_MONTHS) return fallback;
+  return n;
+}
 
 export type ServiceType = "SALE_EXPORT" | "AMAZON_OPS";
 export type ServiceStatus = "draft" | "active" | "expired" | "terminated";

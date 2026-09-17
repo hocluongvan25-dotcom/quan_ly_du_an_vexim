@@ -207,6 +207,7 @@ export function MoveStageModal({
     owner: string;
     email: string;
     rawValue: number;
+    autoContract: { id: number; contract_no: string; started_at: string; cycle_months: number } | null;
   } | null>(null);
 
   const target = stages.find((s) => s.id === targetId);
@@ -239,6 +240,7 @@ export function MoveStageModal({
           owner: d.opp.owner_name || "",
           email: d.opp.contact_email || "",
           rawValue: d.opp.estimated_value || 0,
+          autoContract: d.autoContract || null,
         });
       } else {
         onClose();
@@ -261,6 +263,7 @@ export function MoveStageModal({
           pipelineKey={pipeline.key}
           contactEmail={wonInfo.email}
           estimatedValue={wonInfo.rawValue}
+          autoContract={wonInfo.autoContract}
           onClose={onClose}
         />
       )}

@@ -106,38 +106,44 @@ export default function OppDetailPage() {
         <ArrowLeft className="h-4 w-4" /> Về Pipeline
       </Link>
 
-      {/* Nhắc tạo hồ sơ / hợp đồng sau khi chốt cả 4 tuyến */}
-      {opp.is_won &&
-        (opp.pipeline_key === "FDA" ||
-          opp.pipeline_key === "GACC" ||
-          opp.pipeline_key === "SALE_EXPORT" ||
-          opp.pipeline_key === "AMAZON_OPS") && (
-          <Link
-            href={
-              opp.pipeline_key === "FDA" || opp.pipeline_key === "GACC"
-                ? `/dashboard/ho-so/moi?standard=${opp.pipeline_key}&company=${encodeURIComponent(opp.company_name)}${opp.contact_email ? `&email=${encodeURIComponent(opp.contact_email)}` : ""}${opp.estimated_value ? `&price=${opp.estimated_value}` : ""}`
-                : `/dashboard/dich-vu/moi?service=${opp.pipeline_key}&company=${encodeURIComponent(opp.company_name)}${opp.contact_email ? `&email=${encodeURIComponent(opp.contact_email)}` : ""}${opp.estimated_value ? `&price=${opp.estimated_value}` : ""}`
-            }
-            className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-400 p-5 text-navy-950 shadow-lift transition hover:shadow-card"
-          >
-            <div>
-              <div className="font-display text-base font-extrabold">
-                📁 Deal đã chốt — tạo{" "}
-                {opp.pipeline_key === "SALE_EXPORT" || opp.pipeline_key === "AMAZON_OPS" ? "hợp đồng " : "hồ sơ "}
-                {opp.pipeline_key === "SALE_EXPORT"
-                  ? "Sale XK"
-                  : opp.pipeline_key === "AMAZON_OPS"
-                    ? "Amazon"
-                    : opp.pipeline_key}{" "}
-                ngay!
-              </div>
-              <div className="mt-0.5 text-xs font-semibold opacity-70">
-                Bấm để sang trang tạo (đã điền sẵn tên công ty & giá trị deal)
-              </div>
+      {/* FDA/GACC: nhắc tạo hồ sơ sau khi chốt */}
+      {opp.is_won && (opp.pipeline_key === "FDA" || opp.pipeline_key === "GACC") && (
+        <Link
+          href={`/dashboard/ho-so/moi?standard=${opp.pipeline_key}&company=${encodeURIComponent(opp.company_name)}${opp.contact_email ? `&email=${encodeURIComponent(opp.contact_email)}` : ""}${opp.estimated_value ? `&price=${opp.estimated_value}` : ""}`}
+          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-400 p-5 text-navy-950 shadow-lift transition hover:shadow-card"
+        >
+          <div>
+            <div className="font-display text-base font-extrabold">
+              📁 Deal đã chốt — tạo hồ sơ {opp.pipeline_key} ngay!
             </div>
-            <div className="shrink-0 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-bold text-white">Tạo ngay →</div>
-          </Link>
-        )}
+            <div className="mt-0.5 text-xs font-semibold opacity-70">
+              Bấm để sang trang tạo hồ sơ (đã điền sẵn tên công ty & giá trị deal)
+            </div>
+          </div>
+          <div className="shrink-0 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-bold text-white">Tạo hồ sơ →</div>
+        </Link>
+      )}
+
+      {/* Sale/Amazon: HĐ đã tự sinh khi chốt — link sang xem */}
+      {opp.is_won && (opp.pipeline_key === "SALE_EXPORT" || opp.pipeline_key === "AMAZON_OPS") && (
+        <Link
+          href={`/dashboard/dich-vu?q=${encodeURIComponent(opp.company_name)}`}
+          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-400 p-5 text-navy-950 shadow-lift transition hover:shadow-card"
+        >
+          <div>
+            <div className="font-display text-base font-extrabold">
+              ✅ Deal đã chốt — hợp đồng {opp.pipeline_key === "SALE_EXPORT" ? "Sale XK" : "Amazon"} đã tự
+              tạo!
+            </div>
+            <div className="mt-0.5 text-xs font-semibold opacity-70">
+              Bấm để xem hợp đồng, xác nhận ngày bắt đầu & chu kỳ
+            </div>
+          </div>
+          <div className="shrink-0 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-bold text-white">
+            Xem hợp đồng →
+          </div>
+        </Link>
+      )}
 
       {/* Header */}
       <div className="rounded-3xl bg-white p-6 shadow-card">
