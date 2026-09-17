@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { hasCrmAccess } from "@/lib/permissions";
 import { crmCompleteActivity } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -11,6 +12,12 @@ type Ctx = { params: { id: string } };
 export async function PUT(_: Request, ctx: Ctx) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   try {
     const item = await crmCompleteActivity(Number(ctx.params.id), user.id);
     return NextResponse.json({ item });

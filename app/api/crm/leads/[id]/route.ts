@@ -7,7 +7,7 @@ import {
   crmSetLeadStatus,
   crmUpdateLead,
 } from "@/lib/db";
-import { can, canSeeRecord, scopeFilter } from "@/lib/permissions";
+import { can, canSeeRecord, scopeFilter, hasCrmAccess } from "@/lib/permissions";
 import type { LeadSource, LeadStatus, Standard } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -39,6 +39,12 @@ async function load(user: ReturnType<typeof getSession>, id: number) {
 export async function GET(_: Request, ctx: Ctx) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   const res = await load(user, Number(ctx.params.id));
   if (res.error) return res.error;
   return NextResponse.json({ item: res.lead });
@@ -47,6 +53,12 @@ export async function GET(_: Request, ctx: Ctx) {
 export async function PUT(req: Request, ctx: Ctx) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   if (!can(user.role, "crm.edit_lead")) {
     return NextResponse.json({ error: "Vai trò của bạn không được sửa lead." }, { status: 403 });
   }

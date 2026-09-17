@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { crmCreateLead, crmListLeads } from "@/lib/db";
-import { can, scopeFilter } from "@/lib/permissions";
+import { can, scopeFilter, hasCrmAccess } from "@/lib/permissions";
 import type { LeadSource, LeadStatus } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -21,12 +21,24 @@ const STATUSES: LeadStatus[] = ["new", "contacted", "qualified", "unqualified", 
 export async function GET() {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   return NextResponse.json({ items: await crmListLeads(scopeFilter(user)) });
 }
 
 export async function POST(req: Request) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   if (!can(user.role, "crm.create_lead")) {
     return NextResponse.json(
       { error: "Vai trò của bạn không được phép tạo lead." },

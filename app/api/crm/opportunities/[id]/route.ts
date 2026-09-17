@@ -10,7 +10,7 @@ import {
   crmTimeline,
   crmUpdateOpportunity,
 } from "@/lib/db";
-import { can, canSeeRecord } from "@/lib/permissions";
+import { can, canSeeRecord, hasCrmAccess } from "@/lib/permissions";
 import { CRM_STAGES, type OpportunityStage, type Standard } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -31,6 +31,12 @@ const ERROR_MAP: Record<string, string> = {
 export async function GET(_: Request, ctx: Ctx) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   const id = Number(ctx.params.id);
   const item = await crmGetOpportunity(id);
   if (!item) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
@@ -44,6 +50,12 @@ export async function GET(_: Request, ctx: Ctx) {
 export async function PUT(req: Request, ctx: Ctx) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   const id = Number(ctx.params.id);
   const item = await crmGetOpportunity(id);
   if (!item) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
@@ -144,6 +156,12 @@ export async function PUT(req: Request, ctx: Ctx) {
 export async function DELETE(_: Request, ctx: Ctx) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   if (!can(user.role, "crm.reassign")) {
     return NextResponse.json({ error: "Chỉ AE / Founder được xoá cơ hội." }, { status: 403 });
   }

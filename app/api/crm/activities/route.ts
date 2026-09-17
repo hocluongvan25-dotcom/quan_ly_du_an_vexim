@@ -6,7 +6,7 @@ import {
   crmGetOpportunity,
   crmListActivities,
 } from "@/lib/db";
-import { can, canSeeRecord, scopeFilter } from "@/lib/permissions";
+import { can, canSeeRecord, scopeFilter, hasCrmAccess } from "@/lib/permissions";
 import { ACTIVITY_TYPE_LABEL, type ActivityType } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -17,6 +17,12 @@ const TYPES = Object.keys(ACTIVITY_TYPE_LABEL) as ActivityType[];
 export async function GET(req: Request) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   const url = new URL(req.url);
   const limit = Number(url.searchParams.get("limit") || 60);
   return NextResponse.json({ items: await crmListActivities(scopeFilter(user), limit || 60) });
@@ -29,6 +35,12 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   if (!can(user.role, "crm.log_activity")) {
     return NextResponse.json(
       { error: "Vai trò của bạn không được ghi hoạt động CRM." },

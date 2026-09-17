@@ -13,6 +13,7 @@ import type { Role, SessionUser } from "./types";
  */
 
 export type CrmPermission =
+  | "crm.access"
   | "crm.view_all"
   | "crm.view_team"
   | "crm.create_lead"
@@ -32,6 +33,7 @@ export type CrmPermission =
 
 const MATRIX: Record<Role, CrmPermission[]> = {
   admin: [
+    "crm.access",
     "crm.view_all",
     "crm.view_team",
     "crm.create_lead",
@@ -50,6 +52,7 @@ const MATRIX: Record<Role, CrmPermission[]> = {
     "certificate.manage",
   ],
   ae: [
+    "crm.access",
     "crm.view_team",
     "crm.create_lead",
     "crm.edit_lead",
@@ -65,8 +68,9 @@ const MATRIX: Record<Role, CrmPermission[]> = {
     "crm.view_dashboard",
     "certificate.manage",
   ],
-  sr: ["crm.create_lead", "crm.edit_lead", "crm.qualify_lead", "crm.log_activity"],
-  lr: ["crm.create_lead", "crm.edit_lead", "crm.log_activity"],
+  sr: ["crm.access", "crm.create_lead", "crm.edit_lead", "crm.qualify_lead", "crm.log_activity"],
+  lr: ["crm.access", "crm.create_lead", "crm.edit_lead", "crm.log_activity"],
+  // Bộ phận chuyên môn không có vai trò nào trong CRM.
   specialist: ["certificate.manage"],
 };
 
@@ -81,6 +85,14 @@ export function can(role: Role | undefined, permission: CrmPermission) {
 
 export function canUser(user: SessionUser | null, permission: CrmPermission) {
   return can(user?.role, permission);
+}
+
+/**
+ * Có được vào CRM hay không. Founder/AE/SR/LR có; bộ phận chuyên môn không.
+ * Dùng làm cổng cho toàn bộ trang và API dưới /dashboard/crm và /api/crm.
+ */
+export function hasCrmAccess(user: SessionUser | null) {
+  return can(user?.role, "crm.access");
 }
 
 /** Founder/Admin nhìn thấy toàn bộ dữ liệu. */

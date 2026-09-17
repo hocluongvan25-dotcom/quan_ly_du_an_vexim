@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
+import { hasCrmAccess } from "@/lib/permissions";
 import { crmCreateTeam, crmListTeams } from "@/lib/db";
 
 export const runtime = "nodejs";
@@ -8,6 +9,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   return NextResponse.json({ items: await crmListTeams() });
 }
 

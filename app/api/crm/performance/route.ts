@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { crmListActivities, crmPerformanceFor } from "@/lib/db";
-import { can, scopeFilter } from "@/lib/permissions";
+import { can, scopeFilter, hasCrmAccess } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +10,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   if (!can(user.role, "crm.review_activity")) {
     return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   }

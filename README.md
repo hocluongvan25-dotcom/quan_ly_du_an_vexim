@@ -25,7 +25,11 @@ Nguyên tắc thiết kế của CRM:
 | AE (Sales Leader) | `ae` | **Pipeline Owner**: xem lead của team, phân công lead, quản lý opportunity, review hoạt động SR/LR, kiểm tra follow-up | Team của mình |
 | SR (Sales Research) | `sr` | Research doanh nghiệp, qualification, bổ sung dữ liệu, viết research note | Việc của mình + lead chưa ai nhận (được research chéo trong team) |
 | LR (Lead Research) | `lr` | Tạo nguồn lead, thu thập contact / company information | Việc của mình + lead chưa ai nhận |
-| Bộ phận chuyên môn | `specialist` | Điền và xuất bản hồ sơ FDA / GACC | Không truy cập CRM |
+| Bộ phận chuyên môn | `specialist` | Điền và xuất bản hồ sơ FDA / GACC | **Không có vai trò trong CRM** |
+
+Bộ phận chuyên môn bị chặn ở **cả hai tầng**: `app/dashboard/crm/layout.tsx` chặn toàn bộ trang
+`/dashboard/crm/*` (kể cả khi gõ thẳng URL), và mọi route `/api/crm/*` kiểm tra quyền `crm.access`
+trước khi đụng tới dữ liệu (trả về 403). Sidebar cũng không hiện nhóm CRM với vai trò này.
 
 Ba quy tắc cứng của pipeline (được enforce trong code, không chỉ là quy ước):
 

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { crmCreateOpportunity, crmListOpportunities } from "@/lib/db";
-import { can, scopeFilter } from "@/lib/permissions";
+import { can, scopeFilter, hasCrmAccess } from "@/lib/permissions";
 import type { Standard } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -10,6 +10,12 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   return NextResponse.json({ items: await crmListOpportunities(scopeFilter(user)) });
 }
 
@@ -20,6 +26,12 @@ export async function GET() {
 export async function POST(req: Request) {
   const user = getSession();
   if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
+  if (!hasCrmAccess(user)) {
+    return NextResponse.json(
+      { error: "Bộ phận chuyên môn không có vai trò trong CRM." },
+      { status: 403 }
+    );
+  }
   if (!can(user.role, "crm.create_opportunity")) {
     return NextResponse.json(
       { error: "Chỉ AE / Founder được tạo cơ hội. SR/LR hãy qualify lead trước." },
