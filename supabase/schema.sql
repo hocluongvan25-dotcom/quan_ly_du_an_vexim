@@ -145,6 +145,95 @@ create table if not exists public.expiry_notifications (
   created_at timestamptz not null default now()
 );
 
+-- ================= CRM VẬN HÀNH (Operational CRM) =================
+-- Pipeline đa dịch vụ → Stage (SLA + exit criteria) → Opportunity (Owner + Next action)
+
+create table if not exists public.crm_pipelines (
+  id bigint generated always as identity primary key,
+  key text unique not null,
+  name text not null,
+  service text not null default '',
+  description text not null default '',
+  is_active boolean not null default true,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.crm_stages (
+  id bigint generated always as identity primary key,
+  pipeline_id bigint not null references public.crm_pipelines(id) on delete cascade,
+  key text not null,
+  name text not null,
+  sort_order int not null default 0,
+  color text not null default '#64748b',
+  sla_days int not null default 0,
+  exit_criteria jsonb not null default '[]',
+  is_won boolean not null default false,
+  is_lost boolean not null default false,
+  created_at timestamptz not null default now(),
+  unique(pipeline_id, key)
+);
+
+create table if not exists public.crm_opportunities (
+  id bigint generated always as identity primary key,
+  pipeline_id bigint not null references public.crm_pipelines(id) on delete restrict,
+  stage_id bigint not null references public.crm_stages(id) on delete restrict,
+  title text not null default '',
+  company_name text not null default '',
+  contact_name text not null default '',
+  contact_phone text not null default '',
+  contact_email text not null default '',
+  industry text not null default '',
+  source text not null default '',
+  estimated_value bigint not null default 0,
+  owner_id bigint references public.staff_users(id) on delete set null,
+  next_action text not null default '',
+  next_action_date date,
+  stage_entered_at timestamptz not null default now(),
+  last_activity_at timestamptz,
+  expected_close_date date,
+  lost_reason text not null default '',
+  notes text not null default '',
+  created_by bigint references public.staff_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.crm_stage_history (
+  id bigint generated always as identity primary key,
+  opportunity_id bigint not null references public.crm_opportunities(id) on delete cascade,
+  from_stage_id bigint references public.crm_stages(id) on delete set null,
+  to_stage_id bigint not null references public.crm_stages(id) on delete restrict,
+  duration_days numeric not null default 0,
+  note text not null default '',
+  changed_by bigint references public.staff_users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.crm_activities (
+  id bigint generated always as identity primary key,
+  opportunity_id bigint not null references public.crm_opportunities(id) on delete cascade,
+  type text not null default 'note',
+  title text not null default '',
+  content text not null default '',
+  outcome text not null default '',
+  created_by bigint references public.staff_users(id) on delete set null,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.crm_checklists (
+  id bigint generated always as identity primary key,
+  opportunity_id bigint not null references public.crm_opportunities(id) on delete cascade,
+  stage_key text not null default '',
+  criterion_key text not null default '',
+  is_checked boolean not null default false,
+  checked_by bigint references public.staff_users(id) on delete set null,
+  checked_at timestamptz,
+  updated_at timestamptz not null default now(),
+  unique(opportunity_id, stage_key, criterion_key)
+);
+
 -- Indexes
 create index if not exists certificates_public_code_idx on public.certificates (public_code);
 create index if not exists certificates_status_idx on public.certificates (status);
@@ -162,6 +251,14 @@ create index if not exists companies_created_at_idx on public.companies (created
 create index if not exists expiry_notifications_certificate_id_idx on public.expiry_notifications (certificate_id);
 create index if not exists expiry_notifications_type_idx on public.expiry_notifications (notification_type);
 create index if not exists expiry_notifications_sent_at_idx on public.expiry_notifications (sent_at desc);
+create index if not exists crm_stages_pipeline_idx on public.crm_stages (pipeline_id, sort_order);
+create index if not exists crm_opportunities_pipeline_stage_idx on public.crm_opportunities (pipeline_id, stage_id);
+create index if not exists crm_opportunities_owner_idx on public.crm_opportunities (owner_id);
+create index if not exists crm_opportunities_company_idx on public.crm_opportunities (company_name);
+create index if not exists crm_opportunities_next_action_idx on public.crm_opportunities (next_action_date);
+create index if not exists crm_opportunities_updated_idx on public.crm_opportunities (updated_at desc);
+create index if not exists crm_history_opp_idx on public.crm_stage_history (opportunity_id, created_at desc);
+create index if not exists crm_activities_opp_idx on public.crm_activities (opportunity_id, created_at desc);
 
 -- RLS
 alter table public.staff_users enable row level security;
@@ -169,6 +266,12 @@ alter table public.certificates enable row level security;
 alter table public.consultation_leads enable row level security;
 alter table public.companies enable row level security;
 alter table public.expiry_notifications enable row level security;
+alter table public.crm_pipelines enable row level security;
+alter table public.crm_stages enable row level security;
+alter table public.crm_opportunities enable row level security;
+alter table public.crm_stage_history enable row level security;
+alter table public.crm_activities enable row level security;
+alter table public.crm_checklists enable row level security;
 
 -- Grants
 grant all on table public.staff_users to service_role;
@@ -176,11 +279,23 @@ grant all on table public.certificates to service_role;
 grant all on table public.consultation_leads to service_role;
 grant all on table public.companies to service_role;
 grant all on table public.expiry_notifications to service_role;
+grant all on table public.crm_pipelines to service_role;
+grant all on table public.crm_stages to service_role;
+grant all on table public.crm_opportunities to service_role;
+grant all on table public.crm_stage_history to service_role;
+grant all on table public.crm_activities to service_role;
+grant all on table public.crm_checklists to service_role;
 grant all on table public.staff_users to postgres;
 grant all on table public.certificates to postgres;
 grant all on table public.consultation_leads to postgres;
 grant all on table public.companies to postgres;
 grant all on table public.expiry_notifications to postgres;
+grant all on table public.crm_pipelines to postgres;
+grant all on table public.crm_stages to postgres;
+grant all on table public.crm_opportunities to postgres;
+grant all on table public.crm_stage_history to postgres;
+grant all on table public.crm_activities to postgres;
+grant all on table public.crm_checklists to postgres;
 grant usage, select on all sequences in schema public to service_role;
 grant usage, select on all sequences in schema public to postgres;
 

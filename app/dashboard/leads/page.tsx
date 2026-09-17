@@ -191,6 +191,13 @@ export default function LeadsPage() {
                         <option value="converted">converted</option>
                         <option value="closed">closed</option>
                       </select>
+                      <a
+                        href={`/dashboard/crm/co-hoi/moi?pipeline=${l.service_type === "sales" ? "SALE_EXPORT" : "AMAZON_OPS"}&company=${encodeURIComponent(l.company_name || l.name)}&contact=${encodeURIComponent(l.name)}&phone=${encodeURIComponent(l.phone)}&source=${encodeURIComponent("Lead tư vấn")}`}
+                        className="mt-1 inline-block text-[11px] font-bold text-teal-700 hover:underline"
+                        title="Tạo cơ hội CRM từ lead này"
+                      >
+                        ＋ Tạo cơ hội CRM
+                      </a>
                     </td>
                   </tr>
                 ))

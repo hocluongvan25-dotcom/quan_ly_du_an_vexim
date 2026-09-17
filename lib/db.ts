@@ -197,3 +197,123 @@ export async function createExpiryNotification(input: {
 }) {
   return isSupabaseEnabled() ? cloud.createExpiryNotification(input) : sqlite.createExpiryNotification(input);
 }
+
+/* ------------------------------ CRM Vận hành ----------------------------- */
+
+export type CrmOppFilter = {
+  pipeline_key?: string;
+  owner_id?: number | null;
+  q?: string;
+  stage_filter?: "open" | "won" | "lost" | "all";
+};
+
+export async function listCrmPipelines() {
+  return isSupabaseEnabled() ? cloud.listCrmPipelines() : sqlite.listCrmPipelines();
+}
+
+export async function getCrmStageById(id: number) {
+  return isSupabaseEnabled() ? cloud.getCrmStageById(id) : sqlite.getCrmStageById(id);
+}
+
+export async function getCrmPipelineByKey(key: string) {
+  return isSupabaseEnabled() ? cloud.getCrmPipelineByKey(key) : sqlite.getCrmPipelineByKey(key);
+}
+
+export async function listCrmOpportunities(filter: CrmOppFilter = {}) {
+  return isSupabaseEnabled() ? cloud.listCrmOpportunities(filter) : sqlite.listCrmOpportunities(filter);
+}
+
+export async function getCrmOpportunity(id: number) {
+  return isSupabaseEnabled() ? cloud.getCrmOpportunity(id) : sqlite.getCrmOpportunity(id);
+}
+
+export async function createCrmOpportunity(
+  input: {
+    pipeline_key: string;
+    title?: string;
+    company_name: string;
+    contact_name?: string;
+    contact_phone?: string;
+    contact_email?: string;
+    industry?: string;
+    source?: string;
+    estimated_value?: number;
+    owner_id?: number | null;
+    next_action?: string;
+    next_action_date?: string | null;
+    expected_close_date?: string | null;
+    notes?: string;
+  },
+  createdBy: number
+) {
+  return isSupabaseEnabled() ? cloud.createCrmOpportunity(input, createdBy) : sqlite.createCrmOpportunity(input, createdBy);
+}
+
+export async function updateCrmOpportunity(
+  id: number,
+  input: {
+    title?: string;
+    company_name?: string;
+    contact_name?: string;
+    contact_phone?: string;
+    contact_email?: string;
+    industry?: string;
+    source?: string;
+    estimated_value?: number;
+    owner_id?: number | null;
+    next_action?: string;
+    next_action_date?: string | null;
+    expected_close_date?: string | null;
+    notes?: string;
+  }
+) {
+  return isSupabaseEnabled() ? cloud.updateCrmOpportunity(id, input) : sqlite.updateCrmOpportunity(id, input);
+}
+
+export async function deleteCrmOpportunity(id: number) {
+  return isSupabaseEnabled() ? cloud.deleteCrmOpportunity(id) : sqlite.deleteCrmOpportunity(id);
+}
+
+export async function moveCrmOpportunity(
+  id: number,
+  toStageId: number,
+  checklist: Record<string, boolean>,
+  note: string,
+  lostReason: string,
+  changedBy: number
+) {
+  return isSupabaseEnabled()
+    ? cloud.moveCrmOpportunity(id, toStageId, checklist, note, lostReason, changedBy)
+    : sqlite.moveCrmOpportunity(id, toStageId, checklist, note, lostReason, changedBy);
+}
+
+export async function listCrmHistory(opportunityId: number) {
+  return isSupabaseEnabled() ? cloud.listCrmHistory(opportunityId) : sqlite.listCrmHistory(opportunityId);
+}
+
+export async function listCrmActivities(opportunityId: number) {
+  return isSupabaseEnabled() ? cloud.listCrmActivities(opportunityId) : sqlite.listCrmActivities(opportunityId);
+}
+
+export async function createCrmActivity(
+  opportunityId: number,
+  input: { type?: string; title?: string; content?: string; outcome?: string; next_action?: string; next_action_date?: string | null },
+  createdBy: number
+) {
+  return isSupabaseEnabled()
+    ? cloud.createCrmActivity(opportunityId, input, createdBy)
+    : sqlite.createCrmActivity(opportunityId, input, createdBy);
+}
+
+export async function listCrmChecklists(opportunityId: number) {
+  return isSupabaseEnabled() ? cloud.listCrmChecklists(opportunityId) : sqlite.listCrmChecklists(opportunityId);
+}
+
+export async function crmDashboard(filter: { pipeline_key?: string; scope_user_id?: number | null } = {}) {
+  return isSupabaseEnabled() ? cloud.crmDashboard(filter) : sqlite.crmDashboard(filter);
+}
+
+export function isCrmSchemaError(e: any): boolean {
+  if (isSupabaseEnabled()) return cloud.isCrmSchemaError(e);
+  return false;
+}

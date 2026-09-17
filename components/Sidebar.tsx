@@ -4,7 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   BarChart3,
+  Briefcase,
   FileBadge2,
+  KanbanSquare,
   LayoutDashboard,
   LogOut,
   Plus,
@@ -26,6 +28,8 @@ export function Sidebar({ user }: { user: SessionUser }) {
 
   const NAV = [
     { href: "/dashboard", labelKey: "nav.overview", icon: LayoutDashboard, adminOnly: false },
+    { href: "/dashboard/crm", labelKey: "CRM Vận hành", icon: Briefcase, adminOnly: false },
+    { href: "/dashboard/crm/pipeline", labelKey: "CRM Pipeline", icon: KanbanSquare, adminOnly: false },
     { href: "/dashboard/ho-so", labelKey: "nav.records", icon: FileBadge2, adminOnly: false },
     { href: "/dashboard/ho-so/moi", labelKey: "nav.newRecord", icon: Plus, adminOnly: false },
     { href: "/dashboard/doanh-nghiep", labelKey: "Doanh Nghiệp", icon: Building2, adminOnly: false },
@@ -56,10 +60,14 @@ export function Sidebar({ user }: { user: SessionUser }) {
           const active =
             item.href === "/dashboard"
               ? pathname === "/dashboard"
-              : pathname === item.href ||
-                (item.href === "/dashboard/ho-so" &&
-                  pathname.startsWith("/dashboard/ho-so") &&
-                  pathname !== "/dashboard/ho-so/moi");
+              : item.href === "/dashboard/crm"
+                ? pathname === "/dashboard/crm"
+                : item.href === "/dashboard/crm/pipeline"
+                  ? pathname.startsWith("/dashboard/crm/")
+                  : pathname === item.href ||
+                    (item.href === "/dashboard/ho-so" &&
+                      pathname.startsWith("/dashboard/ho-so") &&
+                      pathname !== "/dashboard/ho-so/moi");
           const Icon = item.icon;
           return (
             <Link

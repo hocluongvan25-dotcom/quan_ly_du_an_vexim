@@ -3,6 +3,18 @@ import { supabaseAdmin } from "./supabase";
 import { expiryFromStandard, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
 import { DEFAULT_VALIDITY, isValidValidityYears, GACC_FIXED_YEARS, isValidValidityYearsForStandard } from "./types";
+import {
+  PIPELINE_DEFS,
+  enrichOpportunity,
+  validateTransition,
+  type CrmActivity,
+  type CrmChecklistState,
+  type CrmOpportunity,
+  type CrmOpportunityEnriched,
+  type CrmPipeline,
+  type CrmStage,
+  type CrmStageHistory,
+} from "./crm-types";
 
 function mapUser(row: Record<string, unknown>): User {
   return {
@@ -1014,4 +1026,574 @@ export async function revenueStats() {
       .sort((a, b) => (String(a.published_at) < String(b.published_at) ? 1 : -1))
       .slice(0, 8),
   };
+}
+
+/* ============================ CRM VẬN HÀNH ============================ */
+
+function isMissingCrmTableError(e: any): boolean {
+  if (!e) return false;
+  const msg = String(e.message || "");
+  return (
+    msg.includes("SUPABASE_SCHEMA_MISSING") ||
+    e.code === "PGRST205" ||
+    msg.includes("PGRST205") ||
+    msg.includes("schema cache") ||
+    msg.includes("Could not find the table")
+  );
+}
+
+function mapCrmStage(row: Record<string, any>): CrmStage {
+  const raw = row.exit_criteria;
+  const criteria = Array.isArray(raw) ? raw : [];
+  return {
+    id: Number(row.id),
+    pipeline_id: Number(row.pipeline_id),
+    key: String(row.key),
+    name: String(row.name),
+    sort_order: Number(row.sort_order || 0),
+    color: String(row.color || "#64748b"),
+    sla_days: Number(row.sla_days || 0),
+    exit_criteria: criteria,
+    is_won: !!row.is_won,
+    is_lost: !!row.is_lost,
+  };
+}
+
+function mapCrmOpp(row: Record<string, any>, ownerName?: string): CrmOpportunity {
+  return {
+    id: Number(row.id),
+    pipeline_id: Number(row.pipeline_id),
+    stage_id: Number(row.stage_id),
+    title: String(row.title || ""),
+    company_name: String(row.company_name || ""),
+    contact_name: String(row.contact_name || ""),
+    contact_phone: String(row.contact_phone || ""),
+    contact_email: String(row.contact_email || ""),
+    industry: String(row.industry || ""),
+    source: String(row.source || ""),
+    estimated_value: Number(row.estimated_value || 0),
+    owner_id: row.owner_id === null || row.owner_id === undefined ? null : Number(row.owner_id),
+    owner_name: ownerName,
+    next_action: String(row.next_action || ""),
+    next_action_date: row.next_action_date ? String(row.next_action_date).slice(0, 10) : null,
+    stage_entered_at: String(row.stage_entered_at || ""),
+    last_activity_at: row.last_activity_at ? String(row.last_activity_at) : null,
+    expected_close_date: row.expected_close_date ? String(row.expected_close_date).slice(0, 10) : null,
+    lost_reason: String(row.lost_reason || ""),
+    notes: String(row.notes || ""),
+    created_by: row.created_by === null || row.created_by === undefined ? null : Number(row.created_by),
+    created_at: String(row.created_at || ""),
+    updated_at: String(row.updated_at || ""),
+  };
+}
+
+let crmSeeded = false;
+
+/** Upsert pipelines/stages từ PIPELINE_DEFS — đồng bộ SLA/tên mới mỗi khi khởi động. */
+export async function ensureCrmSeed() {
+  if (crmSeeded) return;
+  const sb = supabaseAdmin();
+  for (const def of PIPELINE_DEFS) {
+    const { data: pipe, error: pipeErr } = await sb
+      .from("crm_pipelines")
+      .upsert(
+        { key: def.key, name: def.name, service: def.service, description: def.description, sort_order: def.sort_order, updated_at: new Date().toISOString() },
+        { onConflict: "key" }
+      )
+      .select("id")
+      .single();
+    if (pipeErr) assertNoSupabaseError(pipeErr, "crm_pipelines");
+    const pipeId = Number((pipe as any)?.id || 0);
+    if (!pipeId) continue;
+    for (let idx = 0; idx < def.stages.length; idx++) {
+      const s = def.stages[idx];
+      const { error: stageErr } = await sb.from("crm_stages").upsert(
+        {
+          pipeline_id: pipeId, key: s.key, name: s.name, sort_order: idx,
+          color: s.color, sla_days: s.sla_days, exit_criteria: s.exit_criteria,
+          is_won: s.is_won, is_lost: s.is_lost,
+        },
+        { onConflict: "pipeline_id,key" }
+      );
+      if (stageErr) assertNoSupabaseError(stageErr, "crm_stages");
+    }
+  }
+  crmSeeded = true;
+}
+
+async function crmUserNameMap(): Promise<Map<number, string>> {
+  const map = new Map<number, string>();
+  try {
+    const users = await listUsers();
+    for (const u of users) map.set(u.id, u.name);
+  } catch {}
+  return map;
+}
+
+async function crmStageMaps() {
+  await ensureCrmSeed();
+  const sb = supabaseAdmin();
+  const { data: pipes, error: pErr } = await sb.from("crm_pipelines").select("*").eq("is_active", true).order("sort_order");
+  if (pErr) assertNoSupabaseError(pErr, "crm_pipelines");
+  const { data: stages, error: sErr } = await sb.from("crm_stages").select("*").order("pipeline_id").order("sort_order");
+  if (sErr) assertNoSupabaseError(sErr, "crm_stages");
+  const pipeById = new Map<number, CrmPipeline>();
+  const stageById = new Map<number, CrmStage>();
+  for (const p of pipes || []) {
+    pipeById.set(Number(p.id), {
+      id: Number(p.id), key: String(p.key), name: String(p.name),
+      service: String((p as any).service || ""), description: String((p as any).description || ""),
+      is_active: !!(p as any).is_active, sort_order: Number((p as any).sort_order || 0),
+    });
+  }
+  for (const s of stages || []) stageById.set(Number(s.id), mapCrmStage(s));
+  return { pipeById, stageById };
+}
+
+export async function listCrmPipelines(): Promise<CrmPipeline[]> {
+  const { pipeById, stageById } = await crmStageMaps();
+  const pipes = Array.from(pipeById.values()).sort((a, b) => a.sort_order - b.sort_order);
+  for (const p of pipes) {
+    p.stages = Array.from(stageById.values())
+      .filter((s) => s.pipeline_id === p.id)
+      .sort((a, b) => a.sort_order - b.sort_order);
+  }
+  return pipes;
+}
+
+export async function getCrmStageById(id: number): Promise<CrmStage | undefined> {
+  const { data, error } = await supabaseAdmin().from("crm_stages").select("*").eq("id", id).maybeSingle();
+  if (error) assertNoSupabaseError(error, "crm_stages");
+  return data ? mapCrmStage(data) : undefined;
+}
+
+export async function getCrmPipelineByKey(key: string): Promise<CrmPipeline | undefined> {
+  const pipes = await listCrmPipelines();
+  return pipes.find((p) => p.key === key);
+}
+
+export type CrmOppFilterCloud = {
+  pipeline_key?: string;
+  owner_id?: number | null;
+  q?: string;
+  stage_filter?: "open" | "won" | "lost" | "all";
+};
+
+export async function listCrmOpportunities(filter: CrmOppFilterCloud = {}): Promise<CrmOpportunityEnriched[]> {
+  const { pipeById, stageById } = await crmStageMaps();
+  let query = supabaseAdmin().from("crm_opportunities").select("*").order("updated_at", { ascending: false });
+  if (filter.pipeline_key) {
+    const pipe = Array.from(pipeById.values()).find((p) => p.key === filter.pipeline_key);
+    if (!pipe) return [];
+    query = query.eq("pipeline_id", pipe.id);
+  }
+  if (filter.owner_id !== undefined && filter.owner_id !== null) query = query.eq("owner_id", filter.owner_id);
+  if (filter.q) {
+    const q = filter.q.replace(/[%_]/g, "");
+    query = query.or(`company_name.ilike.%${q}%,contact_name.ilike.%${q}%,contact_phone.ilike.%${q}%,title.ilike.%${q}%`);
+  }
+  const { data, error } = await query;
+  if (error) assertNoSupabaseError(error, "crm_opportunities");
+  const names = await crmUserNameMap();
+  let items: CrmOpportunityEnriched[] = [];
+  for (const row of data || []) {
+    const pipe = pipeById.get(Number(row.pipeline_id));
+    const stage = stageById.get(Number(row.stage_id));
+    if (!pipe || !stage) continue;
+    const ownerName = row.owner_id ? names.get(Number(row.owner_id)) : undefined;
+    items.push(enrichOpportunity(mapCrmOpp(row, ownerName), pipe, stage));
+  }
+  if (filter.stage_filter === "open") items = items.filter((i) => i.is_open);
+  else if (filter.stage_filter === "won") items = items.filter((i) => i.is_won);
+  else if (filter.stage_filter === "lost") items = items.filter((i) => i.is_lost);
+  return items;
+}
+
+export async function getCrmOpportunity(id: number): Promise<CrmOpportunityEnriched | undefined> {
+  const { pipeById, stageById } = await crmStageMaps();
+  const { data, error } = await supabaseAdmin().from("crm_opportunities").select("*").eq("id", id).maybeSingle();
+  if (error) assertNoSupabaseError(error, "crm_opportunities");
+  if (!data) return undefined;
+  const pipe = pipeById.get(Number(data.pipeline_id));
+  const stage = stageById.get(Number(data.stage_id));
+  if (!pipe || !stage) return undefined;
+  const names = await crmUserNameMap();
+  const ownerName = (data as any).owner_id ? names.get(Number((data as any).owner_id)) : undefined;
+  return enrichOpportunity(mapCrmOpp(data, ownerName), pipe, stage);
+}
+
+export async function createCrmOpportunity(
+  input: {
+    pipeline_key: string;
+    title?: string;
+    company_name: string;
+    contact_name?: string;
+    contact_phone?: string;
+    contact_email?: string;
+    industry?: string;
+    source?: string;
+    estimated_value?: number;
+    owner_id?: number | null;
+    next_action?: string;
+    next_action_date?: string | null;
+    expected_close_date?: string | null;
+    notes?: string;
+  },
+  createdBy: number
+): Promise<number> {
+  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+  const pipe = await getCrmPipelineByKey(input.pipeline_key);
+  if (!pipe || !pipe.stages?.length) throw new Error("PIPELINE_NOT_FOUND");
+  const first = pipe.stages[0];
+  const now = new Date().toISOString();
+  const { data, error } = await supabaseAdmin()
+    .from("crm_opportunities")
+    .insert({
+      pipeline_id: pipe.id,
+      stage_id: first.id,
+      title: (input.title || "").trim() || `${input.company_name.trim()} — ${pipe.key}`,
+      company_name: input.company_name.trim(),
+      contact_name: (input.contact_name || "").trim(),
+      contact_phone: (input.contact_phone || "").trim(),
+      contact_email: (input.contact_email || "").trim(),
+      industry: (input.industry || "").trim(),
+      source: (input.source || "").trim(),
+      estimated_value: Math.max(0, Math.round(input.estimated_value || 0)),
+      owner_id: input.owner_id ?? createdBy,
+      next_action: (input.next_action || "").trim(),
+      next_action_date: input.next_action_date || null,
+      stage_entered_at: now,
+      expected_close_date: input.expected_close_date || null,
+      notes: (input.notes || "").trim(),
+      created_by: createdBy,
+    })
+    .select("id")
+    .single();
+  if (error) assertNoSupabaseError(error, "crm_opportunities");
+  const id = Number((data as any)?.id ?? 0);
+  const { error: hErr } = await supabaseAdmin().from("crm_stage_history").insert({
+    opportunity_id: id, from_stage_id: null, to_stage_id: first.id,
+    duration_days: 0, note: "Tạo cơ hội", changed_by: createdBy,
+  });
+  if (hErr) assertNoSupabaseError(hErr, "crm_stage_history");
+  return id;
+}
+
+export async function updateCrmOpportunity(
+  id: number,
+  input: {
+    title?: string;
+    company_name?: string;
+    contact_name?: string;
+    contact_phone?: string;
+    contact_email?: string;
+    industry?: string;
+    source?: string;
+    estimated_value?: number;
+    owner_id?: number | null;
+    next_action?: string;
+    next_action_date?: string | null;
+    expected_close_date?: string | null;
+    notes?: string;
+  }
+) {
+  const patch: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (input.title !== undefined) patch.title = input.title.trim();
+  if (input.company_name !== undefined) {
+    if (!input.company_name.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+    patch.company_name = input.company_name.trim();
+  }
+  if (input.contact_name !== undefined) patch.contact_name = input.contact_name.trim();
+  if (input.contact_phone !== undefined) patch.contact_phone = input.contact_phone.trim();
+  if (input.contact_email !== undefined) patch.contact_email = input.contact_email.trim();
+  if (input.industry !== undefined) patch.industry = input.industry.trim();
+  if (input.source !== undefined) patch.source = input.source.trim();
+  if (input.estimated_value !== undefined) patch.estimated_value = Math.max(0, Math.round(input.estimated_value || 0));
+  if (input.owner_id !== undefined) patch.owner_id = input.owner_id;
+  if (input.next_action !== undefined) patch.next_action = input.next_action.trim();
+  if (input.next_action_date !== undefined) patch.next_action_date = input.next_action_date || null;
+  if (input.expected_close_date !== undefined) patch.expected_close_date = input.expected_close_date || null;
+  if (input.notes !== undefined) patch.notes = input.notes.trim();
+  const { data, error } = await supabaseAdmin().from("crm_opportunities").update(patch).eq("id", id).select("id");
+  if (error) assertNoSupabaseError(error, "crm_opportunities");
+  if (!data || data.length === 0) throw new Error("NOT_FOUND");
+}
+
+export async function deleteCrmOpportunity(id: number) {
+  const { error } = await supabaseAdmin().from("crm_opportunities").delete().eq("id", id);
+  if (error) assertNoSupabaseError(error, "crm_opportunities");
+}
+
+export async function moveCrmOpportunity(
+  id: number,
+  toStageId: number,
+  checklist: Record<string, boolean>,
+  note: string,
+  lostReason: string,
+  changedBy: number
+): Promise<CrmOpportunityEnriched> {
+  const sb = supabaseAdmin();
+  const { data: cur, error: curErr } = await sb.from("crm_opportunities").select("*").eq("id", id).maybeSingle();
+  if (curErr) assertNoSupabaseError(curErr, "crm_opportunities");
+  if (!cur) throw new Error("NOT_FOUND");
+  const fromStage = await getCrmStageById(Number((cur as any).stage_id));
+  const toStage = await getCrmStageById(toStageId);
+  if (!fromStage || !toStage) throw new Error("STAGE_NOT_FOUND");
+  const check = validateTransition({ fromStage, toStage, checklist, lost_reason: lostReason });
+  if (!check.ok) {
+    const err = new Error(check.error || "TRANSITION_BLOCKED") as any;
+    err.missing = check.missing;
+    err.code = "TRANSITION_BLOCKED";
+    throw err;
+  }
+  const now = new Date().toISOString();
+  for (const [k, v] of Object.entries(checklist)) {
+    const { error: cErr } = await sb.from("crm_checklists").upsert(
+      {
+        opportunity_id: id, stage_key: fromStage.key, criterion_key: k,
+        is_checked: !!v, checked_by: v ? changedBy : null,
+        checked_at: v ? now : null, updated_at: now,
+      },
+      { onConflict: "opportunity_id,stage_key,criterion_key" }
+    );
+    if (cErr) assertNoSupabaseError(cErr, "crm_checklists");
+  }
+  const entered = new Date(String((cur as any).stage_entered_at)).getTime();
+  const durDays = Number.isFinite(entered) ? Math.max(0, (Date.now() - entered) / 86400000) : 0;
+  const { error: hErr } = await sb.from("crm_stage_history").insert({
+    opportunity_id: id, from_stage_id: fromStage.id, to_stage_id: toStage.id,
+    duration_days: Math.round(durDays * 10) / 10,
+    note: (note || "").trim(), changed_by: changedBy,
+  });
+  if (hErr) assertNoSupabaseError(hErr, "crm_stage_history");
+  const { error: uErr } = await sb.from("crm_opportunities").update({
+    stage_id: toStage.id, stage_entered_at: now,
+    lost_reason: toStage.is_lost ? (lostReason || "").trim() : "",
+    updated_at: now,
+  }).eq("id", id);
+  if (uErr) assertNoSupabaseError(uErr, "crm_opportunities");
+  return (await getCrmOpportunity(id))!;
+}
+
+export async function listCrmHistory(opportunityId: number): Promise<CrmStageHistory[]> {
+  const sb = supabaseAdmin();
+  const { data, error } = await sb.from("crm_stage_history").select("*").eq("opportunity_id", opportunityId).order("created_at", { ascending: true }).order("id", { ascending: true });
+  if (error) assertNoSupabaseError(error, "crm_stage_history");
+  const { stageById } = await crmStageMaps();
+  const names = await crmUserNameMap();
+  return (data || []).map((r: any) => ({
+    id: Number(r.id),
+    opportunity_id: Number(r.opportunity_id),
+    from_stage_id: r.from_stage_id === null ? null : Number(r.from_stage_id),
+    from_stage_name: r.from_stage_id ? stageById.get(Number(r.from_stage_id))?.name : undefined,
+    to_stage_id: Number(r.to_stage_id),
+    to_stage_name: stageById.get(Number(r.to_stage_id))?.name,
+    duration_days: Number(r.duration_days || 0),
+    note: String(r.note || ""),
+    changed_by: r.changed_by === null ? null : Number(r.changed_by),
+    changed_by_name: r.changed_by ? names.get(Number(r.changed_by)) : undefined,
+    created_at: String(r.created_at),
+  }));
+}
+
+export async function listCrmActivities(opportunityId: number): Promise<CrmActivity[]> {
+  const { data, error } = await supabaseAdmin().from("crm_activities").select("*").eq("opportunity_id", opportunityId).order("created_at", { ascending: false }).order("id", { ascending: false });
+  if (error) assertNoSupabaseError(error, "crm_activities");
+  const names = await crmUserNameMap();
+  return (data || []).map((r: any) => ({
+    id: Number(r.id),
+    opportunity_id: Number(r.opportunity_id),
+    type: String(r.type || "note") as CrmActivity["type"],
+    title: String(r.title || ""),
+    content: String(r.content || ""),
+    outcome: String(r.outcome || ""),
+    created_by: r.created_by === null ? null : Number(r.created_by),
+    created_by_name: r.created_by ? names.get(Number(r.created_by)) : undefined,
+    created_at: String(r.created_at),
+  }));
+}
+
+export async function createCrmActivity(
+  opportunityId: number,
+  input: { type?: string; title?: string; content?: string; outcome?: string; next_action?: string; next_action_date?: string | null },
+  createdBy: number
+): Promise<number> {
+  const sb = supabaseAdmin();
+  const { data: cur, error: curErr } = await sb.from("crm_opportunities").select("id,next_action,next_action_date").eq("id", opportunityId).maybeSingle();
+  if (curErr) assertNoSupabaseError(curErr, "crm_opportunities");
+  if (!cur) throw new Error("NOT_FOUND");
+  const now = new Date().toISOString();
+  const { data, error } = await sb.from("crm_activities").insert({
+    opportunity_id: opportunityId,
+    type: (input.type || "note").trim() || "note",
+    title: (input.title || "").trim(),
+    content: (input.content || "").trim(),
+    outcome: (input.outcome || "").trim(),
+    created_by: createdBy,
+  }).select("id").single();
+  if (error) assertNoSupabaseError(error, "crm_activities");
+  const patch: Record<string, any> = {
+    last_activity_at: now,
+    next_action: input.next_action !== undefined ? input.next_action.trim() : (cur as any).next_action,
+    next_action_date: input.next_action_date === undefined ? (cur as any).next_action_date : input.next_action_date || null,
+    updated_at: now,
+  };
+  const { error: uErr } = await sb.from("crm_opportunities").update(patch).eq("id", opportunityId);
+  if (uErr) assertNoSupabaseError(uErr, "crm_opportunities");
+  return Number((data as any)?.id ?? 0);
+}
+
+export async function listCrmChecklists(opportunityId: number): Promise<CrmChecklistState[]> {
+  const { data, error } = await supabaseAdmin().from("crm_checklists").select("*").eq("opportunity_id", opportunityId);
+  if (error) assertNoSupabaseError(error, "crm_checklists");
+  const names = await crmUserNameMap();
+  return (data || []).map((r: any) => ({
+    stage_key: String(r.stage_key),
+    criterion_key: String(r.criterion_key),
+    is_checked: !!r.is_checked,
+    checked_by_name: r.checked_by ? names.get(Number(r.checked_by)) : undefined,
+    checked_at: r.checked_at ? String(r.checked_at) : null,
+  }));
+}
+
+export type CrmDashboardCloud = {
+  openCount: number;
+  openValue: number;
+  wonMonth: number;
+  wonMonthValue: number;
+  lostMonth: number;
+  followupToday: number;
+  overdueSla: number;
+  missingAction: number;
+  stale: number;
+  pipelineStats: Array<{
+    key: string; name: string;
+    stages: Array<{ key: string; name: string; color: string; count: number; value: number; is_won: boolean; is_lost: boolean }>;
+    openCount: number; openValue: number;
+  }>;
+  alerts: CrmOpportunityEnriched[];
+  myToday: CrmOpportunityEnriched[];
+  avgStageDays: Array<{ pipeline_key: string; pipeline_name: string; stage_key: string; stage_name: string; avg_days: number; samples: number }>;
+  ownerStats: Array<{ owner_id: number | null; owner_name: string; open: number; openValue: number; won: number; lost: number; conversion: number }>;
+  dropoff: Array<{ pipeline_key: string; pipeline_name: string; from_stage: string; count: number }>;
+  recentWon: CrmOpportunityEnriched[];
+  recentLost: CrmOpportunityEnriched[];
+};
+
+export async function crmDashboard(filter: { pipeline_key?: string; scope_user_id?: number | null } = {}): Promise<CrmDashboardCloud> {
+  const sb = supabaseAdmin();
+  const items = await listCrmOpportunities({ pipeline_key: filter.pipeline_key });
+  const pipes = (await listCrmPipelines()).filter((p) => !filter.pipeline_key || p.key === filter.pipeline_key);
+  const monthPrefix = new Date().toISOString().slice(0, 7);
+
+  const open = items.filter((o) => o.is_open);
+  const wonMonth = items.filter((o) => o.is_won && String(o.updated_at).slice(0, 7) === monthPrefix);
+  const lostMonth = items.filter((o) => o.is_lost && String(o.updated_at).slice(0, 7) === monthPrefix);
+
+  const alerts = open
+    .filter((o) => o.alerts.length > 0)
+    .sort((a, b) => {
+      const rank = (o: CrmOpportunityEnriched) => (o.health === "danger" ? 0 : 1);
+      return rank(a) - rank(b) || b.days_in_stage - a.days_in_stage;
+    })
+    .slice(0, 30);
+
+  const myToday = filter.scope_user_id
+    ? open
+        .filter((o) => o.owner_id === filter.scope_user_id && (o.days_to_followup === null || (o.days_to_followup !== null && o.days_to_followup <= 1)))
+        .sort((a, b) => (a.days_to_followup ?? 99) - (b.days_to_followup ?? 99))
+        .slice(0, 20)
+    : [];
+
+  const pipelineStats = pipes.map((p) => {
+    const stages = (p.stages || []).map((s) => {
+      const inStage = items.filter((o) => o.stage_id === s.id);
+      return {
+        key: s.key, name: s.name, color: s.color,
+        count: inStage.length,
+        value: inStage.reduce((t, o) => t + (o.estimated_value || 0), 0),
+        is_won: s.is_won, is_lost: s.is_lost,
+      };
+    });
+    const openItems = items.filter((o) => o.pipeline_id === p.id && o.is_open);
+    return {
+      key: p.key, name: p.name, stages,
+      openCount: openItems.length,
+      openValue: openItems.reduce((t, o) => t + (o.estimated_value || 0), 0),
+    };
+  });
+
+  // History toàn cục để tính avg + dropoff
+  let histQuery = sb.from("crm_stage_history").select("duration_days, from_stage_id, to_stage_id");
+  const { data: histRows, error: histErr } = await histQuery.limit(5000);
+  if (histErr) assertNoSupabaseError(histErr, "crm_stage_history");
+  const { stageById, pipeById } = await crmStageMaps();
+  const agg = new Map<string, { pipeline_key: string; pipeline_name: string; stage_key: string; stage_name: string; total: number; n: number }>();
+  const drop = new Map<string, { pipeline_key: string; pipeline_name: string; from_stage: string; count: number }>();
+  for (const r of histRows || []) {
+    const from = (r as any).from_stage_id ? stageById.get(Number((r as any).from_stage_id)) : undefined;
+    const to = stageById.get(Number((r as any).to_stage_id));
+    if (!to) continue;
+    const pipe = pipeById.get(to.pipeline_id);
+    if (!pipe) continue;
+    if (filter.pipeline_key && pipe.key !== filter.pipeline_key) continue;
+    const dur = Number((r as any).duration_days || 0);
+    if (from && dur > 0) {
+      const k = `${pipe.key}:${from.key}`;
+      const cur = agg.get(k) || { pipeline_key: pipe.key, pipeline_name: pipe.name, stage_key: from.key, stage_name: from.name, total: 0, n: 0 };
+      cur.total += dur;
+      cur.n += 1;
+      agg.set(k, cur);
+    }
+    if (to.is_lost && from) {
+      const k = `${pipe.key}:${from.key}`;
+      const cur = drop.get(k) || { pipeline_key: pipe.key, pipeline_name: pipe.name, from_stage: from.name, count: 0 };
+      cur.count += 1;
+      drop.set(k, cur);
+    }
+  }
+  const avgStageDays = Array.from(agg.values()).map((a) => ({
+    pipeline_key: a.pipeline_key, pipeline_name: a.pipeline_name,
+    stage_key: a.stage_key, stage_name: a.stage_name,
+    avg_days: Math.round((a.total / a.n) * 10) / 10, samples: a.n,
+  }));
+  const dropoff = Array.from(drop.values()).sort((a, b) => b.count - a.count);
+
+  const ownerMap = new Map<number | null, { owner_id: number | null; owner_name: string; open: number; openValue: number; won: number; lost: number }>();
+  for (const o of items) {
+    const k = o.owner_id ?? null;
+    const cur = ownerMap.get(k) || { owner_id: k, owner_name: o.owner_name || "Chưa gán", open: 0, openValue: 0, won: 0, lost: 0 };
+    if (o.is_open) { cur.open += 1; cur.openValue += o.estimated_value || 0; }
+    if (o.is_won) cur.won += 1;
+    if (o.is_lost) cur.lost += 1;
+    ownerMap.set(k, cur);
+  }
+  const ownerStats = Array.from(ownerMap.values()).map((o) => ({
+    ...o,
+    conversion: o.won + o.lost > 0 ? Math.round((o.won / (o.won + o.lost)) * 100) : 0,
+  })).sort((a, b) => b.won - a.won || b.open - a.open);
+
+  return {
+    openCount: open.length,
+    openValue: open.reduce((t, o) => t + (o.estimated_value || 0), 0),
+    wonMonth: wonMonth.length,
+    wonMonthValue: wonMonth.reduce((t, o) => t + (o.estimated_value || 0), 0),
+    lostMonth: lostMonth.length,
+    followupToday: open.filter((o) => o.days_to_followup !== null && o.days_to_followup <= 0).length,
+    overdueSla: open.filter((o) => o.alerts.some((a) => a.type === "sla")).length,
+    missingAction: open.filter((o) => o.alerts.some((a) => a.type === "no_action")).length,
+    stale: open.filter((o) => o.alerts.some((a) => a.type === "stale")).length,
+    pipelineStats,
+    alerts,
+    myToday,
+    avgStageDays,
+    ownerStats,
+    dropoff,
+    recentWon: items.filter((o) => o.is_won).slice(0, 5),
+    recentLost: items.filter((o) => o.is_lost).slice(0, 5),
+  };
+}
+
+export function isCrmSchemaError(e: any): boolean {
+  return isMissingCrmTableError(e);
 }
