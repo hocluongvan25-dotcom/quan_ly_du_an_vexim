@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Search } from "lucide-react";
-import { OwnerTag, StageBadge, StaleFlag } from "@/components/CrmBits";
-import { CRM_STAGES, STALE_DAYS } from "@/lib/types";
+import { Plus, Search } from "lucide-react";
+import { Field, Modal, OwnerTag, RoleBadge, StageBadge, StaleFlag } from "@/components/CrmBits";
+import { CRM_STAGES, ROLE_LABEL, STALE_DAYS, type Role, type SessionUser, type User } from "@/lib/types";
 import type { OppRow } from "@/lib/crm-core";
 import { cn, compactVnd, daysSince, daysUntil, formatDate, formatVnd, fromNow } from "@/lib/utils";
 
@@ -19,12 +19,74 @@ export default function CrmPipelinePage() {
   const [q, setQ] = useState("");
   const [owner, setOwner] = useState("ALL");
   const [tab, setTab] = useState<"board" | "table">("board");
+  const [me, setMe] = useState<SessionUser | null>(null);
+  const [users, setUsers] = useState<User[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [err, setErr] = useState("");
+  const [form, setForm] = useState({
+    company_name: "",
+    title: "",
+    standard: "FDA",
+    value: "",
+    owner_id: "",
+    expected_close_date: "",
+    next_action: "",
+    next_action_due: "",
+  });
+
+  async function load() {
+    const [o, m] = await Promise.all([
+      fetch("/api/crm/opportunities").then((r) => r.json()),
+      fetch("/api/auth/me").then((r) => r.json()),
+    ]);
+    setItems(o.items || []);
+    setMe(m.user || null);
+    if (["admin", "ae"].includes(m.user?.role)) {
+      const u = await fetch("/api/users").then((r) => r.json());
+      setUsers((u.items || []).filter((x: User) => ["ae", "sr", "lr"].includes(x.role)));
+    }
+  }
 
   useEffect(() => {
-    fetch("/api/crm/opportunities")
-      .then((r) => r.json())
-      .then((d) => setItems(d.items || []));
+    load();
   }, []);
+
+  const canCreate = me?.role === "ae" || me?.role === "admin";
+
+  async function create() {
+    setErr("");
+    const r = await fetch("/api/crm/opportunities", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        company_name: form.company_name,
+        title: form.title,
+        standard: form.standard,
+        value: Number(form.value || 0),
+        owner_id: form.owner_id ? Number(form.owner_id) : undefined,
+        expected_close_date: form.expected_close_date || undefined,
+        next_action: form.next_action,
+        next_action_due: form.next_action_due || undefined,
+      }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      setErr(d.error || "Không tạo được cơ hội");
+      return;
+    }
+    setCreating(false);
+    setForm({
+      company_name: "",
+      title: "",
+      standard: "FDA",
+      value: "",
+      owner_id: "",
+      expected_close_date: "",
+      next_action: "",
+      next_action_due: "",
+    });
+    load();
+  }
 
   const owners = useMemo(() => {
     const map = new Map<number, string>();
@@ -69,6 +131,14 @@ export default function CrmPipelinePage() {
           </p>
         </div>
         <div className="flex gap-2">
+          {canCreate && (
+            <button
+              onClick={() => setCreating(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2 text-sm font-semibold text-white"
+            >
+              <Plus className="h-4 w-4" /> Tạo cơ hội
+            </button>
+          )}
           {(["board", "table"] as const).map((t) => (
             <button
               key={t}
@@ -270,6 +340,109 @@ export default function CrmPipelinePage() {
           </div>
         </div>
       )}
+
+      <Modal
+        open={creating}
+        onClose={() => setCreating(false)}
+        title="Tạo cơ hội mới"
+        subtitle="Cơ hội phải có owner. Đặt luôn next action để không rơi vào cảnh 'ngủ quên'."
+        wide
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Doanh nghiệp *">
+            <input
+              className="input"
+              value={form.company_name}
+              onChange={(e) => setForm({ ...form, company_name: e.target.value })}
+            />
+          </Field>
+          <Field label="Tên cơ hội">
+            <input
+              className="input"
+              placeholder="VD: Đăng ký FDA — thuỷ sản đông lạnh"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+            />
+          </Field>
+          <Field label="Chuẩn dịch vụ">
+            <select
+              className="input"
+              value={form.standard}
+              onChange={(e) => setForm({ ...form, standard: e.target.value })}
+            >
+              <option value="FDA">FDA</option>
+              <option value="GACC">GACC</option>
+            </select>
+          </Field>
+          <Field label="Giá trị dự kiến (VND)">
+            <input
+              className="input"
+              type="number"
+              value={form.value}
+              onChange={(e) => setForm({ ...form, value: e.target.value })}
+            />
+          </Field>
+          <Field label="Owner *" hint="Bắt buộc — không có cơ hội nào vô chủ.">
+            <select
+              className="input"
+              value={form.owner_id}
+              onChange={(e) => setForm({ ...form, owner_id: e.target.value })}
+            >
+              <option value="">— Tôi —</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.name} ({ROLE_LABEL[u.role as Role]})
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Dự kiến chốt">
+            <input
+              className="input"
+              type="date"
+              value={form.expected_close_date}
+              onChange={(e) => setForm({ ...form, expected_close_date: e.target.value })}
+            />
+          </Field>
+          <div className="sm:col-span-2">
+            <Field label="Next action">
+              <input
+                className="input"
+                value={form.next_action}
+                onChange={(e) => setForm({ ...form, next_action: e.target.value })}
+              />
+            </Field>
+          </div>
+          <Field label="Hạn next action">
+            <input
+              className="input"
+              type="date"
+              value={form.next_action_due}
+              onChange={(e) => setForm({ ...form, next_action_due: e.target.value })}
+            />
+          </Field>
+          {me && (
+            <div className="flex items-center gap-2 text-xs text-navy-900/55">
+              <RoleBadge role={me.role} /> Tạo với vai trò {ROLE_LABEL[me.role]}
+            </div>
+          )}
+          <div className="sm:col-span-2 flex justify-end gap-2">
+            <button
+              onClick={() => setCreating(false)}
+              className="rounded-xl border border-navy-900/10 px-4 py-2 text-sm font-semibold"
+            >
+              Huỷ
+            </button>
+            <button
+              disabled={!form.company_name.trim()}
+              onClick={create}
+              className="rounded-xl bg-navy-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+            >
+              Tạo cơ hội
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
