@@ -71,7 +71,10 @@ API:
 - `GET /api/crm/dashboard?pipeline=` — KPI, pipeline counts, alerts, insights
 
 Giao diện:
-- `/dashboard/crm` — Dashboard quản trị (5 câu hỏi + insights: thời gian TB/giai đoạn,
+- `/dashboard/tong-quan` — **Toàn cảnh (chỉ Admin)**: KPI tổng, phễu Leads → Cơ hội → Chốt,
+  biểu đồ tăng trưởng tháng/quý/năm (giá trị chốt CRM + doanh thu ghi nhận + leads),
+  KPI + biểu đồ từng nhân viên theo kỳ (cơ hội, chốt, tỷ lệ, hoạt động, doanh thu)
+- `/dashboard/crm` — Dashboard quản trị (5 câu hỏi + tổng kết theo kỳ + insights: thời gian TB/giai đoạn,
   hiệu suất sale, điểm mất khách)
 - `/dashboard/crm/pipeline` — Kanban theo pipeline
 - `/dashboard/crm/co-hoi/moi` — tạo mới (nhận prefill `?pipeline=&company=&contact=&phone=&source=`)

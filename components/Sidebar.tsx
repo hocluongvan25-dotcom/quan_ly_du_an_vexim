@@ -6,6 +6,7 @@ import {
   BarChart3,
   Briefcase,
   FileBadge2,
+  Globe,
   KanbanSquare,
   LayoutDashboard,
   LogOut,
@@ -28,6 +29,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
 
   const NAV = [
     { href: "/dashboard", labelKey: "nav.overview", icon: LayoutDashboard, adminOnly: false },
+    { href: "/dashboard/tong-quan", labelKey: "Toàn cảnh", icon: Globe, adminOnly: true },
     { href: "/dashboard/crm", labelKey: "CRM Vận hành", icon: Briefcase, adminOnly: false },
     { href: "/dashboard/crm/pipeline", labelKey: "CRM Pipeline", icon: KanbanSquare, adminOnly: false },
     { href: "/dashboard/ho-so", labelKey: "nav.records", icon: FileBadge2, adminOnly: false },

@@ -17,7 +17,7 @@ import {
   type CrmStage,
   type CrmStageHistory,
 } from "./crm-types";
-
+import { buildOverview } from "./overview";
 const dataDir = path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "vexim.db");
 
@@ -1844,4 +1844,48 @@ export function crmDashboard(filter: { pipeline_key?: string; scope_user_id?: nu
     recentLost: items.filter((o) => o.is_lost).slice(0, 5),
     trend,
   };
+}
+
+/* ========================= TOÀN CẢNH (Admin) ========================= */
+
+export function overviewStats() {
+  const enriched = listCrmOpportunities();
+  const pipes = listCrmPipelines();
+  const histories = db().prepare(
+    "SELECT opportunity_id, to_stage_id, created_at FROM crm_stage_history"
+  ).all() as Array<{ opportunity_id: number; to_stage_id: number; created_at: string }>;
+  const activities = db().prepare(
+    "SELECT created_by, created_at FROM crm_activities"
+  ).all() as Array<{ created_by: number | null; created_at: string }>;
+  const open = enriched.filter((o) => o.is_open);
+  return buildOverview(
+    {
+      users: listUsers().map((u) => ({ id: u.id, name: u.name, role: u.role })),
+      opps: enriched.map((o) => ({
+        id: o.id,
+        owner_id: o.owner_id,
+        created_at: o.created_at,
+        estimated_value: o.estimated_value,
+      })),
+      histories: plain(histories).map((h: any) => ({
+        opportunity_id: Number(h.opportunity_id),
+        to_stage_id: Number(h.to_stage_id),
+        created_at: String(h.created_at),
+      })),
+      stages: pipes.flatMap((p) => p.stages || []).map((s) => ({ id: s.id, is_won: s.is_won, is_lost: s.is_lost })),
+      activities: plain(activities).map((a: any) => ({
+        created_by: a.created_by === null ? null : Number(a.created_by),
+        created_at: String(a.created_at),
+      })),
+      certs: listCertificates().map((c) => ({
+        created_by: c.created_by,
+        service_price: c.service_price,
+        published_at: c.published_at,
+        revenue_recorded: c.revenue_recorded,
+      })),
+      leads: listLeads().map((l) => ({ created_at: l.created_at })),
+    },
+    open.length,
+    open.reduce((t, o) => t + (o.estimated_value || 0), 0)
+  );
 }

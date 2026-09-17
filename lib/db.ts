@@ -317,3 +317,9 @@ export function isCrmSchemaError(e: any): boolean {
   if (isSupabaseEnabled()) return cloud.isCrmSchemaError(e);
   return false;
 }
+
+/* --------------------------- Toàn cảnh (Admin) --------------------------- */
+
+export async function overviewStats() {
+  return isSupabaseEnabled() ? cloud.overviewStats() : sqlite.overviewStats();
+}

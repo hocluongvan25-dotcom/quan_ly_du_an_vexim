@@ -15,6 +15,7 @@ import {
   type CrmStage,
   type CrmStageHistory,
 } from "./crm-types";
+import { buildOverview } from "./overview";
 
 function mapUser(row: Record<string, unknown>): User {
   return {
@@ -1641,4 +1642,59 @@ export async function crmDashboard(filter: { pipeline_key?: string; scope_user_i
 
 export function isCrmSchemaError(e: any): boolean {
   return isMissingCrmTableError(e);
+}
+
+/* ========================= TOÀN CẢNH (Admin) ========================= */
+
+export async function overviewStats() {
+  const sb = supabaseAdmin();
+  const [enriched, pipes, users, certs, leads] = await Promise.all([
+    listCrmOpportunities(),
+    listCrmPipelines(),
+    listUsers(),
+    listCertificates(),
+    listLeads(),
+  ]);
+  const { data: histRows, error: histErr } = await sb
+    .from("crm_stage_history")
+    .select("opportunity_id, to_stage_id, created_at")
+    .order("created_at", { ascending: true })
+    .limit(5000);
+  if (histErr) assertNoSupabaseError(histErr, "crm_stage_history");
+  const { data: actRows, error: actErr } = await sb
+    .from("crm_activities")
+    .select("created_by, created_at")
+    .limit(5000);
+  if (actErr) assertNoSupabaseError(actErr, "crm_activities");
+  const open = enriched.filter((o) => o.is_open);
+  return buildOverview(
+    {
+      users: users.map((u) => ({ id: u.id, name: u.name, role: u.role })),
+      opps: enriched.map((o) => ({
+        id: o.id,
+        owner_id: o.owner_id,
+        created_at: o.created_at,
+        estimated_value: o.estimated_value,
+      })),
+      histories: (histRows || []).map((h: any) => ({
+        opportunity_id: Number(h.opportunity_id),
+        to_stage_id: Number(h.to_stage_id),
+        created_at: String(h.created_at),
+      })),
+      stages: pipes.flatMap((p) => p.stages || []).map((s) => ({ id: s.id, is_won: s.is_won, is_lost: s.is_lost })),
+      activities: (actRows || []).map((a: any) => ({
+        created_by: a.created_by === null ? null : Number(a.created_by),
+        created_at: String(a.created_at),
+      })),
+      certs: certs.map((c) => ({
+        created_by: c.created_by,
+        service_price: c.service_price,
+        published_at: c.published_at,
+        revenue_recorded: c.revenue_recorded,
+      })),
+      leads: leads.map((l) => ({ created_at: l.created_at })),
+    },
+    open.length,
+    open.reduce((t, o) => t + (o.estimated_value || 0), 0)
+  );
 }
