@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Bell, Volume2, VolumeX, X } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
@@ -33,7 +34,14 @@ type LeadItem = {
   created_at: string;
 };
 
-type Tab = "followups" | "alerts" | "leads";
+type RecordItem = FollowupItem & {
+  pipeline_key: string;
+  contact_email?: string;
+  estimated_value?: number;
+  waiting_days: number;
+};
+
+type Tab = "followups" | "records" | "alerts" | "leads";
 
 function playNotificationSound() {
   try {
@@ -64,10 +72,12 @@ function followupLabel(days: number | null): string {
 }
 
 export function NotificationBell() {
+  const router = useRouter();
   const [followups, setFollowups] = useState<FollowupItem[]>([]);
+  const [records, setRecords] = useState<RecordItem[]>([]);
   const [alerts, setAlerts] = useState<AlertItem[]>([]);
   const [leads, setLeads] = useState<LeadItem[]>([]);
-  const [counts, setCounts] = useState({ followups: 0, alerts: 0, leads: 0 });
+  const [counts, setCounts] = useState({ followups: 0, missingRecords: 0, alerts: 0, leads: 0 });
   const [scope, setScope] = useState("mine");
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<Tab>("followups");
@@ -143,7 +153,7 @@ export function NotificationBell() {
   };
 
   const unseenLeads = leads.filter((l) => !seenLeadsRef.current.has(l.id)).length;
-  const badgeTotal = counts.followups + counts.alerts + unseenLeads;
+  const badgeTotal = counts.followups + (counts.missingRecords || 0) + counts.alerts + unseenLeads;
 
   const fetchAll = async () => {
     try {
@@ -151,12 +161,14 @@ export function NotificationBell() {
       if (!res.ok) return;
       const d = await res.json();
       const f: FollowupItem[] = d.followups || [];
+      const r: RecordItem[] = d.missingRecords || [];
       const a: AlertItem[] = d.alerts || [];
       const l: LeadItem[] = d.leads || [];
       setFollowups(f);
+      setRecords(r);
       setAlerts(a);
       setLeads(l);
-      setCounts(d.counts || { followups: 0, alerts: 0, leads: 0 });
+      setCounts(d.counts || { followups: 0, missingRecords: 0, alerts: 0, leads: 0 });
       setScope(d.scope || "mine");
 
       if (!initializedRef.current) {
@@ -266,6 +278,7 @@ export function NotificationBell() {
               {(
                 [
                   ["followups", `⏰ Hẹn (${counts.followups})`],
+                  ["records", `📁 Hồ sơ (${counts.missingRecords || 0})`],
                   ["alerts", `🚨 Cảnh báo (${counts.alerts})`],
                   ["leads", `🔔 Leads (${unseenLeads})`],
                 ] as Array<[Tab, string]>
@@ -338,6 +351,68 @@ export function NotificationBell() {
                   {counts.followups > followups.length && (
                     <div className="px-4 py-2 text-center text-[11px] text-slate-400">
                       + {counts.followups - followups.length} hẹn khác — xem ở Dashboard CRM
+                    </div>
+                  )}
+                </>
+              )}
+
+              {tab === "records" && (
+                <>
+                  {records.length === 0 && (
+                    <div className="px-4 py-10 text-center text-sm text-slate-400">
+                      ✅ Mọi deal chốt đều đã có hồ sơ. Chuẩn!
+                    </div>
+                  )}
+                  {records.length > 0 && (
+                    <div className="border-b border-teal-100 bg-teal-50/70 px-4 py-2.5 text-xs font-bold text-teal-800">
+                      📁 {counts.missingRecords} deal đã chốt đang chờ tạo hồ sơ — tạo xong là hết nhắc!
+                    </div>
+                  )}
+                  {records.map((r) => {
+                    const qs = new URLSearchParams({
+                      standard: r.pipeline_key,
+                      company: r.company_name,
+                      ...(r.contact_email ? { email: r.contact_email } : {}),
+                      ...(r.estimated_value ? { price: String(r.estimated_value) } : {}),
+                    }).toString();
+                    return (
+                      <div
+                        key={r.id}
+                        onClick={() => {
+                          setOpen(false);
+                          router.push(`/dashboard/crm/co-hoi/${r.id}`);
+                        }}
+                        className="flex cursor-pointer gap-3 border-b border-slate-50 px-4 py-3 transition-colors last:border-0 hover:bg-slate-50"
+                      >
+                        <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-teal-500" />
+                        <div className="min-w-0 flex-1">
+                          <div className="truncate text-[13px] font-bold">{r.company_name}</div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
+                            <span className="rounded-full bg-navy-900 px-2 py-0.5 font-bold text-white">
+                              {r.pipeline_key}
+                            </span>
+                            <span className="font-semibold text-amber-700">
+                              Chờ tạo hồ sơ {r.waiting_days} ngày
+                            </span>
+                            {scope === "all" && <span className="text-slate-400">· {r.owner_name}</span>}
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpen(false);
+                              router.push(`/dashboard/ho-so/moi?${qs}`);
+                            }}
+                            className="mt-2 rounded-full bg-teal-500 px-3 py-1.5 text-[11px] font-extrabold text-navy-950 hover:bg-teal-400"
+                          >
+                            📁 Tạo hồ sơ {r.pipeline_key} →
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {(counts.missingRecords || 0) > records.length && (
+                    <div className="px-4 py-2 text-center text-[11px] text-slate-400">
+                      + {(counts.missingRecords || 0) - records.length} deal khác
                     </div>
                   )}
                 </>

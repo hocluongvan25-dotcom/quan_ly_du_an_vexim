@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { listCrmOpportunities, listLeads, isCrmSchemaError } from "@/lib/db";
+import { listCrmOpportunities, listLeads, listCertificates, isCrmSchemaError } from "@/lib/db";
 import type { CrmOpportunityEnriched } from "@/lib/crm-types";
+import { daysBetween, todayUtcIso } from "@/lib/utils";
+
+/** Chuẩn hóa tên công ty để khớp deal ↔ hồ sơ */
+function normCompany(s: string): string {
+  return s.toLowerCase().trim().replace(/\s+/g, " ");
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +20,8 @@ function slimOpp(o: CrmOpportunityEnriched) {
     company_name: o.company_name,
     contact_name: o.contact_name,
     contact_phone: o.contact_phone,
+    contact_email: o.contact_email,
+    estimated_value: o.estimated_value,
     pipeline_key: o.pipeline_key,
     stage_name: o.stage_name,
     stage_color: o.stage_color,
@@ -31,6 +39,7 @@ function slimOpp(o: CrmOpportunityEnriched) {
 
 // GET /api/notifications?scope=mine|all — trung tâm thông báo cá nhân hóa
 // - followups: hẹn follow-up đến hạn hôm nay + đã trễ
+// - missingRecords: deal FDA/GACC đã chốt mà chưa có hồ sơ (quét trực tiếp, tạo xong tự hết)
 // - alerts: cơ hội quá SLA / bị bỏ quên / thiếu next action
 // - leads: leads tư vấn mới chưa xử lý
 export async function GET(req: NextRequest) {
@@ -64,6 +73,30 @@ export async function GET(req: NextRequest) {
         return rank(a) - rank(b) || b.days_in_stage - a.days_in_stage;
       });
 
+    // Deal FDA/GACC đã chốt nhưng chưa có hồ sơ cùng công ty + cùng chuẩn
+    let missingRecords: any[] = [];
+    try {
+      const wonOpps = await listCrmOpportunities({ stage_filter: "won" });
+      const mine = scope === "mine" ? wonOpps.filter((o) => o.owner_id === user.id) : wonOpps;
+      const targets = mine.filter((o) => o.pipeline_key === "FDA" || o.pipeline_key === "GACC");
+      if (targets.length > 0) {
+        const certs = await listCertificates();
+        const have = new Set(
+          certs.map((c) => `${c.standard}|${normCompany(c.company_name || "")}`)
+        );
+        const today = todayUtcIso();
+        missingRecords = targets
+          .filter((o) => !have.has(`${o.pipeline_key}|${normCompany(o.company_name || "")}`))
+          .map((o) => ({
+            ...slimOpp(o),
+            waiting_days: Math.max(0, daysBetween(String(o.updated_at).slice(0, 10), today)),
+          }))
+          .sort((a, b) => b.waiting_days - a.waiting_days);
+      }
+    } catch (e) {
+      if (!isCrmSchemaError(e)) throw e;
+    }
+
     let leads: any[] = [];
     try {
       const all = await listLeads();
@@ -77,6 +110,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       scope,
       followups: followups.slice(0, PAGE).map(slimOpp),
+      missingRecords: missingRecords.slice(0, PAGE),
       alerts: alerts.slice(0, PAGE).map(slimOpp),
       leads: leads.slice(0, 10).map((l) => ({
         id: l.id,
@@ -87,7 +121,12 @@ export async function GET(req: NextRequest) {
         status: l.status,
         created_at: l.created_at,
       })),
-      counts: { followups: followups.length, alerts: alerts.length, leads: leads.length },
+      counts: {
+        followups: followups.length,
+        missingRecords: missingRecords.length,
+        alerts: alerts.length,
+        leads: leads.length,
+      },
     });
   } catch (e: any) {
     // Chuông nằm trên mọi trang → không bao giờ được 500
@@ -95,9 +134,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       scope: "mine",
       followups: [],
+      missingRecords: [],
       alerts: [],
       leads: [],
-      counts: { followups: 0, alerts: 0, leads: 0 },
+      counts: { followups: 0, missingRecords: 0, alerts: 0, leads: 0 },
     });
   }
 }

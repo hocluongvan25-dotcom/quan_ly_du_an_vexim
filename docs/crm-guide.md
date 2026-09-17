@@ -63,8 +63,9 @@ SQLite (`data/vexim.db`) tự migrate + seed demo.
 
 API:
 - `GET /api/notifications?scope=mine|all` — trung tâm thông báo cá nhân hóa
-  (hẹn follow-up đến hạn/trễ + cảnh báo SLA/bỏ quên/thiếu action + leads mới).
+  (hẹn follow-up đến hạn/trễ + deal chốt chưa có hồ sơ + cảnh báo SLA/bỏ quên/thiếu action + leads mới).
   Chuông trên header tự quét 30 giây, kêu chuông + popup trình duyệt khi có hẹn mới đến hạn.
+  Deal FDA/GACC đã chốt mà chưa có hồ sơ (khớp tên công ty + chuẩn) sẽ bị nhắc đến khi tạo xong.
 - `GET /api/crm/pipelines` — pipeline + stages (SLA, criteria)
 - `GET /api/crm/owners` — danh sách nhân sự
 - `GET/POST /api/crm/opportunities` — list (lọc `pipeline/scope/owner/q/stage`) / tạo
