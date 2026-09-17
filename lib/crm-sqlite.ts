@@ -59,16 +59,19 @@ function scopeSql(f: CrmScopeFilter, ownerCol: string, createdByCol: string, tea
 
 const LEAD_SELECT = `
   SELECT l.*, cu.name AS created_by_name, ou.name AS owner_name,
-         o.code AS opportunity_code, o.certificate_id AS certificate_id
+         o.code AS opportunity_code, o.certificate_id AS opportunity_certificate_id
   FROM crm_leads l
   LEFT JOIN users cu ON cu.id = l.created_by
   LEFT JOIN users ou ON ou.id = l.owner_id
   LEFT JOIN crm_opportunities o ON o.id = l.converted_opportunity_id
 `;
 
+// Lưu ý: o.* đã chứa o.certificate_id, nên cột của lead phải đặt tên khác,
+// nếu không bản ghi trả về sẽ mang certificate_id của lead thay vì của cơ hội.
 const OPP_SELECT = `
   SELECT o.*, ou.name AS owner_name, nua.name AS next_action_owner_name,
-         l.code AS lead_code, l.company_name AS lead_company, l.certificate_id AS certificate_id
+         l.code AS lead_code, l.company_name AS lead_company,
+         l.certificate_id AS lead_certificate_id
   FROM crm_opportunities o
   LEFT JOIN users ou ON ou.id = o.owner_id
   LEFT JOIN users nua ON nua.id = o.next_action_owner_id
@@ -503,6 +506,11 @@ export function changeStage(
       extra.certificate_id ?? null,
       id
     );
+  if (extra.certificate_id && current.lead_id) {
+    db()
+      .prepare("UPDATE crm_leads SET certificate_id = ? WHERE id = ?")
+      .run(extra.certificate_id, current.lead_id);
+  }
   db()
     .prepare(
       `INSERT INTO crm_stage_events (opportunity_id, from_stage, to_stage, changed_by, note)

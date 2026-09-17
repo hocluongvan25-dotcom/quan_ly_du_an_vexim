@@ -139,7 +139,10 @@ export type CrmLead = {
   created_by_name?: string;
   owner_name?: string;
   opportunity_code?: string;
+  /** Hồ sơ gắn trên chính lead này. */
   certificate_id?: number | null;
+  /** Hồ sơ gắn trên opportunity đã chuyển đổi (nếu có) — để không lẫn với certificate_id. */
+  opportunity_certificate_id?: number | null;
 };
 
 export type CrmOpportunity = {
@@ -170,7 +173,10 @@ export type CrmOpportunity = {
   owner_name?: string;
   lead_code?: string;
   lead_company?: string;
+  /** Hồ sơ FDA/GACC gắn trên chính cơ hội này. */
   certificate_id?: number | null;
+  /** Hồ sơ gắn trên lead nguồn (nếu có). */
+  lead_certificate_id?: number | null;
   next_action_owner_name?: string;
 };
 
