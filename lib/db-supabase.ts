@@ -1,6 +1,6 @@
 import { hashPassword } from "./auth";
 import { supabaseAdmin } from "./supabase";
-import { expiryFromStandard, randomCode, remainingDays } from "./utils";
+import { bucketRevenue, expiryFromStandard, randomCode, remainingDays } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
 
 function mapUser(row: Record<string, unknown>): User {
@@ -9,6 +9,7 @@ function mapUser(row: Record<string, unknown>): User {
     email: String(row.email),
     name: String(row.name),
     role: row.role as Role,
+    team_id: row.team_id == null ? null : Number(row.team_id),
     created_at: String(row.created_at),
   };
 }
@@ -179,7 +180,7 @@ export async function listUsers(): Promise<User[]> {
   await ensureSeed();
   const { data, error } = await supabaseAdmin()
     .from("staff_users")
-    .select("id, email, name, role, created_at")
+    .select("id, email, name, role, team_id, created_at")
     .order("id");
   if (error) throw error;
   return (data || []).map(mapUser);
@@ -190,6 +191,7 @@ export async function createUser(input: {
   name: string;
   password: string;
   role: Role;
+  team_id?: number | null;
 }) {
   const { data, error } = await supabaseAdmin()
     .from("staff_users")
@@ -198,11 +200,17 @@ export async function createUser(input: {
       name: input.name.trim(),
       password_hash: hashPassword(input.password),
       role: input.role,
+      team_id: input.team_id ?? null,
     })
     .select("id")
     .single();
   if (error) throw error;
   return Number(data.id);
+}
+
+export async function updateUserTeam(userId: number, teamId: number | null) {
+  const { error } = await supabaseAdmin().from("staff_users").update({ team_id: teamId }).eq("id", userId);
+  if (error) throw error;
 }
 
 export async function nextCertificateNo(standard: Standard) {
@@ -385,55 +393,20 @@ export async function deleteCertificate(id: number) {
 export async function revenueStats() {
   const { data, error } = await supabaseAdmin()
     .from("certificates")
-    .select("id, standard, service_price, published_at, registered_at, company_name, certificate_no, status")
+    .select(
+      "id, standard, service_price, published_at, registered_at, company_name, certificate_no, status"
+    )
     .eq("revenue_recorded", true)
     .not("published_at", "is", null);
   if (error) throw error;
-  const rows = data || [];
-
-  const monthMap = new Map<string, { month: string; FDA: number; GACC: number; total: number }>();
-  const quarterMap = new Map<string, { quarter: string; FDA: number; GACC: number; total: number }>();
-  const yearMap = new Map<string, { year: string; FDA: number; GACC: number; total: number }>();
-  let total = 0;
-  let fda = 0;
-  let gacc = 0;
-
-  for (const r of rows) {
-    const d = new Date(String(r.published_at).replace(" ", "T"));
-    if (Number.isNaN(d.getTime())) continue;
-    const y = d.getFullYear();
-    const m = d.getMonth() + 1;
-    const q = Math.floor((m - 1) / 3) + 1;
-    const amt = Number(r.service_price || 0);
-    total += amt;
-    if (r.standard === "FDA") fda += amt;
-    else gacc += amt;
-    const bump = (
-      map: Map<string, { FDA: number; GACC: number; total: number } & Record<string, string>>,
-      key: string,
-      labelKey: string
-    ) => {
-      const cur = map.get(key) || { [labelKey]: key, FDA: 0, GACC: 0, total: 0 };
-      cur[r.standard as Standard] += amt;
-      cur.total += amt;
-      map.set(key, cur);
-    };
-    bump(monthMap as never, `${y}-${String(m).padStart(2, "0")}`, "month");
-    bump(quarterMap as never, `${y}-Q${q}`, "quarter");
-    bump(yearMap as never, String(y), "year");
-  }
-
-  return {
-    total,
-    fda,
-    gacc,
-    count: rows.length,
-    months: [...monthMap.values()].sort((a, b) => a.month.localeCompare(b.month)),
-    quarters: [...quarterMap.values()].sort((a, b) => a.quarter.localeCompare(b.quarter)),
-    years: [...yearMap.values()].sort((a, b) => a.year.localeCompare(b.year)),
-    recent: rows
-      .slice()
-      .sort((a, b) => (String(a.published_at) < String(b.published_at) ? 1 : -1))
-      .slice(0, 8),
-  };
+  const rows = (data || []).map((r) => ({
+    id: Number(r.id),
+    standard: String(r.standard) as Standard,
+    service_price: Number(r.service_price || 0),
+    published_at: String(r.published_at),
+    company_name: String(r.company_name || ""),
+    certificate_no: String(r.certificate_no || ""),
+    status: String(r.status || ""),
+  }));
+  return bucketRevenue(rows);
 }

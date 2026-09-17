@@ -111,3 +111,121 @@ export function statusLabel(status: string, remaining: number) {
   if (remaining <= 90) return "Sắp hết hạn";
   return "Đã xuất bản";
 }
+
+/* ---------------- VEXIM CRM helpers ---------------- */
+
+/** "3 ngày trước", "hôm qua", "2 giờ trước" — dùng cho activity feed. */
+export function fromNow(value: string | null | undefined, now = new Date()) {
+  if (!value) return "—";
+  const raw = String(value).trim();
+  const d = new Date(raw.includes("T") || raw.includes("Z") ? raw : raw.replace(" ", "T") + "Z");
+  if (Number.isNaN(d.getTime())) return "—";
+  const diff = now.getTime() - d.getTime();
+  const mins = Math.round(diff / 60000);
+  if (Math.abs(mins) < 60) return mins <= 1 ? "vừa xong" : `${mins} phút trước`;
+  const hours = Math.round(mins / 60);
+  if (Math.abs(hours) < 24) return `${hours} giờ trước`;
+  const days = Math.round(hours / 24);
+  if (days === 1) return "hôm qua";
+  if (days < 30) return `${days} ngày trước`;
+  const months = Math.round(days / 30);
+  return `${months} tháng trước`;
+}
+
+/** Đếm ngày tới hạn follow-up: số âm = quá hạn. */
+export function daysUntil(value: string | null | undefined, now = new Date()) {
+  if (!value) return null;
+  const d = new Date(String(value).slice(0, 10) + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return null;
+  const today = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  );
+  return Math.round((d.getTime() - today.getTime()) / 86400000);
+}
+
+export function compactVnd(n: number) {
+  const v = Number(n) || 0;
+  if (Math.abs(v) >= 1_000_000_000) return `${(v / 1_000_000_000).toFixed(1).replace(".0", "")} tỷ`;
+  if (Math.abs(v) >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace(".0", "")} triệu`;
+  if (Math.abs(v) >= 1_000) return `${(v / 1_000).toFixed(0)}k`;
+  return String(v);
+}
+
+export function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+export function addDaysIso(days: number, from = new Date()) {
+  return new Date(from.getTime() + days * 86400000).toISOString().slice(0, 10);
+}
+
+export { daysSince } from "./crm-core";
+
+/* ---------------- Doanh thu FDA / GACC (dùng chung SQLite + Supabase) ---------------- */
+
+export type RevenueRow = {
+  id: number;
+  standard: Standard;
+  service_price: number;
+  published_at: string;
+  company_name?: string;
+  certificate_no?: string;
+  status?: string;
+};
+
+export type RevenueBucket = {
+  label: string;
+  FDA: number;
+  GACC: number;
+  total: number;
+};
+
+/** Gom doanh thu đã ghi nhận theo tháng / quý / năm. */
+export function bucketRevenue(rows: RevenueRow[]) {
+  const months = new Map<string, RevenueBucket>();
+  const quarters = new Map<string, RevenueBucket>();
+  const years = new Map<string, RevenueBucket>();
+  let total = 0;
+  let fda = 0;
+  let gacc = 0;
+
+  const bump = (map: Map<string, RevenueBucket>, key: string, amt: number, std: Standard) => {
+    const cur = map.get(key) || { label: key, FDA: 0, GACC: 0, total: 0 };
+    if (std === "FDA") cur.FDA += amt;
+    else cur.GACC += amt;
+    cur.total += amt;
+    map.set(key, cur);
+  };
+
+  for (const r of rows) {
+    const d = new Date(String(r.published_at).replace(" ", "T"));
+    if (Number.isNaN(d.getTime())) continue;
+    const y = d.getFullYear();
+    const m = d.getMonth() + 1;
+    const q = Math.floor((m - 1) / 3) + 1;
+    const amt = Number(r.service_price || 0);
+    total += amt;
+    if (r.standard === "FDA") fda += amt;
+    else gacc += amt;
+    bump(months, `${y}-${String(m).padStart(2, "0")}`, amt, r.standard);
+    bump(quarters, `${y}-Q${q}`, amt, r.standard);
+    bump(years, String(y), amt, r.standard);
+  }
+
+  const sorted = (map: Map<string, RevenueBucket>) =>
+    Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+
+  return {
+    total,
+    fda,
+    gacc,
+    count: rows.length,
+    months: sorted(months).map((b) => ({ month: b.label, FDA: b.FDA, GACC: b.GACC, total: b.total })),
+    quarters: sorted(quarters).map((b) => ({ quarter: b.label, FDA: b.FDA, GACC: b.GACC, total: b.total })),
+    years: sorted(years).map((b) => ({ year: b.label, FDA: b.FDA, GACC: b.GACC, total: b.total })),
+    recent: rows
+      .slice()
+      .sort((a, b) => (String(a.published_at) < String(b.published_at) ? 1 : -1))
+      .slice(0, 8),
+  };
+}

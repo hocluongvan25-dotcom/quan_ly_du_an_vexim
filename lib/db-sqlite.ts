@@ -2,7 +2,8 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
 import { hashPassword } from "./auth";
-import { expiryFromStandard, randomCode, remainingDays } from "./utils";
+import { seedCrm } from "./crm-sqlite";
+import { bucketRevenue, expiryFromStandard, randomCode, remainingDays } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
 
 const dataDir = path.join(process.cwd(), "data");
@@ -18,6 +19,7 @@ function openDb() {
   db.exec("PRAGMA foreign_keys = ON;");
   migrate(db);
   seed(db);
+  seedCrm(db);
   singleton = db;
   return db;
 }
@@ -29,7 +31,8 @@ function migrate(db: DatabaseSync) {
       email TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL,
       password_hash TEXT NOT NULL,
-      role TEXT NOT NULL CHECK (role IN ('admin','specialist')),
+      role TEXT NOT NULL CHECK (role IN ('admin','specialist','ae','sr','lr')),
+      team_id INTEGER,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
@@ -54,6 +57,164 @@ function migrate(db: DatabaseSync) {
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
+  `);
+
+  migrateUsersForCrm(db);
+  migrateCrm(db);
+}
+
+/**
+ * Nâng cấp bảng users cho CRM:
+ *  - thêm cột team_id
+ *  - mở rộng CHECK của role sang 5 vai trò (admin, specialist, ae, sr, lr)
+ * SQLite không sửa được CHECK nên phải rebuild bảng, giữ nguyên id và dữ liệu cũ.
+ */
+function migrateUsersForCrm(db: DatabaseSync) {
+  const cols = db.prepare("PRAGMA table_info(users)").all() as Array<{ name: string }>;
+  const names = cols.map((c) => c.name);
+  if (!names.includes("team_id")) {
+    db.exec("ALTER TABLE users ADD COLUMN team_id INTEGER");
+  }
+  const ddl = String(
+    (db.prepare("SELECT sql AS sql FROM sqlite_master WHERE type='table' AND name='users'").get() as {
+      sql: string;
+    }).sql || ""
+  );
+  if (ddl.includes("'lr'")) return;
+
+  db.exec("PRAGMA foreign_keys = OFF;");
+  db.exec("BEGIN;");
+  try {
+    db.exec(`
+      CREATE TABLE users_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL CHECK (role IN ('admin','specialist','ae','sr','lr')),
+        team_id INTEGER,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      INSERT INTO users_new (id, email, name, password_hash, role, team_id, created_at)
+        SELECT id, email, name, password_hash, role, team_id, created_at FROM users;
+      DROP TABLE users;
+      ALTER TABLE users_new RENAME TO users;
+    `);
+    db.exec("COMMIT;");
+  } catch (e) {
+    db.exec("ROLLBACK;");
+    throw e;
+  }
+  db.exec("PRAGMA foreign_keys = ON;");
+}
+
+/** Các bảng của VEXIM CRM: lead → opportunity → customer. */
+function migrateCrm(db: DatabaseSync) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crm_teams (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL UNIQUE,
+      ae_id INTEGER REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_leads (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      company_name TEXT NOT NULL,
+      contact_name TEXT NOT NULL DEFAULT '',
+      contact_title TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      phone TEXT NOT NULL DEFAULT '',
+      website TEXT NOT NULL DEFAULT '',
+      address TEXT NOT NULL DEFAULT '',
+      country TEXT NOT NULL DEFAULT '',
+      industry TEXT NOT NULL DEFAULT '',
+      employee_size TEXT NOT NULL DEFAULT '',
+      annual_revenue TEXT NOT NULL DEFAULT '',
+      main_products TEXT NOT NULL DEFAULT '',
+      target_market TEXT NOT NULL DEFAULT '',
+      current_standards TEXT NOT NULL DEFAULT '',
+      pain_points TEXT NOT NULL DEFAULT '',
+      notes TEXT NOT NULL DEFAULT '',
+      source TEXT NOT NULL DEFAULT 'other',
+      source_detail TEXT NOT NULL DEFAULT '',
+      status TEXT NOT NULL DEFAULT 'new'
+        CHECK (status IN ('new','contacted','qualified','unqualified','converted')),
+      quality_score INTEGER NOT NULL DEFAULT 0,
+      owner_id INTEGER REFERENCES users(id),
+      team_id INTEGER,
+      assigned_at TEXT,
+      last_activity_at TEXT,
+      converted_opportunity_id INTEGER,
+      certificate_id INTEGER REFERENCES certificates(id),
+      created_by INTEGER NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_opportunities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL DEFAULT '',
+      lead_id INTEGER REFERENCES crm_leads(id) ON DELETE SET NULL,
+      company_name TEXT NOT NULL,
+      standard TEXT CHECK (standard IN ('FDA','GACC')),
+      stage TEXT NOT NULL DEFAULT 'contacted'
+        CHECK (stage IN ('contacted','qualified','proposal','negotiation','won','lost')),
+      stage_entered_at TEXT NOT NULL DEFAULT (datetime('now')),
+      stage_changed_by INTEGER REFERENCES users(id),
+      value INTEGER NOT NULL DEFAULT 0,
+      probability INTEGER NOT NULL DEFAULT 20,
+      currency TEXT NOT NULL DEFAULT 'VND',
+      owner_id INTEGER REFERENCES users(id),
+      team_id INTEGER,
+      expected_close_date TEXT,
+      closed_at TEXT,
+      lost_reason TEXT NOT NULL DEFAULT '',
+      next_action TEXT NOT NULL DEFAULT '',
+      next_action_due TEXT,
+      next_action_owner_id INTEGER REFERENCES users(id),
+      last_activity_at TEXT,
+      certificate_id INTEGER REFERENCES certificates(id),
+      created_by INTEGER NOT NULL REFERENCES users(id),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_activities (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      lead_id INTEGER REFERENCES crm_leads(id) ON DELETE CASCADE,
+      opportunity_id INTEGER REFERENCES crm_opportunities(id) ON DELETE CASCADE,
+      type TEXT NOT NULL DEFAULT 'note',
+      subject TEXT NOT NULL,
+      content TEXT NOT NULL DEFAULT '',
+      performed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      created_by INTEGER NOT NULL REFERENCES users(id),
+      is_follow_up INTEGER NOT NULL DEFAULT 0,
+      due_at TEXT,
+      completed_at TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS crm_stage_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      opportunity_id INTEGER NOT NULL REFERENCES crm_opportunities(id) ON DELETE CASCADE,
+      from_stage TEXT,
+      to_stage TEXT NOT NULL,
+      changed_by INTEGER REFERENCES users(id),
+      note TEXT NOT NULL DEFAULT '',
+      changed_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS crm_leads_owner_idx ON crm_leads(owner_id);
+    CREATE INDEX IF NOT EXISTS crm_leads_team_idx ON crm_leads(team_id);
+    CREATE INDEX IF NOT EXISTS crm_leads_status_idx ON crm_leads(status);
+    CREATE INDEX IF NOT EXISTS crm_opps_owner_idx ON crm_opportunities(owner_id);
+    CREATE INDEX IF NOT EXISTS crm_opps_team_idx ON crm_opportunities(team_id);
+    CREATE INDEX IF NOT EXISTS crm_opps_stage_idx ON crm_opportunities(stage);
+    CREATE INDEX IF NOT EXISTS crm_activities_opp_idx ON crm_activities(opportunity_id);
+    CREATE INDEX IF NOT EXISTS crm_activities_lead_idx ON crm_activities(lead_id);
+    CREATE INDEX IF NOT EXISTS crm_stage_events_opp_idx ON crm_stage_events(opportunity_id);
   `);
 }
 
@@ -198,7 +359,7 @@ export function findUserByEmail(email: string) {
 
 export function listUsers(): User[] {
   return (db()
-    .prepare("SELECT id, email, name, role, created_at FROM users ORDER BY id")
+    .prepare("SELECT id, email, name, role, team_id, created_at FROM users ORDER BY id")
     .all() as User[]).map(plain);
 }
 
@@ -207,11 +368,22 @@ export function createUser(input: {
   name: string;
   password: string;
   role: Role;
+  team_id?: number | null;
 }) {
   const info = db()
-    .prepare("INSERT INTO users (email, name, password_hash, role) VALUES (?, ?, ?, ?)")
-    .run(input.email.toLowerCase().trim(), input.name.trim(), hashPassword(input.password), input.role);
+    .prepare("INSERT INTO users (email, name, password_hash, role, team_id) VALUES (?, ?, ?, ?, ?)")
+    .run(
+      input.email.toLowerCase().trim(),
+      input.name.trim(),
+      hashPassword(input.password),
+      input.role,
+      input.team_id ?? null
+    );
   return info.lastInsertRowid;
+}
+
+export function updateUserTeam(userId: number, teamId: number | null) {
+  db().prepare("UPDATE users SET team_id = ? WHERE id = ?").run(teamId, userId);
 }
 
 export function nextCertificateNo(standard: Standard) {
@@ -426,59 +598,5 @@ export function revenueStats() {
     certificate_no: string;
     status: string;
   }>;
-
-  const monthMap = new Map<string, { month: string; FDA: number; GACC: number; total: number }>();
-  const quarterMap = new Map<string, { quarter: string; FDA: number; GACC: number; total: number }>();
-  const yearMap = new Map<string, { year: string; FDA: number; GACC: number; total: number }>();
-
-  let total = 0;
-  let fda = 0;
-  let gacc = 0;
-
-  for (const r of rows) {
-    const d = new Date(r.published_at.replace(" ", "T"));
-    if (Number.isNaN(d.getTime())) continue;
-    const y = d.getFullYear();
-    const m = d.getMonth() + 1;
-    const q = Math.floor((m - 1) / 3) + 1;
-    const monthKey = `${y}-${String(m).padStart(2, "0")}`;
-    const quarterKey = `${y}-Q${q}`;
-    const yearKey = String(y);
-    const amt = r.service_price || 0;
-    total += amt;
-    if (r.standard === "FDA") fda += amt;
-    else gacc += amt;
-
-    const bump = (
-      map: Map<string, { FDA: number; GACC: number; total: number } & Record<string, string>>,
-      key: string,
-      labelKey: string
-    ) => {
-      const cur = map.get(key) || { [labelKey]: key, FDA: 0, GACC: 0, total: 0 };
-      cur[r.standard] += amt;
-      cur.total += amt;
-      map.set(key, cur);
-    };
-    bump(monthMap as never, monthKey, "month");
-    bump(quarterMap as never, quarterKey, "quarter");
-    bump(yearMap as never, yearKey, "year");
-  }
-
-  const months = [...monthMap.values()].sort((a, b) => a.month.localeCompare(b.month));
-  const quarters = [...quarterMap.values()].sort((a, b) => a.quarter.localeCompare(b.quarter));
-  const years = [...yearMap.values()].sort((a, b) => a.year.localeCompare(b.year));
-
-  return {
-    total,
-    fda,
-    gacc,
-    count: rows.length,
-    months,
-    quarters,
-    years,
-    recent: rows
-      .slice()
-      .sort((a, b) => (a.published_at < b.published_at ? 1 : -1))
-      .slice(0, 8),
-  };
+  return bucketRevenue(rows);
 }

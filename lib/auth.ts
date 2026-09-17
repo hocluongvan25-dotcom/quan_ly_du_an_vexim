@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
-import type { SessionUser } from "./types";
+import type { Role, SessionUser } from "./types";
 
 const SECRET = process.env.AUTH_SECRET || "vexim-global-fda-gacc-secret-2026";
 const COOKIE = "vexim_session";
@@ -37,6 +37,7 @@ export function readSessionToken(token: string | undefined | null): SessionUser 
       email: data.email,
       name: data.name,
       role: data.role,
+      team_id: data.team_id ?? null,
     };
   } catch {
     return null;
@@ -82,6 +83,14 @@ export function requireUser() {
 export function requireAdmin() {
   const user = requireUser();
   if (user.role !== "admin") {
+    throw new Error("FORBIDDEN");
+  }
+  return user;
+}
+
+export function requireRoles(...roles: Role[]) {
+  const user = requireUser();
+  if (!roles.includes(user.role)) {
     throw new Error("FORBIDDEN");
   }
   return user;

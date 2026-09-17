@@ -10,3 +10,4 @@ image-search
 .env
 .env.local
 .env*.local
+*.tsbuildinfo

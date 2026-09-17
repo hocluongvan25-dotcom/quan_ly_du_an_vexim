@@ -38,18 +38,19 @@ export default function LoginPage() {
           <Logo invert />
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-teal-300">
-              Certificate Control
+              VEXIM CRM · Certificate Control
             </p>
             <h1 className="mt-3 font-display text-3xl font-extrabold leading-tight">
-              Quản lý hồ sơ FDA & GACC tập trung
+              Sales operation &amp; hồ sơ FDA / GACC tập trung
             </h1>
             <p className="mt-4 text-sm leading-relaxed text-white/70">
-              Theo dõi thời hạn, xuất bản mã QR xác thực và thống kê doanh thu cho từng mã đăng ký.
+              Lead → opportunity → customer trên một pipeline, kèm thời hạn hồ sơ, mã QR xác thực và
+              doanh thu từng mã đăng ký.
             </p>
             <ul className="mt-8 space-y-3 text-sm text-white/80">
               {[
-                "FDA gia hạn 2 năm / lần",
-                "GACC gia hạn 5 năm / lần",
+                "Pipeline có owner và next action cho từng cơ hội",
+                "FDA gia hạn 2 năm / GACC gia hạn 5 năm",
                 "Landing page xác thực tối ưu mobile",
               ].map((t) => (
                 <li key={t} className="flex items-center gap-2">
@@ -68,7 +69,7 @@ export default function LoginPage() {
             Đăng nhập nội bộ
           </h2>
           <p className="mt-1 text-sm text-navy-900/55">
-            Dành cho quản trị viên và bộ phận chuyên môn.
+            CRM sales operation &amp; quản lý hồ sơ FDA / GACC của Vexim Global.
           </p>
           <label className="mt-8 block text-xs font-semibold uppercase tracking-wider text-navy-900/60">
             Email
@@ -99,8 +100,11 @@ export default function LoginPage() {
           </button>
           <div className="mt-6 rounded-2xl bg-teal-50 p-4 text-xs leading-relaxed text-navy-900/70">
             <div className="font-semibold text-navy-900">Tài khoản demo</div>
-            <p className="mt-1">Admin: admin@veximglobal.com / Vexim@Admin2026</p>
-            <p>Chuyên môn: chuyenmon@veximglobal.com / Vexim@CM2026</p>
+            <p className="mt-1">Founder / Admin: admin@veximglobal.com / Vexim@Admin2026</p>
+            <p>AE (Sales Leader): ae@veximglobal.com / Vexim@AE2026</p>
+            <p>SR (Sales Research): sr@veximglobal.com / Vexim@SR2026</p>
+            <p>LR (Lead Research): lr@veximglobal.com / Vexim@LR2026</p>
+            <p>Chuyên môn hồ sơ: chuyenmon@veximglobal.com / Vexim@CM2026</p>
           </div>
         </form>
       </div>
