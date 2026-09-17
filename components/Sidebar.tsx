@@ -10,7 +10,6 @@ import {
   KanbanSquare,
   LayoutDashboard,
   LogOut,
-  Plus,
   Users,
   MessageSquare,
   Building2,
@@ -33,7 +32,6 @@ export function Sidebar({ user }: { user: SessionUser }) {
     { href: "/dashboard/crm", labelKey: "CRM Vận hành", icon: Briefcase, adminOnly: false },
     { href: "/dashboard/crm/pipeline", labelKey: "CRM Pipeline", icon: KanbanSquare, adminOnly: false },
     { href: "/dashboard/ho-so", labelKey: "nav.records", icon: FileBadge2, adminOnly: false },
-    { href: "/dashboard/ho-so/moi", labelKey: "nav.newRecord", icon: Plus, adminOnly: false },
     { href: "/dashboard/doanh-nghiep", labelKey: "Doanh Nghiệp", icon: Building2, adminOnly: false },
     { href: "/dashboard/canh-bao", labelKey: "Cảnh Báo Hết Hạn", icon: Bell, adminOnly: false },
     { href: "/dashboard/leads", labelKey: "Leads Tư Vấn", icon: MessageSquare, adminOnly: false },
@@ -67,9 +65,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
                 : item.href === "/dashboard/crm/pipeline"
                   ? pathname.startsWith("/dashboard/crm/")
                   : pathname === item.href ||
-                    (item.href === "/dashboard/ho-so" &&
-                      pathname.startsWith("/dashboard/ho-so") &&
-                      pathname !== "/dashboard/ho-so/moi");
+                    (item.href === "/dashboard/ho-so" && pathname.startsWith("/dashboard/ho-so"));
           const Icon = item.icon;
           return (
             <Link
