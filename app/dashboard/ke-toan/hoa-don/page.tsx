@@ -19,12 +19,26 @@ export default function InvoicesPage() {
   const [items, setItems] = useState<InvoiceView[]>([]);
   const [q, setQ] = useState("");
   const [st, setSt] = useState("ALL");
+  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
-    fetch("/api/invoices")
-      .then((r) => r.json())
-      .then((d) => setItems(d.items || []));
+    fetch("/api/invoices").then((r) => {
+      if (r.status === 403) {
+        setForbidden(true);
+        return null;
+      }
+      return r.json();
+    }).then((d) => d && setItems(d.items || []));
   }, []);
+
+  if (forbidden) {
+    return (
+      <div className="rounded-3xl bg-white p-10 text-center shadow-card">
+        <div className="text-4xl">🔒</div>
+        <h1 className="mt-2 font-display text-xl font-extrabold text-navy-900">Chỉ Admin (kế toán) mới được xem</h1>
+      </div>
+    );
+  }
 
   const filtered = useMemo(() => {
     return items.filter((i) => {

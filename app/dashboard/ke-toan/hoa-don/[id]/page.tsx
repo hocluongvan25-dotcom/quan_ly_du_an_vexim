@@ -8,12 +8,26 @@ import { formatMoney } from "@/lib/accounting";
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [inv, setInv] = useState<any>(null);
+  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
-    fetch(`/api/invoices/${id}`)
-      .then((r) => r.json())
-      .then((d) => setInv(d.item || null));
+    fetch(`/api/invoices/${id}`).then((r) => {
+      if (r.status === 403) {
+        setForbidden(true);
+        return null;
+      }
+      return r.json();
+    }).then((d) => d && setInv(d.item || null));
   }, [id]);
+
+  if (forbidden) {
+    return (
+      <div className="rounded-3xl bg-white p-10 text-center shadow-card">
+        <div className="text-4xl">🔒</div>
+        <h1 className="mt-2 font-display text-xl font-extrabold text-navy-900">Chỉ Admin (kế toán) mới được xem</h1>
+      </div>
+    );
+  }
 
   if (!inv) return <div className="text-sm text-slate-500">Đang tải hóa đơn…</div>;
 
