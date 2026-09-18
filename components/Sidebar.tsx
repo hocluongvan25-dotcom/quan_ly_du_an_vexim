@@ -59,7 +59,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
           <LanguageSwitcherCompact className="bg-white/10" />
         </div>
       </div>
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {NAV.filter((i) => !i.adminOnly || user.role === "admin").map((item) => {
           const active =
             item.href === "/dashboard"
@@ -88,7 +88,7 @@ export function Sidebar({ user }: { user: SessionUser }) {
           );
         })}
       </nav>
-      <div className="border-t border-white/10 p-4">
+      <div className="shrink-0 border-t border-white/10 p-4">
         <div className="mb-3 rounded-2xl bg-white/5 px-3 py-2.5">
           <div className="text-sm font-semibold">{user.name}</div>
           <div className="text-[11px] text-teal-300">
