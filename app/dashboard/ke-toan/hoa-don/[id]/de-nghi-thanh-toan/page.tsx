@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { getInvoice } from "@/lib/db";
-import { assertPaymentRequestExportable, paymentRequestParagraphs, requestDate, requestDocumentNo } from "@/lib/payment-request";
+import { PAYMENT_REQUEST_SIGNATURE_GAP_MM, assertPaymentRequestExportable, paymentRequestParagraphs, requestDate, requestDocumentNo } from "@/lib/payment-request";
 import PaymentRequestDownload from "@/components/accounting/PaymentRequestDownload";
 
 export const runtime = "nodejs";
@@ -32,8 +32,8 @@ export default async function PaymentRequestPage({ params }: { params: { id: str
         <h1 className="mt-8 text-center text-xl font-bold">GIẤY ĐỀ NGHỊ THANH TOÁN</h1>
         <p className="mb-6 mt-2 text-center italic">V/v: Thanh toán lần {inv.installment_no} theo hợp đồng số {inv.contract_no} ngày {requestDate(p.contract_date)}</p>
         {paymentRequestParagraphs(inv).map((block, i) => <p key={i} className="mb-3" style={{ fontWeight: block.bold ? "bold" : undefined, fontStyle: block.italic ? "italic" : undefined, textAlign: block.center ? "center" : undefined }}>{block.text}</p>)}
-        <div className="ml-auto mt-6 w-full text-center sm:w-3/5">
-          <p className="font-bold uppercase">{p.issuer_name}</p><p className="font-bold uppercase">{p.signer_title}</p><p className="text-sm italic">(Ký, ghi rõ họ tên, đóng dấu)</p><p className="mt-16 font-bold uppercase">{p.signer_name}</p>
+        <div className="ml-auto mt-6 w-full break-inside-avoid text-center sm:w-3/5">
+          <p className="font-bold uppercase">{p.issuer_name}</p><p className="font-bold uppercase">{p.signer_title}</p><p className="text-sm italic">(Ký, ghi rõ họ tên, đóng dấu)</p><p className="font-bold uppercase" style={{ marginTop: `${PAYMENT_REQUEST_SIGNATURE_GAP_MM}mm` }}>{p.signer_name}</p>
         </div>
       </article>
     </>}

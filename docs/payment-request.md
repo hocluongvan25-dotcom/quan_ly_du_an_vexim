@@ -23,7 +23,7 @@
 
 ## Dàn trang và quyền
 
-A4 đứng, lề trái 30 mm, phải/trên/dưới 20 mm, nội dung 13 pt, phông Tinos tương thích kích thước Times New Roman được nhúng đủ tiếng Việt. Quốc hiệu/tiêu ngữ, đơn vị/số, địa danh/ngày, tiêu đề, căn cứ/nội dung, chuyển khoản và khối ký. Mẫu thông thường một trang; nội dung dài tự ngắt dòng/chuyển trang và đánh số trang, khối ký không bị tách đôi. Không cam kết đây là mẫu bắt buộc pháp lý cho mọi doanh nghiệp.
+A4 đứng, lề trái 30 mm, phải/trên/dưới 20 mm, nội dung 13 pt, phông Tinos tương thích kích thước Times New Roman được nhúng đủ tiếng Việt. Quốc hiệu/tiêu ngữ, đơn vị/số, địa danh/ngày, tiêu đề, căn cứ/nội dung, chuyển khoản và khối ký. Mẫu thông thường một trang; nội dung dài tự ngắt dòng/chuyển trang và đánh số trang, khối ký không bị tách đôi. Khoảng cách từ dòng hướng dẫn ký đến họ tên người ký tăng lên 35 mm (thêm khoảng 3 dòng so với trước) để có chỗ ký và đóng dấu; bản xem nội dung cũng tăng khoảng trống tương ứng. Không cam kết đây là mẫu bắt buộc pháp lý cho mọi doanh nghiệp.
 
 Quyền hóa đơn hiện tại được giữ nguyên: admin mới tạo/sửa/xem/xuất; nhân viên không được mở API xuất qua ID. Admin có thể tải file rồi chuyển cho nhân viên gửi khách. Nếu cần nhân viên tự tải trực tiếp, cần thiết kế phân quyền riêng, không mở toàn bộ dữ liệu kế toán.
 

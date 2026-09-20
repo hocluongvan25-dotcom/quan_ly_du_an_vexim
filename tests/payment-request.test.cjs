@@ -221,3 +221,38 @@ test('second installment prefill survives API save/reload and closes the contrac
     }
   }
 });
+
+test('PDF reserves 35mm above the signer, keeps the whole block on one page, and preview matches', async () => {
+  const fontkit = require('@pdf-lib/fontkit');
+  const italic = fontkit.create(fs.readFileSync(path.join(root, 'assets/fonts/Tinos-Italic.ttf')));
+  const bold = fontkit.create(fs.readFileSync(path.join(root, 'assets/fonts/Tinos-Bold.ttf')));
+  const encoded = (font, text) => font.layout(text).glyphs.map(g => g.id.toString(16).padStart(4, '0')).join('').toUpperCase();
+  const instruction = encoded(italic, '(Ký, ghi rõ họ tên, đóng dấu)');
+  const name = encoded(bold, 'LƯƠNG VĂN HỌC');
+  for (const long of [false, true]) {
+    const id = create({ payment_request: { ...snapshot(), ...(long ? { service_description: 'Dịch vụ đăng ký xuất khẩu thực phẩm '.repeat(12), recipient_name: 'Công ty ' + 'Ư'.repeat(200), transfer_content: 'A'.repeat(300) } : {}) } });
+    const pdf = await PDFDocument.load(await generatePaymentRequestPdf(db.getInvoice(id)));
+    assert.equal(long ? pdf.getPageCount() > 1 : pdf.getPageCount() === 1, true);
+    let found = false;
+    for (const page of pdf.getPages()) {
+      const streams = page.node.Contents();
+      let content = '';
+      for (let i = 0; i < streams.size(); i++) content += Buffer.from(decodePDFRawStream(streams.lookup(i)).decode()).toString();
+      const spans = [...content.matchAll(/1 0 0 1 ([\d.-]+) ([\d.-]+) Tm\s*<([0-9A-F]+)> Tj/g)];
+      const hint = spans.find(s => s[3] === instruction), signer = spans.find(s => s[3] === name);
+      if (hint || signer) {
+        assert.ok(hint && signer, 'instruction and signer must be on the same page');
+        const gap = Number(hint[2]) - Number(signer[2]);
+        assert.ok(Math.abs(gap - 35 * 72 / 25.4) < .01, '35mm measured in the generated PDF');
+        assert.ok(Number(signer[2]) > 20 * 72 / 25.4 + 3, 'name stays above the bottom margin');
+        found = true;
+      }
+    }
+    assert.ok(found, 'signature text must be present');
+  }
+  session = { id: 1, role: 'admin', name: 'Test Admin' };
+  const Preview = require('../app/dashboard/ke-toan/hoa-don/[id]/de-nghi-thanh-toan/page.tsx').default;
+  const html = require('react-dom/server').renderToStaticMarkup(await Preview(ctx(create())));
+  assert.match(html, /margin-top:35mm/);
+  assert.match(html, /break-inside-avoid/);
+});

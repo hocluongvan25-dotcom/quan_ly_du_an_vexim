@@ -3,7 +3,7 @@ import path from "node:path";
 import { PDFDocument, PDFFont, PageSizes, rgb } from "pdf-lib";
 import fontkit from "@pdf-lib/fontkit";
 import type { InvoiceView } from "./accounting";
-import { paymentRequestParagraphs, requestDate, requestDocumentNo } from "./payment-request";
+import { PAYMENT_REQUEST_SIGNATURE_GAP_MM, paymentRequestParagraphs, requestDate, requestDocumentNo } from "./payment-request";
 
 // Bundled licensed fonts: no browser, remote font fetch, or OS fonts needed at runtime.
 let fontBytes: Promise<Buffer[]> | undefined;
@@ -94,10 +94,12 @@ export async function generatePaymentRequestPdf(inv: InvoiceView): Promise<Uint8
   const companyLines = lines(p.issuer_name.toUpperCase(), bold, 11, signWidth);
   const titleLines = lines(p.signer_title.toUpperCase(), bold, 12, signWidth);
   const nameLines = lines(p.signer_name.toUpperCase(), bold, 12, signWidth);
-  const signHeight = (companyLines.length + titleLines.length + nameLines.length) * 15 + 58;
+  const signatureGap = PAYMENT_REQUEST_SIGNATURE_GAP_MM * mm;
+  // Reserve the enlarged signing area before drawing, keeping the entire block together.
+  const signHeight = (companyLines.length + titleLines.length + nameLines.length) * 15 + signatureGap + 8;
   ensure(signHeight); y -= 8;
   for (const line of [...companyLines, ...titleLines]) { draw(line, signX, y, bold, 11, signWidth); y -= 15; }
-  draw("(Ký, ghi rõ họ tên, đóng dấu)", signX, y, italic, 10, signWidth); y -= 44;
+  draw("(Ký, ghi rõ họ tên, đóng dấu)", signX, y, italic, 10, signWidth); y -= signatureGap;
   for (const line of nameLines) { draw(line, signX, y, bold, 12, signWidth); y -= 15; }
   // No signature or seal is fabricated. A typed name is only a signing placeholder.
   const pages = pdf.getPages();

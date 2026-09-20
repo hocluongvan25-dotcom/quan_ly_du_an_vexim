@@ -1,5 +1,8 @@
 import type { InvoiceView } from "./accounting";
 
+/** Baseline spacing reserved for the handwritten signature and company seal. */
+export const PAYMENT_REQUEST_SIGNATURE_GAP_MM = 35;
+
 /** A saved snapshot. Never re-read company/bank/contract data when exporting. */
 export type PaymentRequest = {
   document_no: string;
