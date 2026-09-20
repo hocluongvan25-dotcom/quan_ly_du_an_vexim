@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
-  confirmValidity,
   deleteCertificate,
   getCertificate,
   publishCertificate,
@@ -13,6 +12,7 @@ import { handleApiError } from "@/lib/api-helpers";
 import { isValidDunsCode, GACC_FIXED_YEARS, FDA_FIXED_YEARS } from "@/lib/types";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 type Ctx = { params: { id: string } };
 
@@ -22,7 +22,7 @@ export async function GET(_: Request, ctx: Ctx) {
     if (!user) return NextResponse.json({ error: "UNAUTHORIZED" }, { status: 401 });
     const item = await getCertificate(Number(ctx.params.id));
     if (!item) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-    return NextResponse.json({ item });
+    return NextResponse.json({ item }, { headers: { "Cache-Control": "no-store" } });
   } catch (e) {
     return handleApiError(e);
   }
@@ -35,13 +35,17 @@ export async function PUT(req: Request, ctx: Ctx) {
   const action = body.action as string | undefined;
   const id = Number(ctx.params.id);
   try {
-    if (action === "confirm") {
-      // Legacy: confirm now just auto-publishes validity, kept for backward compat
-      await confirmValidity(id);
-      return NextResponse.json({ item: await getCertificate(id) });
+    if (action && !["confirm", "publish", "renew"].includes(action)) {
+      return NextResponse.json({ error: "Thao tác không hợp lệ." }, { status: 400 });
     }
-    if (action === "publish") {
-      const item = await publishCertificate(id);
+    if (action && user.role !== "admin") {
+      return NextResponse.json({ error: "Chỉ admin mới được duyệt, xuất bản hoặc gia hạn hồ sơ." }, { status: 403 });
+    }
+    if (action === "confirm" || action === "publish") {
+      if (typeof body.expected_updated_at !== "string" || !body.expected_updated_at) {
+        return NextResponse.json({ error: "Vui lòng tải lại hồ sơ trước khi duyệt." }, { status: 400 });
+      }
+      const item = await publishCertificate(id, body.expected_updated_at);
       return NextResponse.json({ item });
     }
     if (action === "renew") {
@@ -90,7 +94,7 @@ export async function PUT(req: Request, ctx: Ctx) {
       scope: String(body.scope || ""),
       registered_at: String(body.registered_at || "").slice(0, 10),
       validity_years,
-    });
+    }, typeof body.expected_updated_at === "string" ? body.expected_updated_at : undefined);
     return NextResponse.json({ item: await getCertificate(id) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "ERROR";
@@ -98,12 +102,14 @@ export async function PUT(req: Request, ctx: Ctx) {
       return handleApiError(e);
     }
     const map: Record<string, string> = {
+      CONFLICT: "Hồ sơ đã thay đổi ở phiên khác. Vui lòng tải lại và kiểm tra trước khi lưu/duyệt.",
+      APPROVAL_REQUIRED: "Vui lòng duyệt hồ sơ và các thay đổi trước khi gia hạn.",
       NOT_FOUND: "Certificate not found.",
       INCOMPLETE: "Missing company name or registration code.",
       MISSING_DATES: "Missing registration date / expiry date.",
       PUBLISHED: "Cannot delete a published certificate.",
     };
-    return NextResponse.json({ error: map[msg] || msg }, { status: 400 });
+    return NextResponse.json({ error: map[msg] || msg }, { status: msg === "CONFLICT" ? 409 : msg === "NOT_FOUND" ? 404 : 400 });
   }
 }
 

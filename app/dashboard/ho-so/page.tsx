@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatDate, formatVnd, remainingDays, statusLabel, getValidityYears, formatDuns } from "@/lib/utils";
+import { needsCertificateApproval } from "@/lib/certificate-workflow";
 import type { Certificate } from "@/lib/types";
 import { Search } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
@@ -15,7 +16,7 @@ export default function CertificatesPage() {
   const [role, setRole] = useState<string>("");
 
   useEffect(() => {
-    fetch("/api/certificates")
+    fetch("/api/certificates", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setItems(d.items || []));
     fetch("/api/auth/me")
@@ -132,6 +133,7 @@ export default function CertificatesPage() {
                           ? "VALID"
                           : statusLabel(c.status, left)}
                       </span>
+                      {needsCertificateApproval(c) && <div className="mt-2 text-xs font-semibold text-amber-700">{t("form.pendingApproval")}</div>}
                     </td>
                   </tr>
                 );

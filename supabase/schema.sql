@@ -372,5 +372,8 @@ grant all on table public.invoice_payments to postgres;
 grant usage, select on all sequences in schema public to service_role;
 grant usage, select on all sequences in schema public to postgres;
 
+-- Published data stays live while edits wait for administrator approval.
+alter table public.certificates add column if not exists pending_changes jsonb;
+
 -- Important: Reload PostgREST schema cache to avoid PGRST205 error
 notify pgrst, 'reload schema';

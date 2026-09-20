@@ -1,3 +1,4 @@
+import { certificateUpdatedAt, prepareCertificateChanges, sameCertificateFields, needsCertificateApproval, certificateFields, type CertificateInput } from "./certificate-workflow";
 import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
@@ -328,6 +329,9 @@ function migrate(db: DatabaseSync) {
     }
     if (!has("us_agent")) {
       db.exec("ALTER TABLE certificates ADD COLUMN us_agent TEXT NOT NULL DEFAULT ''");
+    }
+    if (!has("pending_changes")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN pending_changes TEXT");
     }
     if (!has("company_email")) {
       db.exec("ALTER TABLE certificates ADD COLUMN company_email TEXT NOT NULL DEFAULT ''");
@@ -775,6 +779,7 @@ function plain<T>(row: T): T {
 function hydrate(row: Certificate): Certificate {
   if (!row) return row;
   const next = plain(row);
+  if (typeof next.pending_changes === "string") next.pending_changes = JSON.parse(next.pending_changes);
   if (!next.validity_years) {
     next.validity_years = getValidityYears(next as any);
   }
@@ -901,69 +906,18 @@ export function createCertificate(input: {
   return Number(info.lastInsertRowid);
 }
 
-export function updateCertificate(
-  id: number,
-  input: {
-    standard: Standard;
-    registration_code: string;
-    duns_code?: string;
-    us_agent?: string;
-    service_price: number;
-    company_name: string;
-    company_email?: string;
-    scope: string;
-    registered_at: string;
-    validity_years?: number;
-  }
-) {
-  const current = getCertificate(id);
-  if (!current) throw new Error("NOT_FOUND");
-  const validity = normalizeValidityYears(input.validity_years ?? current.validity_years, input.standard);
-  const expires = expiryFromStandard(input.registered_at, input.standard, validity);
-  const isGacc = input.standard === "GACC";
-  const duns = isGacc ? "" : input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
-  const usAgent = isGacc ? "" : input.us_agent !== undefined ? input.us_agent.trim().slice(0, 200) : current.us_agent;
-  const companyEmail = input.company_email !== undefined ? input.company_email.trim() : current.company_email || "";
-  db()
-    .prepare(
-      `UPDATE certificates SET
-        standard = ?, registration_code = ?, duns_code = ?, us_agent = ?,
-        service_price = ?, company_name = ?, company_email = ?,
-        scope = ?, registered_at = ?, expires_at = ?, validity_years = ?,
-        validity_confirmed = CASE WHEN registered_at = ? AND standard = ? AND validity_years = ? THEN validity_confirmed ELSE 0 END,
-        updated_at = datetime('now')
-       WHERE id = ?`
-    )
-    .run(
-      input.standard,
-      input.registration_code.trim(),
-      duns,
-      usAgent,
-      Math.max(0, Math.round(input.service_price || 0)),
-      input.company_name.trim(),
-      companyEmail,
-      input.scope.trim(),
-      input.registered_at,
-      expires,
-      validity,
-      input.registered_at,
-      input.standard,
-      validity,
-      id
-    );
-
-  // Sync to companies
+function syncCertificateCompany(input: { company_name: string; company_email: string }) {
   try {
     const existing = getCompanyByName(input.company_name.trim());
     if (!existing && input.company_name.trim()) {
       createCompany({
         company_name: input.company_name.trim(),
-        email: companyEmail,
+        email: input.company_email,
       });
-    } else if (existing && companyEmail) {
+    } else if (existing && input.company_email) {
       updateCompany(existing.id, {
         company_name: existing.company_name,
-        email: companyEmail || existing.email,
+        email: input.company_email || existing.email,
         phone: existing.phone,
         tax_code: existing.tax_code,
         address: existing.address,
@@ -974,41 +928,51 @@ export function updateCertificate(
   } catch {}
 }
 
-export function confirmValidity(id: number) {
+export function updateCertificate(id: number, input: CertificateInput, expectedUpdatedAt?: string) {
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  if (!current.registered_at || !current.expires_at) throw new Error("MISSING_DATES");
-  db()
-    .prepare(
-      "UPDATE certificates SET validity_confirmed = 1, updated_at = datetime('now') WHERE id = ?"
-    )
-    .run(id);
+  if (expectedUpdatedAt && current.updated_at !== expectedUpdatedAt) throw new Error("CONFLICT");
+  const changes = prepareCertificateChanges(current, input);
+  if (sameCertificateFields(changes, current.pending_changes || current)) return;
+  if (current.status !== "draft") {
+    const pending = sameCertificateFields(changes, current) ? null : JSON.stringify(changes);
+    db().prepare("UPDATE certificates SET pending_changes = ?, updated_at = ? WHERE id = ?")
+      .run(pending, certificateUpdatedAt(current), id);
+    return;
+  }
+  db().prepare(`UPDATE certificates SET ${certificateFields.map((f) => `${f} = ?`).join(", ")},
+    validity_confirmed = 0, updated_at = ? WHERE id = ?`)
+    .run(...certificateFields.map((f) => changes[f]), certificateUpdatedAt(current), id);
+
+  // Sync to companies
+  syncCertificateCompany(changes);
 }
 
-export function publishCertificate(id: number) {
+// Legacy confirmation uses the same approval workflow; it cannot bypass pending changes.
+export function confirmValidity(id: number) {
+  return publishCertificate(id);
+}
+
+export function publishCertificate(id: number, expectedUpdatedAt?: string) {
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  if (!current.company_name || !current.registration_code) throw new Error("INCOMPLETE");
-  // Recalculate expiry to ensure 1-year and other durations are correct (fix old buggy data)
-  const fixedExpiry = expiryFromStandard(current.registered_at, current.standard, current.validity_years);
-  db()
-    .prepare(
-      `UPDATE certificates SET
-        status = 'published',
-        validity_confirmed = 1,
-        expires_at = ?,
-        published_at = COALESCE(published_at, datetime('now')),
-        revenue_recorded = 1,
-        updated_at = datetime('now')
-       WHERE id = ?`
-    )
-    .run(fixedExpiry, id);
+  if (expectedUpdatedAt && current.updated_at !== expectedUpdatedAt) throw new Error("CONFLICT");
+  if (!needsCertificateApproval(current)) return current;
+  const approved = { ...current, ...current.pending_changes };
+  if (!approved.company_name || !approved.registration_code) throw new Error("INCOMPLETE");
+  if (!approved.registered_at || !approved.expires_at) throw new Error("MISSING_DATES");
+  db().prepare(`UPDATE certificates SET ${certificateFields.map((f) => `${f} = ?`).join(", ")},
+    pending_changes = NULL, status = 'published', validity_confirmed = 1,
+    published_at = COALESCE(published_at, ?), revenue_recorded = 1, updated_at = ? WHERE id = ?`)
+    .run(...certificateFields.map((f) => approved[f]), new Date().toISOString(), certificateUpdatedAt(current), id);
+  syncCertificateCompany(approved);
   return getCertificate(id)!;
 }
 
 export function renewCertificate(id: number, extraFee = 0, renewalYears?: number) {
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
+  if (needsCertificateApproval(current)) throw new Error("APPROVAL_REQUIRED");
   // FDA fixed 2, GACC fixed 5
   let validity: number;
   if (current.standard === "GACC") {
@@ -1034,10 +998,10 @@ export function renewCertificate(id: number, extraFee = 0, renewalYears?: number
         service_price = service_price + ?,
         status = 'published',
         validity_confirmed = 1,
-        updated_at = datetime('now')
+        updated_at = ?
        WHERE id = ?`
     )
-    .run(nextExpiry, validity, extra, id);
+    .run(nextExpiry, validity, extra, certificateUpdatedAt(current), id);
   return getCertificate(id)!;
 }
 

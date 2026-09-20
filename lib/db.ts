@@ -67,17 +67,18 @@ export async function updateCertificate(
     scope: string;
     registered_at: string;
     validity_years?: number;
-  }
+  },
+  expectedUpdatedAt?: string
 ) {
-  return isSupabaseEnabled() ? cloud.updateCertificate(id, input as any) : sqlite.updateCertificate(id, input as any);
+  return isSupabaseEnabled() ? cloud.updateCertificate(id, input, expectedUpdatedAt) : sqlite.updateCertificate(id, input, expectedUpdatedAt);
 }
 
 export async function confirmValidity(id: number) {
   return isSupabaseEnabled() ? cloud.confirmValidity(id) : sqlite.confirmValidity(id);
 }
 
-export async function publishCertificate(id: number) {
-  return isSupabaseEnabled() ? cloud.publishCertificate(id) : sqlite.publishCertificate(id);
+export async function publishCertificate(id: number, expectedUpdatedAt?: string) {
+  return isSupabaseEnabled() ? cloud.publishCertificate(id, expectedUpdatedAt) : sqlite.publishCertificate(id, expectedUpdatedAt);
 }
 
 export async function renewCertificate(id: number, extraFee = 0, renewalYears?: number) {

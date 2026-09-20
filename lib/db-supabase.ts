@@ -1,3 +1,4 @@
+import { certificateUpdatedAt, prepareCertificateChanges, sameCertificateFields, needsCertificateApproval, certificateFields, type CertificateInput } from "./certificate-workflow";
 import { hashPassword } from "./auth";
 import { supabaseAdmin } from "./supabase";
 import { expiryFromStandard, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
@@ -68,6 +69,7 @@ function mapCert(row: Record<string, unknown>): Certificate {
     created_at: String(row.created_at),
     updated_at: String(row.updated_at),
     created_by_name: name,
+    pending_changes: (row.pending_changes as Certificate["pending_changes"]) || null,
   };
   if (item.status === "published" && remainingDays(item.expires_at) < 0) {
     item.status = "expired";
@@ -413,60 +415,15 @@ export async function createCertificate(input: {
   return Number((data as any)?.id ?? 0);
 }
 
-export async function updateCertificate(
-  id: number,
-  input: {
-    standard: Standard;
-    registration_code: string;
-    duns_code?: string;
-    us_agent?: string;
-    service_price: number;
-    company_name: string;
-    company_email?: string;
-    scope: string;
-    registered_at: string;
-    validity_years?: number;
-  }
-) {
-  const current = await getCertificate(id);
-  if (!current) throw new Error("NOT_FOUND");
-  const validity = normalizeValidityYears(input.validity_years ?? current.validity_years, input.standard);
-  const expires = expiryFromStandard(input.registered_at, input.standard, validity);
-  const reset =
-    current.registered_at !== input.registered_at ||
-    current.standard !== input.standard ||
-    current.validity_years !== validity;
-  const isGacc = input.standard === "GACC";
-  const duns = isGacc ? "" : input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
-  const usAgent = isGacc ? "" : input.us_agent !== undefined ? input.us_agent.trim().slice(0, 200) : current.us_agent;
-  const companyEmail = input.company_email !== undefined ? input.company_email.trim() : (current as any).company_email || "";
-  const { error } = await supabaseAdmin()
-    .from("certificates")
-    .update({
-      standard: input.standard,
-      registration_code: input.registration_code.trim(),
-      duns_code: duns,
-      us_agent: usAgent,
-      service_price: Math.max(0, Math.round(input.service_price || 0)),
-      company_name: input.company_name.trim(),
-      company_email: companyEmail,
-      scope: input.scope.trim(),
-      registered_at: input.registered_at,
-      expires_at: expires,
-      validity_years: validity,
-      validity_confirmed: reset ? false : Boolean(current.validity_confirmed),
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-  if (error) assertNoSupabaseError(error, "certificates");
+async function syncCertificateCompany(input: { company_name: string; company_email: string }) {
   try {
     const existing = await getCompanyByName(input.company_name.trim());
     if (!existing && input.company_name.trim()) {
-      await createCompany({ company_name: input.company_name.trim(), email: companyEmail });
-    } else if (existing && companyEmail) {
+      await createCompany({ company_name: input.company_name.trim(), email: input.company_email });
+    } else if (existing && input.company_email) {
       await updateCompany(existing.id, {
         company_name: existing.company_name,
-        email: companyEmail || existing.email,
+        email: input.company_email || existing.email,
         phone: existing.phone,
         tax_code: existing.tax_code,
         address: existing.address,
@@ -477,40 +434,52 @@ export async function updateCertificate(
   } catch {}
 }
 
-export async function confirmValidity(id: number) {
+export async function updateCertificate(id: number, input: CertificateInput, expectedUpdatedAt?: string) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  if (!current.registered_at || !current.expires_at) throw new Error("MISSING_DATES");
-  const { error } = await supabaseAdmin()
-    .from("certificates")
-    .update({ validity_confirmed: true, updated_at: new Date().toISOString() })
-    .eq("id", id);
+  if (expectedUpdatedAt && current.updated_at !== expectedUpdatedAt) throw new Error("CONFLICT");
+  const changes = prepareCertificateChanges(current, input);
+  if (sameCertificateFields(changes, current.pending_changes || current)) return;
+  const payload = current.status === "draft"
+    ? { ...changes, validity_confirmed: false }
+    : { pending_changes: sameCertificateFields(changes, current) ? null : changes };
+  const { data, error } = await supabaseAdmin().from("certificates")
+    .update({ ...payload, updated_at: certificateUpdatedAt(current) })
+    .eq("id", id).eq("updated_at", current.updated_at).select("id").maybeSingle();
   if (error) assertNoSupabaseError(error, "certificates");
+  if (!data) throw new Error("CONFLICT");
+  if (current.status !== "draft") return;
+  await syncCertificateCompany(changes);
 }
 
-export async function publishCertificate(id: number) {
+export async function confirmValidity(id: number) {
+  return publishCertificate(id);
+}
+
+export async function publishCertificate(id: number, expectedUpdatedAt?: string) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  if (!current.company_name || !current.registration_code) throw new Error("INCOMPLETE");
-  const fixedExpiry = expiryFromStandard(current.registered_at, current.standard, current.validity_years);
-  const { error } = await supabaseAdmin()
-    .from("certificates")
-    .update({
-      status: "published",
-      validity_confirmed: true,
-      expires_at: fixedExpiry,
-      published_at: current.published_at || new Date().toISOString(),
-      revenue_recorded: true,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
+  if (expectedUpdatedAt && current.updated_at !== expectedUpdatedAt) throw new Error("CONFLICT");
+  if (!needsCertificateApproval(current)) return current;
+  const approved = { ...current, ...current.pending_changes };
+  if (!approved.company_name || !approved.registration_code) throw new Error("INCOMPLETE");
+  if (!approved.registered_at || !approved.expires_at) throw new Error("MISSING_DATES");
+  const fields = Object.fromEntries(certificateFields.map((f) => [f, approved[f]]));
+  const { data, error } = await supabaseAdmin().from("certificates")
+    .update({ ...fields, pending_changes: null, status: "published", validity_confirmed: true,
+      published_at: current.published_at || new Date().toISOString(), revenue_recorded: true,
+      updated_at: certificateUpdatedAt(current) })
+    .eq("id", id).eq("updated_at", current.updated_at).select("id").maybeSingle();
   if (error) assertNoSupabaseError(error, "certificates");
+  if (!data) throw new Error("CONFLICT");
+  await syncCertificateCompany(approved);
   return (await getCertificate(id))!;
 }
 
 export async function renewCertificate(id: number, extraFee = 0, renewalYears?: number) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
+  if (needsCertificateApproval(current)) throw new Error("APPROVAL_REQUIRED");
   // FDA fixed 2, GACC fixed 5
   let validity: number;
   if (current.standard === "GACC") {
@@ -526,7 +495,7 @@ export async function renewCertificate(id: number, extraFee = 0, renewalYears?: 
       : todayUtcIso();
   const nextExpiry = expiryFromStandard(baseDate, current.standard, validity);
   const extra = Math.max(0, Math.round(extraFee || 0));
-  const { error } = await supabaseAdmin()
+  const { data, error } = await supabaseAdmin()
     .from("certificates")
     .update({
       expires_at: nextExpiry,
@@ -536,10 +505,11 @@ export async function renewCertificate(id: number, extraFee = 0, renewalYears?: 
       service_price: current.service_price + extra,
       status: "published",
       validity_confirmed: true,
-      updated_at: new Date().toISOString(),
+      updated_at: certificateUpdatedAt(current),
     })
-    .eq("id", id);
+    .eq("id", id).eq("updated_at", current.updated_at).select("id").maybeSingle();
   if (error) assertNoSupabaseError(error, "certificates");
+  if (!data) throw new Error("CONFLICT");
   return (await getCertificate(id))!;
 }
 

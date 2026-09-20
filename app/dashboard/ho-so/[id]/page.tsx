@@ -13,7 +13,7 @@ export default async function EditCertificatePage({ params }: { params: { id: st
   const user = getSession();
   return (
     <div className="space-y-5">
-      <CertificateForm initial={item} />
+      <CertificateForm key={item.id} initial={item} role={user?.role} />
       {user?.role === "admin" && <InvoiceSection refType="certificate" refId={Number(params.id)} />}
     </div>
   );

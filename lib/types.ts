@@ -42,6 +42,7 @@ export type Certificate = {
   created_at: string;
   updated_at: string;
   created_by_name?: string;
+  pending_changes?: import("./certificate-workflow").CertificateChanges | null;
 };
 
 export type PublicCertificate = {

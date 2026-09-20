@@ -1,3 +1,4 @@
+import { getSession } from "@/lib/auth";
 import { CertificateForm } from "@/components/CertificateForm";
 
 export const runtime = "nodejs";
@@ -9,6 +10,7 @@ export default function NewCertificatePage({
 }) {
   return (
     <CertificateForm
+      role={getSession()?.role}
       prefill={{
         standard: searchParams?.standard,
         company: searchParams?.company,

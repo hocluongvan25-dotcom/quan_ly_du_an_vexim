@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { COMPANY, type Certificate } from "@/lib/types";
+import type { publicCertificate } from "@/lib/certificate-workflow";
+import { COMPANY } from "@/lib/types";
 import {
   daysBetween,
   formatDate,
@@ -11,7 +12,7 @@ import {
 } from "@/lib/utils";
 
 type Props = {
-  cert: Omit<Certificate, "service_price"> & { duns_code?: string; us_agent?: string };
+  cert: ReturnType<typeof publicCertificate>;
 };
 
 export function VerifyView({ cert }: Props) {

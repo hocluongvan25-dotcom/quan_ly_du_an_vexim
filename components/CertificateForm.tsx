@@ -6,8 +6,9 @@ import { CountdownRing } from "./CountdownRing";
 import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
 import { expiryFromStandard, formatDate, remainingDays, getValidityYears, formatDuns, todayLocalIso, todayUtcIso } from "@/lib/utils";
-import { FDA_FIXED_YEARS, GACC_FIXED_YEARS, type Certificate, type Standard } from "@/lib/types";
+import { FDA_FIXED_YEARS, GACC_FIXED_YEARS, type Certificate, type Standard, type Role } from "@/lib/types";
 import { CheckCircle2, Loader2, X, Building2, Mail, EyeOff, Search } from "lucide-react";
+import { needsCertificateApproval, certificateFields } from "@/lib/certificate-workflow";
 import { useI18n } from "@/lib/i18n/context";
 
 type CompanyOption = { id: number; company_name: string; email: string; standards?: string[]; certificate_count?: number; services_label?: string };
@@ -25,30 +26,45 @@ type FormState = {
   validity_years: number;
 };
 
-export function CertificateForm({
-  initial,
-  prefill,
-}: {
+type Prefill = { standard?: string; company?: string; email?: string; price?: string };
+
+function toForm(item?: Certificate, prefill?: Prefill): FormState {
+  const source = item ? { ...item, ...item.pending_changes } : undefined;
+  return {
+    standard: source?.standard || (prefill?.standard === "GACC" ? "GACC" : "FDA"),
+    registration_code: source?.registration_code || "",
+    duns_code: source?.duns_code || "",
+    us_agent: source ? source.us_agent : "Vexim Global LLC",
+    service_price: source ? String(source.service_price) : prefill?.price || "",
+    company_name: source?.company_name || prefill?.company || "",
+    company_email: source?.company_email || prefill?.email || "",
+    scope: source?.scope || "",
+    registered_at: source?.registered_at?.slice(0, 10) || todayLocalIso(),
+    validity_years: source?.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS,
+  };
+}
+
+async function certificateRequest(url: string, init?: RequestInit) {
+  const res = await fetch(url, { cache: "no-store", ...init });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Không thể cập nhật hồ sơ.");
+  return data;
+}
+
+export function CertificateForm({ initial, prefill, role }: {
   initial?: Certificate;
-  prefill?: { standard?: string; company?: string; email?: string; price?: string };
+  prefill?: Prefill;
+  role?: Role;
 }) {
   const router = useRouter();
   const { t } = useI18n();
-  const [form, setForm] = useState<FormState>({
-    standard: initial?.standard || (prefill?.standard === "GACC" ? "GACC" : "FDA"),
-    registration_code: initial?.registration_code || "",
-    duns_code: initial?.standard === "GACC" ? "" : initial?.duns_code || "",
-    us_agent: initial?.standard === "GACC" ? "" : initial?.us_agent || "Vexim Global LLC",
-    service_price: initial ? String(initial.service_price) : prefill?.price || "",
-    company_name: initial?.company_name || prefill?.company || "",
-    company_email: (initial as any)?.company_email || prefill?.email || "",
-    scope: initial?.scope || "",
-    registered_at: initial?.registered_at?.slice(0, 10) || todayLocalIso(),
-    validity_years: initial?.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS,
-  });
+  const isAdmin = role === "admin";
+  const [form, setForm] = useState<FormState>(() => toForm(initial, prefill));
   const [item, setItem] = useState<Certificate | undefined>(initial);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState("");
+  const [loading, setLoading] = useState(Boolean(initial));
+  const [loadFailed, setLoadFailed] = useState(false);
   const [origin, setOrigin] = useState("");
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [companySearchOpen, setCompanySearchOpen] = useState(false);
@@ -81,6 +97,29 @@ export function CertificateForm({
       .catch(() => {});
   }, []);
 
+  // The Next router may restore an old page snapshot. Always read persisted state on entry,
+  // without publishing or mutating the certificate just to display its QR.
+  useEffect(() => {
+    if (!initial?.id) return;
+    const controller = new AbortController();
+    setLoading(true);
+    setLoadFailed(false);
+    certificateRequest(`/api/certificates/${initial.id}`, { signal: controller.signal })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setItem(data.item);
+        setForm(toForm(data.item));
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          setMsg(error.message || t("form.loadFailed"));
+          setLoadFailed(true);
+        }
+      })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [initial?.id]);
+
   // Close dropdown on outside click
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -107,18 +146,19 @@ export function CertificateForm({
     }
   }, [form.standard]);
 
-  const expires = useMemo(
-    () => expiryFromStandard(form.registered_at, form.standard, form.validity_years),
-    [form.registered_at, form.standard, form.validity_years]
-  );
+  const expires = useMemo(() => {
+    if (item && item.registered_at === form.registered_at && item.standard === form.standard &&
+        item.validity_years === form.validity_years) return item.expires_at;
+    return expiryFromStandard(form.registered_at, form.standard, form.validity_years);
+  }, [item, form.registered_at, form.standard, form.validity_years]);
+  const dirty = item ? JSON.stringify(form) !== JSON.stringify(toForm(item)) : true;
+  const needsApproval = item ? needsCertificateApproval(item) : false;
   const savedLeft = item ? remainingDays(item.expires_at) : remainingDays(expires);
   const left = item ? savedLeft : remainingDays(expires);
-  // Simplified: published = valid, no separate confirm step
   const published = item?.status === "published" || item?.status === "expired";
-  const valid = published && savedLeft >= 0;
-  const confirmed = published; // auto-confirmed on publish
+  const valid = published && Boolean(item?.validity_confirmed) && savedLeft >= 0;
+  const confirmed = published && Boolean(item?.validity_confirmed);
   const displayValidity = form.standard === "GACC" ? GACC_FIXED_YEARS : form.validity_years;
-  const savedValidity = item ? getValidityYears(item) : form.validity_years;
 
   const renewBaseDate = useMemo(() => {
     if (!item) return todayUtcIso();
@@ -156,6 +196,7 @@ export function CertificateForm({
 
   async function save(e?: FormEvent) {
     e?.preventDefault();
+    if (loading || loadFailed || busy || (item && !dirty)) return;
     setBusy("save");
     setMsg("");
     if (form.standard === "FDA" && form.duns_code) {
@@ -170,6 +211,7 @@ export function CertificateForm({
     const isGacc = form.standard === "GACC";
     const payload = {
       ...form,
+      expected_updated_at: item?.updated_at,
       company_name: form.company_name.trim(),
       company_email: form.company_email.trim(),
       service_price: Number(String(form.service_price).replace(/[^\d]/g, "") || 0),
@@ -182,56 +224,51 @@ export function CertificateForm({
       setMsg("Email doanh nghiệp không hợp lệ.");
       return;
     }
-    const res = await fetch(item ? `/api/certificates/${item.id}` : "/api/certificates", {
-      method: item ? "PUT" : "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    setBusy("");
-    if (!res.ok) {
-      setMsg(data.error || "Failed to save");
-      return;
+    try {
+      const data = await certificateRequest(item ? `/api/certificates/${item.id}` : "/api/certificates", {
+        method: item ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!item) {
+        router.replace(`/dashboard/ho-so/${data.id}`);
+        router.refresh();
+        return;
+      }
+      setItem(data.item);
+      setForm(toForm(data.item));
+      setMsg(data.item.pending_changes || data.item.status === "draft" ? t("form.savedForApproval") : t("form.noPendingChanges"));
+      router.refresh();
+    } catch (error) {
+      setMsg(error instanceof Error ? error.message : t("form.requestFailed"));
+    } finally {
+      setBusy("");
     }
-    if (!item) {
-      router.replace(`/dashboard/ho-so/${data.id}`);
-      return;
-    }
-    setItem(data.item);
-    setMsg(
-      t("form.saved", {
-        years: data.item.validity_years,
-        yearLabel: data.item.validity_years === 1 ? t("common.year") : t("common.years"),
-        date: formatDate(data.item.expires_at),
-      })
-    );
   }
 
   async function publish() {
-    if (!item) {
-      // If no item yet, save first then publish
-      await save();
-      return;
-    }
+    if (!item || !isAdmin || busy || loading || loadFailed || dirty || !needsApproval) return;
     setBusy("publish");
     setMsg("");
-    const res = await fetch(`/api/certificates/${item.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "publish" }),
-    });
-    const data = await res.json();
-    setBusy("");
-    if (!res.ok) {
-      setMsg(data.error || "Publish failed");
-      return;
+    try {
+      const data = await certificateRequest(`/api/certificates/${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "publish", expected_updated_at: item.updated_at }),
+      });
+      setItem(data.item);
+      setForm(toForm(data.item));
+      setMsg(t("form.approvedMsg"));
+      router.refresh();
+    } catch (error) {
+      setMsg(error instanceof Error ? error.message : t("form.requestFailed"));
+    } finally {
+      setBusy("");
     }
-    setItem(data.item);
-    setMsg(t("form.publishedMsg"));
   }
 
   async function doRenew() {
-    if (!item) return;
+    if (!item || !isAdmin || busy || dirty || needsApproval) return;
     setBusy("renew");
     setMsg("");
     const finalRenewYears = item.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS;
@@ -241,27 +278,26 @@ export function CertificateForm({
       renew_years: finalRenewYears,
       extra_fee: Number(String(renewFee).replace(/[^\d]/g, "") || 0),
     };
-    const res = await fetch(`/api/certificates/${item.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
-    setBusy("");
-    if (!res.ok) {
-      setMsg(data.error || "Renew failed");
-      return;
-    }
-    setItem(data.item);
-    setShowRenewDialog(false);
-    setMsg(
-      t("form.renewedMsg", {
+    try {
+      const data = await certificateRequest(`/api/certificates/${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      setItem(data.item);
+      setForm(toForm(data.item));
+      setShowRenewDialog(false);
+      setMsg(t("form.renewedMsg", {
         years: getValidityYears(data.item),
         yearLabel: getValidityYears(data.item) === 1 ? t("common.year") : t("common.years"),
-        date: formatDate(data.item.expires_at),
-        count: data.item.renewal_count,
-      })
-    );
+        date: formatDate(data.item.expires_at), count: data.item.renewal_count,
+      }));
+      router.refresh();
+    } catch (error) {
+      setMsg(error instanceof Error ? error.message : t("form.requestFailed"));
+    } finally {
+      setBusy("");
+    }
   }
 
   const qrUrl = item && origin ? `${origin}/verify/${item.public_code}` : "";
@@ -272,6 +308,9 @@ export function CertificateForm({
   return (
     <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
       <form onSubmit={save} className="space-y-4 rounded-3xl bg-white p-5 shadow-card md:p-7">
+        {loading && <p role="status" className="text-sm text-slate-500">{t("form.loadingRecord")}</p>}
+        {loadFailed && <button type="button" onClick={() => window.location.reload()} className="text-sm text-rose-700 underline">{t("form.reloadRecord")}</button>}
+        <fieldset disabled={loading || loadFailed || !!busy} className="min-w-0 space-y-4">
         <div className="flex items-start justify-between gap-4">
           <div>
             <h1 className="font-display text-2xl font-extrabold text-navy-900">
@@ -290,6 +329,20 @@ export function CertificateForm({
           <ValiditySeal valid={valid} confirmed={confirmed} size="sm" />
         </div>
 
+        {item?.pending_changes && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+            <p className="font-semibold">{t("form.pendingApproval")}</p>
+            <p className="mt-1 text-xs">{t("form.pendingApprovalHelp")}</p>
+            <details className="mt-2">
+              <summary className="cursor-pointer font-semibold">{t("form.reviewChanges")}</summary>
+              <ul className="mt-2 space-y-2 break-words text-xs">
+                {certificateFields.filter((field) => item.pending_changes![field] !== item[field]).map((field) => (
+                  <li key={field}><b>{t(`form.changeFields.${field}`)}</b>: {String(item[field] || "—")} → <b>{String(item.pending_changes![field] || "—")}</b></li>
+                ))}
+              </ul>
+            </details>
+          </div>
+        )}
         <div className="grid gap-4 md:grid-cols-2">
           <Field label={t("form.standard")}>
             <select
@@ -555,15 +608,15 @@ export function CertificateForm({
           )}
         </div>
 
-        {msg && <div className="rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-800">{msg}</div>}
+        {msg && <div role="status" className="rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-800">{msg}</div>}
 
         <div className="flex flex-wrap gap-2 pt-2">
-          <button type="submit" disabled={!!busy} className="rounded-xl border border-navy-900/10 px-4 py-2.5 text-sm font-semibold">
-            {busy === "save" ? t("form.saving") : t("form.saveDraft")}
+          <button type="submit" disabled={!!busy || (!!item && !dirty)} className="rounded-xl border border-navy-900/10 px-4 py-2.5 text-sm font-semibold disabled:opacity-50">
+            {busy === "save" ? t("form.saving") : item ? t("form.saveChanges") : t("form.saveDraft")}
           </button>
-          <button
+          {isAdmin && <button
             type="button"
-            disabled={!!busy || !item}
+            disabled={!!busy || !item || dirty || !needsApproval}
             onClick={publish}
             className="rounded-xl bg-navy-900 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50 shadow-lift"
           >
@@ -571,16 +624,16 @@ export function CertificateForm({
               <span className="inline-flex items-center gap-1">
                 <Loader2 className="h-4 w-4 animate-spin" /> {t("form.publishing")}
               </span>
-            ) : published ? (
+            ) : !needsApproval && published ? (
               t("form.published")
             ) : (
-              t("form.publish")
+              t("form.approvePublish")
             )}
-          </button>
-          {published && (
+          </button>}
+          {published && isAdmin && (
             <button
               type="button"
-              disabled={!!busy}
+              disabled={!!busy || dirty || needsApproval}
               onClick={() => {
                 setRenewYears(item ? (item.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS) : displayValidity);
                 setRenewFee("0");
@@ -593,8 +646,9 @@ export function CertificateForm({
           )}
         </div>
         <div className="pt-2 text-[11px] text-slate-500">
-          Luồng mới: <b>Lưu nháp</b> → <b>Xuất bản + tạo QR</b> (tự động hợp lệ, không cần bước Xác nhận riêng)
+          {dirty && item ? t("form.unsavedChanges") : t("form.approvalFlow")}
         </div>
+        </fieldset>
       </form>
 
       <aside className="space-y-4">
