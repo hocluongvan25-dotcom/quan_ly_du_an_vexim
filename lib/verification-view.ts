@@ -1,3 +1,4 @@
+import { verificationStatuses, type VerificationLocale } from "./verification-i18n";
 import type { Certificate } from "./types";
 import { remainingDays } from "./utils";
 
@@ -11,24 +12,25 @@ function validDate(value: string) {
 }
 
 /** Evaluate against the server's actual read time, not a hard-coded date or the browser timezone. */
-export function verificationResult(cert: VerificationRecord, checkedAt: string) {
+export function verificationResult(cert: VerificationRecord, checkedAt: string, locale: VerificationLocale = "vi") {
+  const messages = verificationStatuses[locale];
   const now = new Date(checkedAt);
   const datesValid = validDate(cert.registered_at) && validDate(cert.expires_at) &&
     cert.registered_at.slice(0, 10) <= cert.expires_at.slice(0, 10);
   const left = datesValid && Number.isFinite(now.getTime()) ? remainingDays(cert.expires_at, now) : null;
   if (cert.status === "draft" || left === null) {
-    return { state: "unverified", title: "Verification Pending", label: "Chưa xác nhận hiệu lực", description: "Hồ sơ chưa đủ điều kiện xác nhận hiệu lực. Vui lòng liên hệ Vexim Global để kiểm tra thông tin.", left } as const;
+    return { state: "unverified", ...messages.incomplete, left } as const;
   }
   if (left < 0 || cert.status === "expired") {
-    return { state: "expired", title: "Certificate Expired", label: "Hết hiệu lực", description: "Chứng nhận đã hết hiệu lực theo hồ sơ xác minh. Vui lòng liên hệ đơn vị thực hiện để kiểm tra tình trạng gia hạn.", left } as const;
+    return { state: "expired", ...messages.expired, left } as const;
   }
   if (!cert.validity_confirmed || !cert.company_name.trim() || !cert.registration_code.trim()) {
-    return { state: "unverified", title: "Verification Pending", label: "Chưa xác nhận hiệu lực", description: "Hồ sơ chưa được xác nhận hiệu lực. Vui lòng liên hệ Vexim Global để kiểm tra thông tin đăng ký.", left } as const;
+    return { state: "unverified", ...messages.unconfirmed, left } as const;
   }
   if (cert.registered_at.slice(0, 10) > now.toISOString().slice(0, 10)) {
-    return { state: "unverified", title: "Certificate Not Yet Valid", label: "Chưa có hiệu lực", description: "Chứng nhận chưa đến ngày bắt đầu hiệu lực theo hồ sơ xác minh.", left } as const;
+    return { state: "unverified", ...messages.future, left } as const;
   }
-  return { state: "valid", title: "Certificate Verified", label: "Còn hiệu lực", description: "Chứng nhận hiện đang có hiệu lực và thông tin đăng ký khớp với hồ sơ xác minh.", left } as const;
+  return { state: "valid", ...messages.valid, left } as const;
 }
 
 export function formatCheckedAt(iso: string) {
@@ -42,8 +44,9 @@ export function formatCheckedAt(iso: string) {
   return `${part("day")} ${part("month")} ${part("year")} · ${part("hour")}:${part("minute")} ICT`;
 }
 
-export function formatRegistrationDate(iso: string | null) {
+export function formatRegistrationDate(iso: string | null, locale: VerificationLocale = "vi") {
   if (!iso || !validDate(iso)) return "—";
+  if (locale === "en") return new Intl.DateTimeFormat("en-GB", { timeZone: "UTC", day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${iso.slice(0, 10)}T00:00:00Z`));
   const [year, month, day] = iso.slice(0, 10).split("-");
   return `${day}/${month}/${year}`;
 }

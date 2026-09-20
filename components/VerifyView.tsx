@@ -10,33 +10,46 @@ import type { publicCertificate } from "@/lib/certificate-workflow";
 import { COMPANY } from "@/lib/types";
 import { formatDuns } from "@/lib/utils";
 import { formatCheckedAt, formatRegistrationDate, verificationResult } from "@/lib/verification-view";
+import { verificationText, verificationLanguageUrl, VERIFICATION_LOCALE_COOKIE, type VerificationLocale, type VerificationTextKey } from "@/lib/verification-i18n";
 import styles from "./VerifyView.module.css";
 
-type Props = { cert: ReturnType<typeof publicCertificate>; checkedAt: string };
+type Props = { cert: ReturnType<typeof publicCertificate>; checkedAt: string; locale: VerificationLocale };
 type Service = "sales" | "amazon";
-const services = {
+const serviceLinks = {
   sales: {
-    title: "Phòng Sale Xuất Khẩu Mỹ",
-    description: "Kết nối buyer B2B, phát triển hệ thống phân phối và hỗ trợ chứng từ xuất khẩu.",
     url: "https://veximtrade.com", website: "veximtrade.com",
   },
   amazon: {
-    title: "Vận Hành Amazon US",
-    description: "Hỗ trợ Brand Registry, nội dung sản phẩm, quảng cáo PPC và vận hành FBA.",
     url: "https://veximops.com", website: "veximops.com",
   },
 };
 
-export function VerifyView({ cert, checkedAt }: Props) {
+export function VerifyView({ cert, checkedAt, locale }: Props) {
+  const t = (key: VerificationTextKey, params?: Record<string, string | number>) => verificationText(locale, key, params);
+  const services = {
+    sales: { ...serviceLinks.sales, title: t("salesTitle"), description: t("salesDescription") },
+    amazon: { ...serviceLinks.amazon, title: t("amazonTitle"), description: t("amazonDescription") },
+  };
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
-  const [toast, setToast] = useState("");
+  const [switchingLanguage, startLanguageSwitch] = useTransition();
+
+  function switchLanguage(next: VerificationLocale) {
+    if (switchingLanguage || next === locale) return;
+    // Optional preference storage: an explicit link works even when cookies are blocked.
+    try {
+      document.cookie = `${VERIFICATION_LOCALE_COOKIE}=${next}; Path=/verify; Max-Age=31536000; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
+    } catch { /* Language switching must not depend on storage permission. */ }
+    const url = verificationLanguageUrl(window.location.href, next);
+    startLanguageSwitch(() => router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false }));
+  }
+  const [toast, setToast] = useState<VerificationTextKey | "">("");
   const [modal, setModal] = useState<Service | null>(null);
   const [contact, setContact] = useState({ name: "", phone: "" });
-  const [formError, setFormError] = useState("");
+  const [formError, setFormError] = useState<VerificationTextKey | "">("");
   const [submitting, setSubmitting] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const result = verificationResult(cert, checkedAt);
+  const result = verificationResult(cert, checkedAt, locale);
   const isGacc = cert.standard === "GACC";
   const StateIcon = result.state === "valid" ? ShieldCheck : result.state === "expired" ? ShieldX : Info;
   const authority = isGacc
@@ -76,15 +89,15 @@ export function VerifyView({ cert, checkedAt }: Props) {
           if (!document.execCommand("copy")) throw new Error("Copy failed");
         } finally { input.remove(); }
       }
-      setToast("Đã sao chép vào bộ nhớ tạm.");
-    } catch { setToast("Không thể sao chép. Vui lòng sao chép trực tiếp từ thanh địa chỉ hoặc hồ sơ."); }
+      setToast("copySuccess");
+    } catch { setToast("copyFailure"); }
   }
 
   async function submitConsultation(event: FormEvent) {
     event.preventDefault();
     if (!modal || submitting) return;
     if (!contact.name.trim() || contact.phone.replace(/\D/g, "").length < 9) {
-      setFormError("Vui lòng nhập họ tên và số điện thoại hợp lệ.");
+      setFormError("invalidContact");
       return;
     }
     setSubmitting(true);
@@ -98,13 +111,12 @@ export function VerifyView({ cert, checkedAt }: Props) {
           public_code: cert.public_code, source_url: window.location.href,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Gửi yêu cầu thất bại.");
+      if (!res.ok) throw new Error("CONSULTATION_FAILED");
       setContact({ name: "", phone: "" });
       setModal(null);
-      setToast("Đã gửi yêu cầu tư vấn. Vexim Global sẽ liên hệ với bạn.");
-    } catch (error) {
-      setFormError(error instanceof Error ? error.message : "Có lỗi xảy ra. Vui lòng thử lại.");
+      setToast("consultationSuccess");
+    } catch {
+      setFormError("sendFailed");
     } finally { setSubmitting(false); }
   }
 
@@ -116,28 +128,35 @@ export function VerifyView({ cert, checkedAt }: Props) {
   );
 
   return (
-    <div className={styles.page} lang="vi">
+    <div className={styles.page} lang={locale}>
       <header className={styles.masthead}>
         <div className={styles.mastheadInner}>
-          <a href={COMPANY.website} className={styles.brand} aria-label="Vexim Global — trang chủ">
+          <a href={COMPANY.website} className={styles.brand} aria-label={t("home")}>
             <span className={styles.brandMark}><ShieldCheck size={24} strokeWidth={1.6} aria-hidden="true" /></span>
             <span>VEXIM <span className={styles.brandLight}>GLOBAL</span><small>CERTIFICATE VERIFICATION</small></span>
           </a>
-          <span className={styles.mastheadNote}><Globe2 size={15} aria-hidden="true" /> Tra cứu hồ sơ đăng ký</span>
+          <div className={styles.headerTools}>
+            <span className={styles.mastheadNote}><Globe2 size={15} aria-hidden="true" /> {t("lookup")}</span>
+            <div className={styles.languageSwitch} role="group" aria-label={t("language")} aria-busy={switchingLanguage}>
+              <button type="button" lang="vi" aria-label="Tiếng Việt" aria-pressed={locale === "vi"} disabled={switchingLanguage} onClick={() => switchLanguage("vi")}>VI</button>
+              <span aria-hidden="true">|</span>
+              <button type="button" lang="en" aria-label="English" aria-pressed={locale === "en"} disabled={switchingLanguage} onClick={() => switchLanguage("en")}>EN</button>
+            </div>
+          </div>
         </div>
       </header>
 
       <main className={styles.main}>
         <div className={styles.documentHeading}>
-          <span><span className={styles.goldLine} /> HỒ SƠ XÁC MINH ĐĂNG KÝ</span>
-          <span>{cert.standard} / VIỆT NAM</span>
+          <span><span className={styles.goldLine} /> {t("documentHeading")}</span>
+          <span>{cert.standard} / {t("countryHeading")}</span>
         </div>
 
-        <article className={styles.document} aria-label="Kết quả xác minh chứng nhận">
+        <article className={styles.document} aria-label={t("articleLabel")}>
           <section className={styles.result} aria-labelledby="verification-title" data-state={result.state}>
             <div className={styles.resultTop}>
               <div className={styles.resultText}>
-                <p className={styles.eyebrow}>Verification result</p>
+                <p className={styles.eyebrow}>{t("resultHeading")}</p>
                 <h1 id="verification-title">{result.title}</h1>
                 <p className={styles.resultDescription}>{result.description}</p>
                 {badge}
@@ -152,14 +171,14 @@ export function VerifyView({ cert, checkedAt }: Props) {
             </div>
             <div className={styles.resultMeta}>
               <div>
-                <span className={styles.metaLabel}>Verification ID</span>
+                <span className={styles.metaLabel}>{t("verificationId")}</span>
                 <div className={styles.metaValue}>
                   <strong className={styles.mono}>{cert.certificate_no}</strong>
-                  <button type="button" className={styles.iconButton} onClick={() => copy(cert.certificate_no)} aria-label="Sao chép Verification ID"><Copy size={15} /></button>
+                  <button type="button" className={styles.iconButton} onClick={() => copy(cert.certificate_no)} aria-label={t("copyId")}><Copy size={15} /></button>
                 </div>
               </div>
               <div>
-                <span className={styles.metaLabel}>Last checked <span>· Thời điểm tra cứu</span></span>
+                <span className={styles.metaLabel}>{t("lastChecked")} <span>· {t("checkedHint")}</span></span>
                 <div className={styles.metaValue}>
                   <Clock3 size={15} className={styles.mutedIcon} aria-hidden="true" />
                   <time dateTime={checkedAt}>{formatCheckedAt(checkedAt)}</time>
@@ -170,103 +189,103 @@ export function VerifyView({ cert, checkedAt }: Props) {
 
           <div className={styles.documentBody}>
             <section aria-labelledby="company-details">
-              <SectionHeading number="01" title="Thông tin doanh nghiệp" subtitle="Company information" id="company-details" icon={<Building2 size={19} />} />
+              <SectionHeading number="01" title={t("companyTitle")} subtitle={t("companySubtitle")} id="company-details" icon={<Building2 size={19} />} />
               <table className={styles.table} aria-labelledby="company-details">
                 <tbody>
-                  <DetailRow label="Doanh nghiệp"><strong className={styles.companyName}>{cert.company_name}</strong></DetailRow>
-                  <DetailRow label="Loại chứng nhận"><span className={styles.standardTag}>{cert.standard}</span><span>Đăng ký {cert.standard}</span></DetailRow>
-                  <DetailRow label="Cơ quan quản lý đăng ký">{authority}</DetailRow>
-                  <DetailRow label="Quốc gia đăng ký"><span className={styles.countryCode}>VN</span> Việt Nam</DetailRow>
-                  <DetailRow label="Đơn vị xác minh">{COMPANY.legal}</DetailRow>
+                  <DetailRow label={t("company")}><strong className={styles.companyName}>{cert.company_name}</strong></DetailRow>
+                  <DetailRow label={t("certificateType")}><span className={styles.standardTag}>{cert.standard}</span><span>{t("registrationType", { standard: cert.standard })}</span></DetailRow>
+                  <DetailRow label={t("authority")}>{authority}</DetailRow>
+                  <DetailRow label={t("registrationCountry")}><span className={styles.countryCode}>VN</span> {t("country")}</DetailRow>
+                  <DetailRow label={t("verifier")}>{COMPANY.legal}</DetailRow>
                 </tbody>
               </table>
             </section>
 
             <section aria-labelledby="registration-details" className={styles.registrationSection}>
-              <SectionHeading number="02" title="Chi tiết đăng ký" subtitle={`${cert.standard} registration details`} id="registration-details" icon={<FileCheck2 size={19} />} />
+              <SectionHeading number="02" title={t("registrationTitle")} subtitle={t("registrationSubtitle", { standard: cert.standard })} id="registration-details" icon={<FileCheck2 size={19} />} />
               <table className={styles.table} aria-labelledby="registration-details">
                 <tbody>
-                  <DetailRow label={`Mã đăng ký ${cert.standard}`}>
+                  <DetailRow label={t("registrationCode", { standard: cert.standard })}>
                     <div className={styles.codeValue}>
                       <strong className={styles.mono}>{cert.registration_code || "—"}</strong>
-                      {cert.registration_code && <button type="button" className={styles.iconButton} onClick={() => copy(cert.registration_code)} aria-label={`Sao chép mã đăng ký ${cert.standard}`}><Copy size={15} /></button>}
+                      {cert.registration_code && <button type="button" className={styles.iconButton} onClick={() => copy(cert.registration_code)} aria-label={t("copyRegistration", { standard: cert.standard })}><Copy size={15} /></button>}
                     </div>
                   </DetailRow>
-                  <DetailRow label={isGacc ? "Thị trường đăng ký" : "Thị trường quản lý"}>{isGacc ? "Trung Quốc (China)" : "Hoa Kỳ (United States)"}</DetailRow>
-                  <DetailRow label={isGacc ? "Ngành hàng / Phạm vi đăng ký" : "Phạm vi đăng ký FDA"}><span className={styles.preserveLines}>{cert.scope || "Chưa có thông tin trong hồ sơ."}</span></DetailRow>
-                  {!isGacc && <DetailRow label="Mã số DUNS®"><span className={styles.mono}>{cert.duns_code ? formatDuns(cert.duns_code) : "Chưa có thông tin"}</span></DetailRow>}
-                  {!isGacc && <DetailRow label="Đại diện tại Hoa Kỳ (US Agent)">{cert.us_agent || "Chưa có thông tin"}</DetailRow>}
-                  <DetailRow label="Ngày đăng ký">{formatRegistrationDate(cert.registered_at)}</DetailRow>
-                  <DetailRow label="Ngày hết hiệu lực"><strong className={result.state === "expired" ? styles.expiredDate : undefined}>{formatRegistrationDate(cert.expires_at)}</strong></DetailRow>
-                  <DetailRow label="Kỳ hạn đăng ký">{cert.validity_years} năm / kỳ đăng ký</DetailRow>
-                  <DetailRow label="Trạng thái hiệu lực">
+                  <DetailRow label={t(isGacc ? "gaccMarket" : "fdaMarket")}>{t(isGacc ? "china" : "usa")}</DetailRow>
+                  <DetailRow label={t(isGacc ? "gaccScope" : "fdaScope")}><span className={styles.preserveLines}>{cert.scope || t("noScope")}</span></DetailRow>
+                  {!isGacc && <DetailRow label={t("duns")}><span className={styles.mono}>{cert.duns_code ? formatDuns(cert.duns_code) : t("unavailable")}</span></DetailRow>}
+                  {!isGacc && <DetailRow label={t("usAgent")}>{cert.us_agent || t("unavailable")}</DetailRow>}
+                  <DetailRow label={t("registrationDate")}>{formatRegistrationDate(cert.registered_at, locale)}</DetailRow>
+                  <DetailRow label={t("expiryDate")}><strong className={result.state === "expired" ? styles.expiredDate : undefined}>{formatRegistrationDate(cert.expires_at, locale)}</strong></DetailRow>
+                  <DetailRow label={t("term")}>{t("termValue", { count: cert.validity_years })}</DetailRow>
+                  <DetailRow label={t("validity")}>
                     <div className={styles.validityValue}>
                       {badge}
-                      {result.state === "valid" && <span>{result.left === 0 ? "Ngày hiệu lực cuối cùng" : `Còn ${result.left} ngày`}</span>}
+                      {result.state === "valid" && <span>{result.left === 0 ? t("lastValidDay") : t("daysLeft", { count: result.left ?? 0 })}</span>}
                     </div>
                   </DetailRow>
-                  {cert.renewal_count > 0 && <DetailRow label="Lần gia hạn gần nhất">{formatRegistrationDate(cert.last_renewed_at)} <span className={styles.inlineNote}>· Đã gia hạn {cert.renewal_count} lần</span></DetailRow>}
-                  <DetailRow label="Mã tra cứu QR"><span className={styles.mono}>{cert.public_code}</span></DetailRow>
+                  {cert.renewal_count > 0 && <DetailRow label={t("lastRenewal")}>{formatRegistrationDate(cert.last_renewed_at, locale)} <span className={styles.inlineNote}>· {t("renewals", { count: cert.renewal_count })}</span></DetailRow>}
+                  <DetailRow label={t("qrCode")}><span className={styles.mono}>{cert.public_code}</span></DetailRow>
                 </tbody>
               </table>
             </section>
 
-            <aside className={styles.verificationNote} aria-label="Phạm vi xác minh">
+            <aside className={styles.verificationNote} aria-label={t("scopeLabel")}>
               <Info size={18} aria-hidden="true" />
               <div>
-                <strong>Về kết quả xác minh</strong>
-                <p>Kết quả đối chiếu với hồ sơ đã được duyệt trên hệ thống Vexim Global tại thời điểm tra cứu; không phải kết nối xác nhận trực tiếp từ {cert.standard}. {isGacc ? "Thông tin đăng ký GACC cần được đối chiếu với cơ quan quản lý khi cần thiết." : "Đăng ký FDA không đồng nghĩa với việc FDA phê duyệt hoặc chứng nhận chất lượng sản phẩm."}</p>
+                <strong>{t("aboutResult")}</strong>
+                <p>{t("verificationNote", { standard: cert.standard })} {t(isGacc ? "gaccNote" : "fdaNote")}</p>
               </div>
             </aside>
           </div>
 
           <footer className={styles.documentFooter}>
-            <div><ShieldCheck size={17} aria-hidden="true" /><span>Hồ sơ xác minh bởi <strong>Vexim Global</strong></span></div>
+            <div><ShieldCheck size={17} aria-hidden="true" /><span>{t("verifiedBy")} <strong>Vexim Global</strong></span></div>
             <div className={styles.actions}>
               <button type="button" className={styles.secondaryButton} disabled={refreshing} onClick={() => startRefresh(() => router.refresh())}>
-                <RefreshCw size={15} className={refreshing ? styles.spinning : undefined} aria-hidden="true" /> {refreshing ? "Đang kiểm tra…" : "Kiểm tra lại"}
+                <RefreshCw size={15} className={refreshing ? styles.spinning : undefined} aria-hidden="true" /> {refreshing ? t("checking") : t("refresh")}
               </button>
-              <button type="button" className={styles.primaryButton} onClick={() => copy(window.location.href)}><Link2 size={15} aria-hidden="true" /> Chia sẻ kết quả</button>
+              <button type="button" className={styles.primaryButton} onClick={() => copy(verificationLanguageUrl(window.location.href, locale).href)}><Link2 size={15} aria-hidden="true" /> {t("share")}</button>
             </div>
           </footer>
         </article>
 
-        <section className={styles.support} aria-label="Hỗ trợ xác minh">
-          <div><p className={styles.supportLabel}>CẦN HỖ TRỢ XÁC MINH?</p><p>Liên hệ đơn vị thực hiện đăng ký</p></div>
+        <section className={styles.support} aria-label={t("supportLabel")}>
+          <div><p className={styles.supportLabel}>{t("supportTitle")}</p><p>{t("supportContact")}</p></div>
           <a href={COMPANY.phoneHref}><Phone size={15} aria-hidden="true" />{COMPANY.phone}</a>
           <a href={`mailto:${COMPANY.email}`}><Mail size={15} aria-hidden="true" />{COMPANY.email}</a>
         </section>
 
         <details className={styles.services}>
-          <summary><span>Hồ sơ đã sẵn sàng bạn đã có phương án đưa sản phẩm vào Mỹ chưa?<small>Khám phá mô hình phòng sale xuất khẩu &amp; Vận hành Amazon tại Vexim</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
+          <summary><span>{t("servicesTitle")}<small>{t("servicesSubtitle")}</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
           <div className={styles.serviceGrid}>
             {(Object.keys(services) as Service[]).map((key) => (
               <div className={styles.serviceCard} key={key}>
                 <h3>{services[key].title}</h3><p>{services[key].description}</p>
-                <div><button type="button" className={styles.secondaryButton} onClick={() => { setFormError(""); setModal(key); }}>Đăng ký tư vấn</button><a href={services[key].url} target="_blank" rel="noopener noreferrer">{services[key].website}<ArrowUpRight size={14} aria-hidden="true" /></a></div>
+                <div><button type="button" className={styles.secondaryButton} onClick={() => { setFormError(""); setModal(key); }}>{t("consult")}</button><a href={services[key].url} target="_blank" rel="noopener noreferrer">{services[key].website}<ArrowUpRight size={14} aria-hidden="true" /></a></div>
               </div>
             ))}
           </div>
         </details>
 
-        <footer className={styles.pageFooter}><span>© {new Date(checkedAt).getUTCFullYear()} Vexim Global</span><span>Registration verification · FDA & GACC</span></footer>
+        <footer className={styles.pageFooter}><span>© {new Date(checkedAt).getUTCFullYear()} Vexim Global</span><span>{t("footer")}</span></footer>
       </main>
 
-      {toast && <div className={styles.toast} role="status">{toast}</div>}
+      {toast && <div className={styles.toast} role="status">{t(toast)}</div>}
       {modal && (
         <dialog ref={dialogRef} className={styles.dialog} aria-labelledby="consultation-title" onCancel={(e) => { if (submitting) e.preventDefault(); else setModal(null); }} onClick={(e) => { if (e.target === e.currentTarget && !submitting) setModal(null); }}>
           <div className={styles.dialogBody}>
-            <button type="button" className={styles.closeButton} onClick={() => setModal(null)} disabled={submitting} aria-label="Đóng hộp thoại"><X size={20} /></button>
-            <p className={styles.eyebrow}>VEXIM GLOBAL · TƯ VẤN</p>
+            <button type="button" className={styles.closeButton} onClick={() => setModal(null)} disabled={submitting} aria-label={t("close")}><X size={20} /></button>
+            <p className={styles.eyebrow}>{t("consultationHeading")}</p>
             <h2 id="consultation-title">{services[modal].title}</h2>
             <p>{services[modal].description}</p>
             <form onSubmit={submitConsultation}>
-              <label htmlFor="consultation-name">Họ tên / Tên doanh nghiệp</label>
+              <label htmlFor="consultation-name">{t("contactName")}</label>
               <input id="consultation-name" autoComplete="name" required maxLength={150} value={contact.name} disabled={submitting} onChange={(e) => setContact({ ...contact, name: e.target.value })} />
-              <label htmlFor="consultation-phone">Số điện thoại / Zalo</label>
+              <label htmlFor="consultation-phone">{t("contactPhone")}</label>
               <input id="consultation-phone" type="tel" autoComplete="tel" required maxLength={30} value={contact.phone} disabled={submitting} onChange={(e) => setContact({ ...contact, phone: e.target.value })} />
-              {formError && <p className={styles.formError} role="alert">{formError}</p>}
-              <button type="submit" className={styles.primaryButton} disabled={submitting}>{submitting ? "Đang gửi…" : "Gửi yêu cầu tư vấn"}<ArrowUpRight size={16} aria-hidden="true" /></button>
+              {formError && <p className={styles.formError} role="alert">{t(formError)}</p>}
+              <button type="submit" className={styles.primaryButton} disabled={submitting}>{submitting ? t("sending") : t("send")}<ArrowUpRight size={16} aria-hidden="true" /></button>
             </form>
           </div>
         </dialog>

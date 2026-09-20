@@ -181,3 +181,10 @@
   .pageFooter { flex-direction: column; align-items: center; gap: 4px; }
   .dialogBody { padding: 26px 22px; }
 }
+
+/* Small language control in the existing header; document/table layout is unchanged. */
+.headerTools { display: flex; align-items: center; gap: 16px; }
+.languageSwitch { display: inline-flex; align-items: center; flex-shrink: 0; gap: 3px; font-size: 11px; color: #d4deea; }
+.languageSwitch button { padding: 5px 6px; border-radius: 3px; font-weight: 600; }
+.languageSwitch button[aria-pressed="true"] { color: #d1b17e; background: #ffffff12; }
+.languageSwitch button:hover { background: #ffffff1a; }
