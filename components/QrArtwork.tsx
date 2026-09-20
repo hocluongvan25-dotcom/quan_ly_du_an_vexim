@@ -1,73 +1,57 @@
 "use client";
 
-import { QRCodeSVG, QRCodeCanvas } from "qrcode.react";
-import { useRef } from "react";
+import { QRCodeSVG } from "qrcode.react";
+import { useRef, useState } from "react";
 import { Download } from "lucide-react";
+import { buildQrExport, QR_EXPORT_SIZE, QR_LABEL_FONT, QR_MARGIN_MODULES } from "@/lib/qr-export";
 
-export function QrArtwork({
-  url,
-  label,
-}: {
-  url: string;
-  label?: string;
-}) {
-  const canvasWrap = useRef<HTMLDivElement>(null);
+export function QrArtwork({ url, label }: { url: string; label?: string }) {
+  const qrWrap = useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
 
-  function downloadPng() {
-    const canvas = canvasWrap.current?.querySelector("canvas");
-    if (!canvas) return;
-    const src = canvas.toDataURL("image/png");
-    const out = document.createElement("canvas");
-    out.width = 1400;
-    out.height = 1600;
-    const ctx = out.getContext("2d");
-    if (!ctx) return;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, out.width, out.height);
-
-    const pad = 90;
-    roundRect(ctx, 50, 50, 1300, 1500, 48);
-    ctx.fillStyle = "#24180C";
-    ctx.fill();
-    roundRect(ctx, 70, 70, 1260, 1460, 40);
-    ctx.fillStyle = "#FFFCF5";
-    ctx.fill();
-
-    ctx.fillStyle = "#24180C";
-    ctx.font = "800 42px Be Vietnam Pro, sans-serif";
-    ctx.textAlign = "center";
-    ctx.fillText("VEXIM GLOBAL", 700, 160);
-    ctx.fillStyle = "#C48912";
-    ctx.font = "600 20px Be Vietnam Pro, sans-serif";
-    ctx.fillText("FDA / GACC CERTIFICATE VERIFICATION", 700, 198);
-
-    const img = new Image();
-    img.onload = () => {
-      ctx.drawImage(img, 250, 250, 900, 900);
-      ctx.fillStyle = "#24180C";
-      ctx.font = "600 22px Be Vietnam Pro, sans-serif";
-      ctx.fillText(label || "Scan to verify validity", 700, 1240);
-      ctx.fillStyle = "#8a7040";
-      ctx.font = "500 16px Be Vietnam Pro, sans-serif";
-      ctx.fillText("www.veximglobal.com  ·  0373 685 634", 700, 1288);
-      ctx.fillText("No. 25/6/51 Ngoa Long, Bac Tu Liem, Hanoi", 700, 1320);
-
-      const a = document.createElement("a");
-      a.href = out.toDataURL("image/png");
-      a.download = `Vexim-QR-${(label || "certificate").replace(/\s+/g, "-")}.png`;
-      a.click();
-    };
-    img.src = src;
+  function exportArtwork() {
+    const source = qrWrap.current?.querySelector("svg");
+    if (!source) throw new Error("Mã QR chưa sẵn sàng. Vui lòng thử lại.");
+    const qr = source.cloneNode(true) as SVGSVGElement;
+    qr.setAttribute("width", String(QR_EXPORT_SIZE));
+    qr.setAttribute("height", String(QR_EXPORT_SIZE));
+    const ctx = document.createElement("canvas").getContext("2d");
+    if (!ctx) throw new Error("Trình duyệt không hỗ trợ tải mã QR.");
+    ctx.font = QR_LABEL_FONT;
+    const caption = label?.trim() || "";
+    return buildQrExport(
+      new XMLSerializer().serializeToString(qr),
+      caption,
+      source.viewBox.baseVal.width,
+      ctx.measureText(caption).width,
+    );
   }
 
-  function downloadSvg() {
-    const svg = document.getElementById("vexim-qr-svg");
-    if (!svg) return;
-    const blob = new Blob([svg.outerHTML], { type: "image/svg+xml" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `Vexim-QR-${(label || "certificate").replace(/\s+/g, "-")}.svg`;
-    a.click();
+  async function download(format: "png" | "svg") {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      // Both downloads use exactly the same self-contained QR + caption artwork.
+      const artwork = exportArtwork();
+      const svgBlob = new Blob([artwork.svg], { type: "image/svg+xml;charset=utf-8" });
+      const blob = format === "svg" ? svgBlob : await svgToPng(svgBlob, artwork.width, artwork.height);
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      const filename = (label?.trim() || "certificate").replace(/[\s\\/:*?"<>|]+/g, "-");
+      a.download = `Vexim-QR-${filename}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Keep the URL alive briefly so the browser can begin its download.
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Không thể tải mã QR. Vui lòng thử lại.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -77,56 +61,42 @@ export function QrArtwork({
           CERTIFICATE QR CODE
         </div>
         <p className="mt-1 text-xs text-navy-900/55">
-          Download to print on certificates issued by Vexim
+          Tải mã QR kèm số chứng nhận, không có khung hoặc thông tin phụ.
         </p>
       </div>
-      <div className="mx-auto w-fit rounded-3xl bg-gradient-to-b from-navy-900 to-navy-800 p-4 shadow-lift">
-        <div className="rounded-2xl bg-white p-3">
+      <div className="mx-auto w-fit rounded-3xl border border-navy-900/10 bg-white p-3">
+        <div ref={qrWrap}>
           <QRCodeSVG
-            id="vexim-qr-svg"
             value={url}
             size={220}
             level="H"
+            marginSize={QR_MARGIN_MODULES}
             bgColor="#ffffff"
-            fgColor="#24180C"
-            imageSettings={{
-              src: "/logo-mark-new.png",
-              height: 44,
-              width: 44,
-              excavate: true,
-            }}
+            fgColor="#000000"
           />
         </div>
-      </div>
-      <div ref={canvasWrap} className="hidden">
-        <QRCodeCanvas
-          value={url}
-          size={900}
-          level="H"
-          bgColor="#ffffff"
-          fgColor="#24180C"
-          includeMargin
-          imageSettings={{
-            src: "/logo-mark-new.png",
-            height: 160,
-            width: 160,
-            excavate: true,
-          }}
-        />
+        {label?.trim() && (
+          <p className="mt-1 w-[220px] break-all text-center font-mono text-[10px] font-semibold text-black">
+            {label.trim()}
+          </p>
+        )}
       </div>
       <p className="mt-3 break-all text-center text-[10px] text-navy-900/45">{url}</p>
+      {error && <p role="alert" className="mt-3 text-center text-xs text-rose-700">{error}</p>}
       <div className="mt-4 grid grid-cols-2 gap-2">
         <button
           type="button"
-          onClick={downloadPng}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-navy-900 px-3 py-2.5 text-xs font-semibold text-white hover:bg-navy-800"
+          disabled={busy}
+          onClick={() => download("png")}
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-navy-900 px-3 py-2.5 text-xs font-semibold text-white hover:bg-navy-800 disabled:opacity-50"
         >
           <Download className="h-3.5 w-3.5" /> PNG Print
         </button>
         <button
           type="button"
-          onClick={downloadSvg}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-navy-900/15 bg-white px-3 py-2.5 text-xs font-semibold text-navy-900 hover:bg-teal-50"
+          disabled={busy}
+          onClick={() => download("svg")}
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-navy-900/15 bg-white px-3 py-2.5 text-xs font-semibold text-navy-900 hover:bg-teal-50 disabled:opacity-50"
         >
           <Download className="h-3.5 w-3.5" /> SVG
         </button>
@@ -135,19 +105,25 @@ export function QrArtwork({
   );
 }
 
-function roundRect(
-  ctx: CanvasRenderingContext2D,
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  r: number
-) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
+async function svgToPng(blob: Blob, width: number, height: number): Promise<Blob> {
+  const sourceUrl = URL.createObjectURL(blob);
+  try {
+    const img = new Image();
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => resolve();
+      img.onerror = () => reject(new Error("Không thể tạo ảnh QR. Vui lòng thử tải SVG."));
+      img.src = sourceUrl;
+    });
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("Trình duyệt không hỗ trợ tải PNG. Vui lòng tải SVG.");
+    ctx.drawImage(img, 0, 0, width, height);
+    return await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((png) => png ? resolve(png) : reject(new Error("Không thể tạo ảnh PNG.")), "image/png");
+    });
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+  }
 }
