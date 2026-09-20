@@ -14,7 +14,7 @@ export default async function EditCertificatePage({ params }: { params: { id: st
   return (
     <div className="space-y-5">
       <CertificateForm key={item.id} initial={item} role={user?.role} />
-      {user?.role === "admin" && <InvoiceSection refType="certificate" refId={Number(params.id)} />}
+      {user?.role === "admin" && <InvoiceSection key={item.id} refType="certificate" refId={Number(params.id)} defaultCompanyName={item.company_name} defaultServiceDescription={`Dịch vụ đăng ký ${item.standard}`} />}
     </div>
   );
 }

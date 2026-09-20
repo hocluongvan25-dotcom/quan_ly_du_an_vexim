@@ -1,3 +1,4 @@
+import { preparePaymentRequest, savedPaymentRequest, type PaymentRequest } from "./payment-request";
 import { certificateUpdatedAt, prepareCertificateChanges, sameCertificateFields, needsCertificateApproval, certificateFields, type CertificateInput } from "./certificate-workflow";
 import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
@@ -22,10 +23,12 @@ import { buildOverview } from "./overview";
 import { addMonths } from "./utils";
 import {
   calcInvoiceTotals,
+  normalizeInvoiceContractNo,
   invoiceState,
   overdueDays,
   normalizeCycleMonths,
   type Invoice,
+  type InvoiceView,
   type InvoicePayment,
   type ServiceContract,
   type ServiceType,
@@ -237,6 +240,8 @@ function migrate(db: DatabaseSync) {
     CREATE TABLE IF NOT EXISTS invoices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       invoice_no TEXT NOT NULL UNIQUE,
+      contract_no TEXT NOT NULL DEFAULT '',
+      payment_request TEXT,
       ref_type TEXT NOT NULL CHECK (ref_type IN ('certificate','service_contract')),
       ref_id INTEGER NOT NULL,
       installment_no INTEGER NOT NULL DEFAULT 1,
@@ -276,6 +281,15 @@ function migrate(db: DatabaseSync) {
     CREATE INDEX IF NOT EXISTS crm_history_opp_idx ON crm_stage_history (opportunity_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS crm_activities_opp_idx ON crm_activities (opportunity_id, created_at DESC);
   `);
+
+  const invoiceColumns = db.prepare("PRAGMA table_info(invoices)").all() as Array<{ name: string }>;
+  if (!invoiceColumns.some((column) => column.name === "contract_no")) {
+    db.exec("ALTER TABLE invoices ADD COLUMN contract_no TEXT NOT NULL DEFAULT ''");
+  }
+
+  if (!invoiceColumns.some((column) => column.name === "payment_request")) {
+    db.exec("ALTER TABLE invoices ADD COLUMN payment_request TEXT");
+  }
 
   // Migration for old DBs
   // Nới CHECK chu kỳ 3/6/12 cứng -> 1..60 tháng (nhập tay): recreate bảng cũ 1 lần, giữ dữ liệu
@@ -2020,7 +2034,7 @@ export function nextInvoiceNo(): string {
   return `${prefix}${String(seq).padStart(4, "0")}`;
 }
 
-function refInfo(ref_type: string, ref_id: number): { company_name: string; ref_label: string } {
+function refInfo(ref_type: string, ref_id: number): { company_name: string; ref_label: string; contract_no?: string } {
   if (ref_type === "certificate") {
     const r = db().prepare("SELECT certificate_no, company_name, standard FROM certificates WHERE id = ?").get(ref_id) as any;
     if (!r) return { company_name: "", ref_label: "" };
@@ -2029,7 +2043,7 @@ function refInfo(ref_type: string, ref_id: number): { company_name: string; ref_
   const r = db().prepare("SELECT contract_no, company_name, service_type FROM service_contracts WHERE id = ?").get(ref_id) as any;
   if (!r) return { company_name: "", ref_label: "" };
   const svc = r.service_type === "SALE_EXPORT" ? "Sale XK" : "Amazon";
-  return { company_name: String(r.company_name || ""), ref_label: `${svc} · ${r.contract_no}` };
+  return { company_name: String(r.company_name || ""), ref_label: `${svc} · ${r.contract_no}`, contract_no: String(r.contract_no || "") };
 }
 
 function invoicePaidSum(invoice_id: number): number {
@@ -2037,12 +2051,14 @@ function invoicePaidSum(invoice_id: number): number {
   return Number(r?.s || 0);
 }
 
-function mapInvoice(row: any): Invoice {
+function mapInvoice(row: any): InvoiceView {
   const paid = invoicePaidSum(Number(row.id));
   const info = refInfo(String(row.ref_type), Number(row.ref_id));
   const base = {
     id: Number(row.id),
     invoice_no: String(row.invoice_no),
+    payment_request: savedPaymentRequest(row.payment_request),
+    contract_no: String(row.contract_no || ""),
     ref_type: row.ref_type as Invoice["ref_type"],
     ref_id: Number(row.ref_id),
     installment_no: Number(row.installment_no || 1),
@@ -2258,13 +2274,14 @@ export function listInvoices(filter: { ref_type?: string; ref_id?: number; state
       (i) =>
         (i.company_name || "").toLowerCase().includes(q) ||
         i.invoice_no.toLowerCase().includes(q) ||
+        i.contract_no.toLowerCase().includes(q) ||
         (i.ref_label || "").toLowerCase().includes(q)
     );
   }
   return items;
 }
 
-export function getInvoice(id: number): (Invoice & { payments: InvoicePayment[] }) | undefined {
+export function getInvoice(id: number): (InvoiceView & { payments: InvoicePayment[] }) | undefined {
   const row = db()
     .prepare(
       `SELECT i.*, u.name AS created_by_name FROM invoices i
@@ -2295,6 +2312,8 @@ export function createInvoice(
     ref_id: number;
     installment_no?: number;
     title?: string;
+    contract_no?: string;
+    payment_request?: PaymentRequest | null;
     subtotal: number;
     vat_rate?: number;
     issue_date?: string;
@@ -2305,18 +2324,24 @@ export function createInvoice(
 ): number {
   const info = refInfo(input.ref_type, input.ref_id);
   if (!info.ref_label) throw new Error("REF_NOT_FOUND");
-  const t = calcInvoiceTotals(input.subtotal, input.vat_rate ?? 8);
+  const contractNo = normalizeInvoiceContractNo(input.contract_no === undefined ? info.contract_no : input.contract_no);
+  const prepared = preparePaymentRequest(input.payment_request, { contract_no: contractNo,
+    issue_date: input.issue_date || todayUtcIso(), installment_no: input.installment_no ?? nextInstallmentNo(input.ref_type, input.ref_id),
+    subtotal: input.subtotal, vat_rate: input.vat_rate ?? 8, due_date: input.due_date });
+  const t = calcInvoiceTotals(prepared.subtotal, input.vat_rate ?? 8);
   const now = nowSql();
   const today = todayUtcIso();
   const data = db()
     .prepare(
       `INSERT INTO invoices (
-        invoice_no, ref_type, ref_id, installment_no, title, subtotal, vat_rate, vat_amount, total,
+        invoice_no, contract_no, payment_request, ref_type, ref_id, installment_no, title, subtotal, vat_rate, vat_amount, total,
         issue_date, due_date, notes, created_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       nextInvoiceNo(),
+      contractNo,
+      prepared.request ? JSON.stringify(prepared.request) : null,
       input.ref_type,
       input.ref_id,
       input.installment_no || nextInstallmentNo(input.ref_type, input.ref_id),
@@ -2337,14 +2362,26 @@ export function createInvoice(
 
 export function updateInvoice(
   id: number,
-  input: { title?: string; due_date?: string | null; notes?: string; subtotal?: number; vat_rate?: number }
+  input: { title?: string; contract_no?: string; payment_request?: PaymentRequest | null; due_date?: string | null; notes?: string; subtotal?: number; vat_rate?: number }
 ) {
   const row = db().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as any;
   if (!row) throw new Error("NOT_FOUND");
   if (row.status === "cancelled") throw new Error("CANCELLED");
   const paid = invoicePaidSum(id);
+  const prepared = preparePaymentRequest(input.payment_request === undefined ? savedPaymentRequest(row.payment_request) : input.payment_request,
+    { ...row, contract_no: input.contract_no === undefined ? row.contract_no : normalizeInvoiceContractNo(input.contract_no),
+      subtotal: input.subtotal ?? row.subtotal, vat_rate: input.vat_rate ?? row.vat_rate,
+      due_date: input.due_date === undefined ? row.due_date : input.due_date });
   const patch: string[] = [];
   const params: any[] = [];
+  if (input.payment_request !== undefined) {
+    patch.push("payment_request=?");
+    params.push(prepared.request ? JSON.stringify(prepared.request) : null);
+  }
+  if (input.contract_no !== undefined) {
+    patch.push("contract_no=?");
+    params.push(normalizeInvoiceContractNo(input.contract_no));
+  }
   if (input.title !== undefined) {
     patch.push("title=?");
     params.push(input.title.trim());
@@ -2357,10 +2394,10 @@ export function updateInvoice(
     patch.push("notes=?");
     params.push(input.notes.trim());
   }
-  if (input.subtotal !== undefined || input.vat_rate !== undefined) {
+  if (input.subtotal !== undefined || input.vat_rate !== undefined || prepared.subtotal !== row.subtotal) {
     if (paid > 0) throw new Error("HAS_PAYMENTS");
     const t = calcInvoiceTotals(
-      input.subtotal !== undefined ? input.subtotal : row.subtotal,
+      prepared.subtotal,
       input.vat_rate !== undefined ? input.vat_rate : row.vat_rate
     );
     patch.push("subtotal=?", "vat_rate=?", "vat_amount=?", "total=?");

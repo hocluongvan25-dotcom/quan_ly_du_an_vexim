@@ -1,3 +1,4 @@
+import { normalizeInvoiceContractNo } from "@/lib/accounting";
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { cancelInvoice, deleteInvoice, getInvoice, updateInvoice } from "@/lib/db";
@@ -38,6 +39,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       await cancelInvoice(id);
     } else {
       await updateInvoice(id, {
+        payment_request: body.payment_request,
+        contract_no: body.contract_no !== undefined ? normalizeInvoiceContractNo(body.contract_no) : undefined,
         title: body.title !== undefined ? String(body.title) : undefined,
         due_date: body.due_date !== undefined ? (body.due_date ? String(body.due_date).slice(0, 10) : null) : undefined,
         notes: body.notes !== undefined ? String(body.notes) : undefined,

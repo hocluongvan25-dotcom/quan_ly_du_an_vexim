@@ -1,3 +1,4 @@
+import { normalizeInvoiceContractNo } from "@/lib/accounting";
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createInvoice, listInvoices, isCrmSchemaError } from "@/lib/db";
@@ -54,6 +55,8 @@ export async function POST(req: NextRequest) {
         ref_id,
         installment_no: body.installment_no ? Number(body.installment_no) : undefined,
         title: String(body.title || ""),
+        payment_request: body.payment_request,
+        contract_no: body.contract_no !== undefined ? normalizeInvoiceContractNo(body.contract_no) : undefined,
         subtotal: Number(body.subtotal || 0),
         vat_rate: body.vat_rate !== undefined ? Number(body.vat_rate) : undefined,
         issue_date: body.issue_date ? String(body.issue_date).slice(0, 10) : undefined,

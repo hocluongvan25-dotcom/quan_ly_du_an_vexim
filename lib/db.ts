@@ -1,3 +1,4 @@
+import type { PaymentRequest } from "./payment-request";
 import { isSupabaseEnabled } from "./supabase";
 import * as sqlite from "./db-sqlite";
 import * as cloud from "./db-supabase";
@@ -395,6 +396,8 @@ export async function createInvoice(
     ref_id: number;
     installment_no?: number;
     title?: string;
+    contract_no?: string;
+    payment_request?: PaymentRequest | null;
     subtotal: number;
     vat_rate?: number;
     issue_date?: string;
@@ -408,7 +411,7 @@ export async function createInvoice(
 
 export async function updateInvoice(
   id: number,
-  input: { title?: string; due_date?: string | null; notes?: string; subtotal?: number; vat_rate?: number }
+  input: { title?: string; contract_no?: string; payment_request?: PaymentRequest | null; due_date?: string | null; notes?: string; subtotal?: number; vat_rate?: number }
 ) {
   return isSupabaseEnabled() ? cloud.updateInvoice(id, input) : sqlite.updateInvoice(id, input);
 }

@@ -43,7 +43,7 @@ export default function InvoicesPage() {
   const filtered = useMemo(() => {
     return items.filter((i) => {
       if (st !== "ALL" && i.state !== st) return false;
-      const hay = `${i.invoice_no} ${i.title || ""}`.toLowerCase();
+      const hay = `${i.invoice_no} ${i.title || ""} ${i.contract_no || ""}`.toLowerCase();
       return hay.includes(q.toLowerCase());
     });
   }, [items, q, st]);
@@ -68,7 +68,7 @@ export default function InvoicesPage() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Tìm số HĐ, nội dung…"
+            placeholder="Tìm số hóa đơn, số hợp đồng, nội dung…"
             className="w-full rounded-xl border border-navy-900/10 bg-white py-2 pl-9 pr-3 text-sm outline-none"
           />
         </div>
@@ -109,7 +109,9 @@ export default function InvoicesPage() {
                       {i.invoice_no}
                     </Link>
                   </td>
-                  <td className="px-4 py-3">Đợt {i.installment_no}{i.title ? ` — ${i.title}` : ""}</td>
+                  <td className="px-4 py-3">Đợt {i.installment_no}{i.title ? ` — ${i.title}` : ""}
+                    {i.contract_no && <div className="mt-1 break-all text-xs text-slate-500">Số hợp đồng: <span className="font-mono">{i.contract_no}</span></div>}
+                  </td>
                   <td className="px-4 py-3 text-xs">
                     <Link
                       href={i.ref_type === "certificate" ? `/dashboard/ho-so/${i.ref_id}` : `/dashboard/dich-vu/${i.ref_id}`}

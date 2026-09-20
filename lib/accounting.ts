@@ -1,3 +1,4 @@
+import type { PaymentRequest } from "./payment-request";
 import { daysBetween, remainingDays, todayUtcIso } from "./utils";
 
 /* ============================================================================
@@ -8,6 +9,17 @@ import { daysBetween, remainingDays, todayUtcIso } from "./utils";
  * ========================================================================== */
 
 export const DEFAULT_VAT_RATE = 8;
+export const MAX_INVOICE_CONTRACT_NO_LENGTH = 100;
+
+/** Optional external contract reference; stored on the invoice, not inferred on every read. */
+export function normalizeInvoiceContractNo(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  if (typeof value !== "string") throw new Error("Số hợp đồng phải là văn bản.");
+  const text = value.trim();
+  if (text.length > MAX_INVOICE_CONTRACT_NO_LENGTH) throw new Error("Số hợp đồng không được vượt quá 100 ký tự.");
+  if (/[\u0000-\u001f\u007f]/.test(text)) throw new Error("Số hợp đồng không được chứa ký tự điều khiển hoặc xuống dòng.");
+  return text;
+}
 /** Gợi ý nhanh chu kỳ (tháng) — người dùng được nhập tay số khác */
 export const SERVICE_CYCLE_PRESETS = [3, 6, 12] as const;
 export const SERVICE_CYCLES = SERVICE_CYCLE_PRESETS; // alias tương thích ngược
@@ -77,6 +89,8 @@ export type InvoicePayment = {
 export type Invoice = {
   id: number;
   invoice_no: string;
+  contract_no: string;
+  payment_request: PaymentRequest | null;
   ref_type: InvoiceRefType;
   ref_id: number;
   installment_no: number;

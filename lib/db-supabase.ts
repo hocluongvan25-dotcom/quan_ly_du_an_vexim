@@ -1,3 +1,4 @@
+import { preparePaymentRequest, savedPaymentRequest, type PaymentRequest } from "./payment-request";
 import { certificateUpdatedAt, prepareCertificateChanges, sameCertificateFields, needsCertificateApproval, certificateFields, type CertificateInput } from "./certificate-workflow";
 import { hashPassword } from "./auth";
 import { supabaseAdmin } from "./supabase";
@@ -20,10 +21,12 @@ import { buildOverview } from "./overview";
 import { addMonths } from "./utils";
 import {
   calcInvoiceTotals,
+  normalizeInvoiceContractNo,
   invoiceState,
   overdueDays,
   normalizeCycleMonths,
   type Invoice,
+  type InvoiceView,
   type InvoicePayment,
   type ServiceContract,
   type ServiceType,
@@ -1753,7 +1756,7 @@ export async function nextInvoiceNo(): Promise<string> {
 async function refInfoCloud(
   ref_type: string,
   ref_id: number
-): Promise<{ company_name: string; ref_label: string }> {
+): Promise<{ company_name: string; ref_label: string; contract_no?: string }> {
   const sb = supabaseAdmin();
   if (ref_type === "certificate") {
     const { data, error } = await sb
@@ -1779,6 +1782,7 @@ async function refInfoCloud(
   return {
     company_name: String((data as any).company_name || ""),
     ref_label: `${svc} · ${(data as any).contract_no}`,
+    contract_no: String((data as any).contract_no || ""),
   };
 }
 
@@ -1796,10 +1800,12 @@ function hydrateInvoice(
   paid: number,
   info: { company_name: string; ref_label: string },
   creatorName?: string
-): Invoice {
+): InvoiceView {
   const base = {
     id: Number(row.id),
     invoice_no: String(row.invoice_no),
+    payment_request: savedPaymentRequest(row.payment_request),
+    contract_no: String(row.contract_no || ""),
     ref_type: row.ref_type as Invoice["ref_type"],
     ref_id: Number(row.ref_id),
     installment_no: Number(row.installment_no || 1),
@@ -2019,13 +2025,14 @@ export async function listInvoices(
       (i) =>
         (i.company_name || "").toLowerCase().includes(q) ||
         i.invoice_no.toLowerCase().includes(q) ||
+        i.contract_no.toLowerCase().includes(q) ||
         (i.ref_label || "").toLowerCase().includes(q)
     );
   }
   return out;
 }
 
-export async function getInvoice(id: number): Promise<(Invoice & { payments: InvoicePayment[] }) | undefined> {
+export async function getInvoice(id: number): Promise<(InvoiceView & { payments: InvoicePayment[] }) | undefined> {
   const { data, error } = await supabaseAdmin().from("invoices").select("*").eq("id", id).maybeSingle();
   if (error) assertNoSupabaseError(error, "invoices");
   if (!data) return undefined;
@@ -2071,6 +2078,8 @@ export async function createInvoice(
     ref_id: number;
     installment_no?: number;
     title?: string;
+    contract_no?: string;
+    payment_request?: PaymentRequest | null;
     subtotal: number;
     vat_rate?: number;
     issue_date?: string;
@@ -2081,11 +2090,17 @@ export async function createInvoice(
 ): Promise<number> {
   const info = await refInfoCloud(input.ref_type, input.ref_id);
   if (!info.ref_label) throw new Error("REF_NOT_FOUND");
-  const t = calcInvoiceTotals(input.subtotal, input.vat_rate ?? 8);
+  const contractNo = normalizeInvoiceContractNo(input.contract_no === undefined ? info.contract_no : input.contract_no);
+  const prepared = preparePaymentRequest(input.payment_request, { contract_no: contractNo,
+    issue_date: input.issue_date || todayUtcIso(), installment_no: input.installment_no ?? await nextInstallmentNo(input.ref_type, input.ref_id),
+    subtotal: input.subtotal, vat_rate: input.vat_rate ?? 8, due_date: input.due_date });
+  const t = calcInvoiceTotals(prepared.subtotal, input.vat_rate ?? 8);
   const { data, error } = await supabaseAdmin()
     .from("invoices")
     .insert({
       invoice_no: await nextInvoiceNo(),
+      contract_no: contractNo,
+      payment_request: prepared.request,
       ref_type: input.ref_type,
       ref_id: input.ref_id,
       installment_no: input.installment_no || (await nextInstallmentNo(input.ref_type, input.ref_id)),
@@ -2107,7 +2122,7 @@ export async function createInvoice(
 
 export async function updateInvoice(
   id: number,
-  input: { title?: string; due_date?: string | null; notes?: string; subtotal?: number; vat_rate?: number }
+  input: { title?: string; contract_no?: string; payment_request?: PaymentRequest | null; due_date?: string | null; notes?: string; subtotal?: number; vat_rate?: number }
 ) {
   const sb = supabaseAdmin();
   const { data: row, error: gErr } = await sb.from("invoices").select("*").eq("id", id).maybeSingle();
@@ -2115,14 +2130,20 @@ export async function updateInvoice(
   if (!row) throw new Error("NOT_FOUND");
   if ((row as any).status === "cancelled") throw new Error("CANCELLED");
   const paid = await invoicePaidSumCloud(id);
+  const prepared = preparePaymentRequest(input.payment_request === undefined ? savedPaymentRequest((row as any).payment_request) : input.payment_request,
+    { ...(row as any), contract_no: input.contract_no === undefined ? (row as any).contract_no : normalizeInvoiceContractNo(input.contract_no),
+      subtotal: input.subtotal ?? Number((row as any).subtotal), vat_rate: input.vat_rate ?? Number((row as any).vat_rate),
+      due_date: input.due_date === undefined ? (row as any).due_date : input.due_date });
   const patch: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (input.payment_request !== undefined) patch.payment_request = prepared.request;
+  if (input.contract_no !== undefined) patch.contract_no = normalizeInvoiceContractNo(input.contract_no);
   if (input.title !== undefined) patch.title = input.title.trim();
   if (input.due_date !== undefined) patch.due_date = input.due_date ? input.due_date.slice(0, 10) : null;
   if (input.notes !== undefined) patch.notes = input.notes.trim();
-  if (input.subtotal !== undefined || input.vat_rate !== undefined) {
+  if (input.subtotal !== undefined || input.vat_rate !== undefined || prepared.subtotal !== Number((row as any).subtotal)) {
     if (paid > 0) throw new Error("HAS_PAYMENTS");
     const t = calcInvoiceTotals(
-      input.subtotal !== undefined ? input.subtotal : Number((row as any).subtotal),
+      prepared.subtotal,
       input.vat_rate !== undefined ? input.vat_rate : Number((row as any).vat_rate)
     );
     patch.subtotal = t.subtotal;

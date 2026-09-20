@@ -69,6 +69,7 @@ export default async function PrintInvoicePage({ params }: { params: { id: strin
         </div>
 
         <div className="mt-6 grid gap-1 text-sm">
+          <div className="break-all"><b>Số hợp đồng:</b> {inv.contract_no || "—"}</div>
           <div><b>Nội dung:</b> {inv.title || `Thanh toán đợt ${inv.installment_no}`}</div>
           <div><b>Ngày xuất:</b> {inv.issue_date} &nbsp;&nbsp; <b>Hạn thanh toán:</b> {inv.due_date || "—"}</div>
         </div>

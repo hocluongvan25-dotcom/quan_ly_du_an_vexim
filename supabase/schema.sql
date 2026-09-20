@@ -262,6 +262,8 @@ create table if not exists public.service_contracts (
 create table if not exists public.invoices (
   id bigint generated always as identity primary key,
   invoice_no text unique not null,
+  contract_no text not null default '',
+  payment_request jsonb,
   ref_type text not null check (ref_type in ('certificate', 'service_contract')),
   ref_id bigint not null,
   installment_no int not null default 1,
@@ -278,6 +280,10 @@ create table if not exists public.invoices (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- Existing installations: preserve prior invoices and their monetary values.
+alter table public.invoices add column if not exists contract_no text not null default '';
+alter table public.invoices add column if not exists payment_request jsonb;
 
 create table if not exists public.invoice_payments (
   id bigint generated always as identity primary key,

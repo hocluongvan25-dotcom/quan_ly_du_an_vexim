@@ -277,7 +277,7 @@ export default function ContractDetailPage() {
       </div>
 
       {/* Hóa đơn — chỉ admin (kế toán) */}
-      {role === "admin" && <InvoiceSection refType="service_contract" refId={Number(id)} />}
+      {role === "admin" && <InvoiceSection key={item.id} refType="service_contract" refId={Number(id)} defaultContractNo={item.contract_no} defaultCompanyName={item.company_name} defaultServiceDescription={item.service_type === "SALE_EXPORT" ? "Dịch vụ phòng sale xuất khẩu" : "Dịch vụ vận hành Amazon"} defaultContractValue={item.contract_value} />}
     </div>
   );
 }

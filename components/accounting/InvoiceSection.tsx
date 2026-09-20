@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { formatMoney, DEFAULT_VAT_RATE, type InvoiceView } from "@/lib/accounting";
+import { formatMoney, DEFAULT_VAT_RATE, MAX_INVOICE_CONTRACT_NO_LENGTH, type InvoiceView } from "@/lib/accounting";
+import PaymentRequestFields from "./PaymentRequestFields";
+import PaymentRequestDownload from "./PaymentRequestDownload";
+import { PAYMENT_REQUEST_DEFAULTS, type PaymentRequest } from "@/lib/payment-request";
 import { todayUtcIso } from "@/lib/utils";
 
 const STATE_META: Record<string, { label: string; cls: string }> = {
@@ -23,9 +26,17 @@ function liveTotal(subtotal: number, vatRate: number) {
 export default function InvoiceSection({
   refType,
   refId,
+  defaultContractNo = "",
+  defaultCompanyName = "",
+  defaultServiceDescription = "",
+  defaultContractValue = 0,
 }: {
   refType: "certificate" | "service_contract";
   refId: number;
+  defaultContractNo?: string;
+  defaultCompanyName?: string;
+  defaultServiceDescription?: string;
+  defaultContractValue?: number;
 }) {
   const [items, setItems] = useState<InvoiceView[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,9 +47,14 @@ export default function InvoiceSection({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
 
+  const requestDefaults = { recipient_name: defaultCompanyName, service_description: defaultServiceDescription, contract_value: defaultContractValue };
+  const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(() => ({ ...PAYMENT_REQUEST_DEFAULTS, ...requestDefaults }));
+  const [createdId, setCreatedId] = useState<number | null>(null);
+
   // Form tạo HĐ
   const [inst, setInst] = useState(1);
   const [title, setTitle] = useState("");
+  const [contractNo, setContractNo] = useState(defaultContractNo);
   const [subtotal, setSubtotal] = useState("");
   const [vatRate, setVatRate] = useState(String(DEFAULT_VAT_RATE));
   const [issueDate, setIssueDate] = useState(todayUtcIso());
@@ -69,6 +85,10 @@ export default function InvoiceSection({
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [refType, refId]);
+
+  useEffect(() => {
+    setContractNo(defaultContractNo);
+  }, [refType, refId, defaultContractNo]);
 
   const totals = useMemo(() => {
     const live = items.filter((i) => i.status !== "cancelled");
@@ -118,6 +138,8 @@ export default function InvoiceSection({
           ref_id: refId,
           installment_no: inst,
           title,
+          contract_no: contractNo.trim(),
+          payment_request: paymentRequest,
           subtotal: Number(subtotal || 0),
           vat_rate: Number(vatRate || 0),
           issue_date: issueDate,
@@ -127,7 +149,9 @@ export default function InvoiceSection({
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Tạo hóa đơn thất bại");
+      setCreatedId(d.id);
       setShowNew(false);
+      setPaymentRequest(p => p ? { ...p, document_no: "", transfer_content: "", percentage: null } : null);
       setTitle("");
       setSubtotal("");
       setDueDate("");
@@ -206,6 +230,7 @@ export default function InvoiceSection({
 
   const submitEdit = async () => {
     if (!editing) return;
+    setErr("");
     setBusy(true);
     try {
       const r = await fetch(`/api/invoices/${editing.id}`, {
@@ -213,6 +238,8 @@ export default function InvoiceSection({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: editing.title,
+          contract_no: editing.contract_no || "",
+          payment_request: editing.payment_request,
           due_date: editing.due_date || null,
           notes: editing.notes,
           ...(editing.paid_amount === 0
@@ -266,6 +293,10 @@ export default function InvoiceSection({
 
       {err && <div className="mt-3 rounded-xl bg-red-50 px-4 py-2.5 text-sm font-bold text-red-600">{err}</div>}
 
+      {createdId && <div role="status" className="mt-3 flex flex-wrap items-center gap-3 rounded-xl bg-emerald-50 p-3 text-sm">
+        <span>Đã tạo hóa đơn thành công.</span>
+        <Link className="font-bold text-teal-700" href={`/dashboard/ke-toan/hoa-don/${createdId}`}>Xem hóa đơn & đề nghị thanh toán →</Link>
+      </div>}
       {/* Form tạo HĐ */}
       {showNew && (
         <div className="mt-4 rounded-2xl border border-teal-200 bg-teal-50/50 p-4">
@@ -289,11 +320,26 @@ export default function InvoiceSection({
                 className="mt-1 w-full rounded-xl border border-navy-900/10 px-3 py-2 text-sm font-normal"
               />
             </label>
+            <label className="text-xs font-bold text-navy-900 md:col-span-3">
+              Số hợp đồng
+              <input
+                type="text"
+                value={contractNo}
+                onChange={(e) => setContractNo(e.target.value)}
+                maxLength={MAX_INVOICE_CONTRACT_NO_LENGTH}
+                placeholder="VD: 158/2026/HĐDV-VEXIM"
+                className="mt-1 w-full rounded-xl border border-navy-900/10 px-3 py-2 text-sm font-normal"
+              />
+              <span className="mt-1 block text-[11px] font-normal text-slate-500">
+                Số hợp đồng ký với khách hàng, khác số hóa đơn. Bắt buộc khi lập giấy đề nghị thanh toán; trường hợp khác có thể để trống.
+              </span>
+            </label>
             <label className="text-xs font-bold text-navy-900">
               Số tiền chưa VAT (₫)
               <input
                 type="number"
                 min={0}
+                readOnly={!!paymentRequest && paymentRequest.percentage !== null}
                 value={subtotal}
                 onChange={(e) => setSubtotal(e.target.value)}
                 placeholder="VD: 50000000"
@@ -343,6 +389,10 @@ export default function InvoiceSection({
               />
             </label>
           </div>
+          <PaymentRequestFields value={paymentRequest} defaults={requestDefaults} onChange={p => {
+            setPaymentRequest(p);
+            if (p && p.percentage !== null) setSubtotal(String(Math.round(p.contract_value * p.percentage / 100)));
+          }} />
           <button
             onClick={submitNew}
             disabled={busy}
@@ -383,6 +433,7 @@ export default function InvoiceSection({
                     {inv.title ? ` · ${inv.title}` : ""} · Xuất {inv.issue_date}
                     {inv.due_date ? ` · Hạn ${inv.due_date}` : ""}
                   </div>
+                  {inv.contract_no && <div className="mt-1 break-all text-xs text-slate-500">Số hợp đồng: <span className="font-mono font-semibold">{inv.contract_no}</span></div>}
                 </div>
                 <div className="text-right">
                   <div className="text-sm font-extrabold text-navy-900">{formatMoney(inv.total)}</div>
@@ -396,6 +447,10 @@ export default function InvoiceSection({
                   )}
                 </div>
               </button>
+              {inv.payment_request && inv.status !== "cancelled" && inv.remaining > 0 && <div className="flex flex-wrap items-center gap-3 px-4 pb-3">
+                <PaymentRequestDownload id={inv.id} />
+                <Link className="text-xs font-bold text-teal-700" href={`/dashboard/ke-toan/hoa-don/${inv.id}/de-nghi-thanh-toan`}>Xem đề nghị</Link>
+              </div>}
               {/* Tiến độ thu */}
               <div className="h-1.5 bg-slate-100">
                 <div
@@ -536,13 +591,14 @@ export default function InvoiceSection({
       {/* Modal sửa */}
       {editing && (
         <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-navy-950/60 p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6">
+          <div className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6">
             <h3 className="font-display text-lg font-extrabold text-navy-900">Sửa {editing.invoice_no}</h3>
             {editing.paid_amount > 0 && (
               <p className="mt-1 text-xs font-bold text-amber-600">
-                Đã thu tiền nên không sửa được số tiền — chỉ sửa nội dung/hạn/ghi chú.
+                Đã thu tiền nên không sửa được số tiền — có thể sửa số hợp đồng, nội dung, hạn và ghi chú.
               </p>
             )}
+            {err && <p role="alert" className="mt-2 text-xs text-red-600">{err}</p>}
             <div className="mt-3 space-y-3">
               <label className="block text-xs font-bold">
                 Nội dung
@@ -552,12 +608,24 @@ export default function InvoiceSection({
                   className="mt-1 w-full rounded-xl border border-navy-900/10 px-3 py-2 text-sm font-normal"
                 />
               </label>
+              <label className="block text-xs font-bold">
+                Số hợp đồng
+                <input
+                  type="text"
+                  value={editing.contract_no || ""}
+                  maxLength={MAX_INVOICE_CONTRACT_NO_LENGTH}
+                  onChange={(e) => setEditing({ ...editing, contract_no: e.target.value })}
+                  placeholder="VD: 158/2026/HĐDV-VEXIM"
+                  className="mt-1 w-full rounded-xl border border-navy-900/10 px-3 py-2 text-sm font-normal"
+                />
+              </label>
               {editing.paid_amount === 0 && (
                 <div className="grid grid-cols-2 gap-3">
                   <label className="block text-xs font-bold">
                     Chưa VAT
                     <input
                       type="number"
+                      readOnly={!!editing.payment_request && editing.payment_request.percentage !== null}
                       value={editing.subtotal}
                       onChange={(e) => setEditing({ ...editing, subtotal: Number(e.target.value) })}
                       className="mt-1 w-full rounded-xl border border-navy-900/10 px-3 py-2 text-sm font-normal"
@@ -592,6 +660,10 @@ export default function InvoiceSection({
                 />
               </label>
             </div>
+            <PaymentRequestFields value={editing.payment_request} defaults={requestDefaults} locked={editing.paid_amount > 0} onChange={p => {
+              setEditing({ ...editing, payment_request: p,
+                ...(p && p.percentage !== null && editing.paid_amount === 0 ? { subtotal: Math.round(p.contract_value * p.percentage / 100) } : {}) });
+            }} />
             <div className="mt-4 flex gap-2">
               <button
                 onClick={submitEdit}
