@@ -41,3 +41,14 @@ Quyền hóa đơn hiện tại được giữ nguyên: admin mới tạo/sửa/
 `tests/payment-request.test.cjs`: mẫu 28 triệu × 50% + VAT8% =15,12 triệu; snapshot; validation; sửa/tính lại; khóa tiền khi đã thu; thu một phần; export 401/403/404/409; file PDF A4/nhúng font; nội dung dài; Supabase mock (không phải kiểm thử DB Supabase thật).
 
 Đặt biến `PAYMENT_REQUEST_SAMPLE_DIR` trỏ tới thư mục có sẵn ngoài Git để ghi PDF kiểm thử. Cần kiểm tra raster PDF ngoài việc trích text: text đúng không bảo đảm font hiển thị đầy đủ.
+
+## Tự điền đợt thanh toán còn lại
+
+Khi mở **Tạo hóa đơn đợt 2** (hoặc đợt tiếp theo), form tải lại các hóa đơn đã lưu, lấy số hợp đồng, VAT, ghi chú và snapshot đề nghị thanh toán của đợt trước: khách hàng, ngày ký, giá trị hợp đồng, dịch vụ, điều khoản, ngân hàng, tài khoản và người ký. Không cần nhập lại sau khi rời trang/quay lại.
+
+- Tiền chưa VAT còn lại = giá trị hợp đồng chưa VAT − tổng tiền chưa VAT **đã lập hóa đơn, chưa hủy** của cùng hợp đồng trên cùng hồ sơ. Không lấy tổng gồm VAT hoặc số tiền thực thu làm số trừ; công nợ của đợt 1 vẫn theo dõi riêng.
+- Nếu đợt 1 là 50%, đợt 2 tự điền 50%; nếu 70%, đợt 2 điền 30%. Đã có nhiều đợt thì trừ tất cả các đợt chưa hủy, tránh gợi ý lập trùng số tiền.
+- Ngày xuất lấy ngày tạo mới; hạn thanh toán để trống để kiểm tra lại. Nội dung hóa đơn sinh theo đợt mới; số văn bản và nội dung chuyển khoản để tự sinh, không sao chép số công văn/nội dung chuyển khoản ghi “lần 1”. Điều khoản và ghi chú được giữ nguyên, cần kiểm tra nếu hợp đồng quy định điều khoản riêng cho đợt cuối.
+- Nếu tỷ lệ % có hai chữ số thập phân không tái tạo đúng phần tiền còn lại do làm tròn, form dùng số tiền chính xác và để tỷ lệ trống. Ví dụ hợp đồng 10.001 đồng, đợt 1 50% làm tròn thành 5.001 đồng → đợt 2 đúng 5.000 đồng, không bị thừa 1 đồng.
+- Đã lập đủ giá trị thì thông báo và không gợi ý số tiền mới. Thiếu snapshot/số hợp đồng hoặc các đợt có ngày ký/giá trị hợp đồng không khớp thì yêu cầu kiểm tra, không tự đoán dữ liệu.
+- Đây là tính năng gợi ý điền form, vẫn cho phép người có quyền chỉnh sửa trước khi lưu; không phải khóa ngân sách hợp đồng hay cơ chế chống tạo trùng giữa nhiều phiên đồng thời. Không cần migration database bổ sung.

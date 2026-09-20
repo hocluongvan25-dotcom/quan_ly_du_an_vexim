@@ -195,3 +195,29 @@ test('cloud adapter (mock) stores jsonb snapshots and applies the same recalcula
     assert.equal((await cloud.getInvoice(id)).payment_request, null);
   } finally { supabase.supabaseAdmin = previous; }
 });
+
+test('second installment prefill survives API save/reload and closes the contract exactly, including rounding', async () => {
+  const { nextInstallmentDefaults } = require('../lib/invoice-installments.ts');
+  for (const value of [28000000, 10001]) {
+    const firstId = create({ payment_request: { ...snapshot(), contract_value: value } });
+    const first = db.getInvoice(firstId);
+    const next = nextInstallmentDefaults([first]);
+    const response = await api.POST(request({ ...data, installment_no: 2, issue_date: '2026-09-20',
+      subtotal: next.remaining, payment_request: next.payment_request }));
+    assert.equal(response.status, 200);
+    const second = db.getInvoice((await response.json()).id);
+    assert.equal(first.subtotal + second.subtotal, value);
+    assert.equal(second.payment_request.contract_date, first.payment_request.contract_date);
+    assert.equal(second.payment_request.bank_account, first.payment_request.bank_account);
+    assert.equal(second.payment_request.document_no, '');
+    assert.equal(second.payment_request.transfer_content, '');
+    assert.match(helpers.requestTransferContent(second), /lần 2/);
+    assert.notEqual(helpers.requestDocumentNo(first), helpers.requestDocumentNo(second));
+    assert.deepEqual(db.getInvoice(firstId), first);
+    assert.equal(nextInstallmentDefaults([first, second]).kind, 'complete');
+    helpers.assertPaymentRequestExportable(second);
+    if (value === 10001) {
+      assert.equal(second.subtotal, 5000); assert.equal(second.payment_request.percentage, null);
+    }
+  }
+});

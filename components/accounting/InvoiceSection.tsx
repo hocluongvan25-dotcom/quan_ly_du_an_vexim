@@ -6,6 +6,7 @@ import { formatMoney, DEFAULT_VAT_RATE, MAX_INVOICE_CONTRACT_NO_LENGTH, type Inv
 import PaymentRequestFields from "./PaymentRequestFields";
 import PaymentRequestDownload from "./PaymentRequestDownload";
 import { PAYMENT_REQUEST_DEFAULTS, type PaymentRequest } from "@/lib/payment-request";
+import { nextInvoiceInstallment, nextInstallmentDefaults } from "@/lib/invoice-installments";
 import { todayUtcIso } from "@/lib/utils";
 
 const STATE_META: Record<string, { label: string; cls: string }> = {
@@ -49,6 +50,7 @@ export default function InvoiceSection({
 
   const requestDefaults = { recipient_name: defaultCompanyName, service_description: defaultServiceDescription, contract_value: defaultContractValue };
   const [paymentRequest, setPaymentRequest] = useState<PaymentRequest | null>(() => ({ ...PAYMENT_REQUEST_DEFAULTS, ...requestDefaults }));
+  const [installmentNotice, setInstallmentNotice] = useState("");
   const [createdId, setCreatedId] = useState<number | null>(null);
 
   // Form tạo HĐ
@@ -73,9 +75,14 @@ export default function InvoiceSection({
     try {
       const r = await fetch(`/api/invoices?ref_type=${refType}&ref_id=${refId}`);
       const d = await r.json();
-      setItems(d.items || []);
-      const next = Math.max(0, ...(d.items || []).map((i: InvoiceView) => i.installment_no)) + 1;
-      setInst(next);
+      if (!r.ok || !Array.isArray(d.items)) throw new Error(d.error || "Không tải được danh sách hóa đơn.");
+      if (d.warning) throw new Error(d.warning);
+      setItems(d.items);
+      setInst(nextInvoiceInstallment(d.items));
+      return d.items as InvoiceView[];
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Không tải được danh sách hóa đơn.");
+      return null;
     } finally {
       setLoading(false);
     }
@@ -89,6 +96,41 @@ export default function InvoiceSection({
   useEffect(() => {
     setContractNo(defaultContractNo);
   }, [refType, refId, defaultContractNo]);
+
+  const openNewInvoice = async () => {
+    if (showNew) { setShowNew(false); return; }
+    setErr("");
+    // Refresh persisted data on each opening (including after returning to this page).
+    const latest = await load();
+    if (!latest) return;
+    const next = nextInvoiceInstallment(latest);
+    const inherited = nextInstallmentDefaults(latest);
+    setTitle(""); setSubtotal(""); setVatRate(String(DEFAULT_VAT_RATE));
+    setIssueDate(todayUtcIso()); setDueDate(""); setNotes("");
+    setContractNo(defaultContractNo);
+    setPaymentRequest({ ...PAYMENT_REQUEST_DEFAULTS, ...requestDefaults });
+    setInstallmentNotice("");
+    if (inherited) {
+      const { source, payment_request: request, kind, invoiced, remaining } = inherited;
+      setContractNo(source.contract_no);
+      setVatRate(String(source.vat_rate));
+      setNotes(source.notes);
+      if (request) setPaymentRequest(request);
+      setTitle(`Thanh toán đợt ${next} — phần còn lại hợp đồng ${source.contract_no || ""}`.trim());
+      const copied = `Đã lấy thông tin từ ${source.invoice_no}. Ngày xuất là ngày mới; số văn bản và nội dung chuyển khoản tự sinh theo đợt ${next}. Vui lòng kiểm tra hạn thanh toán, điều khoản và ghi chú.`;
+      if (kind === "ready" && request && remaining !== null) {
+        setSubtotal(String(remaining));
+        setInstallmentNotice(`${copied} Tiền chưa VAT còn lại = ${formatMoney(request.contract_value)} − ${formatMoney(invoiced)} đã lập hóa đơn = ${formatMoney(remaining)}.${request.percentage === null ? " Dùng số tiền chính xác thay vì tỷ lệ % làm tròn để không lệch tiền." : ` Tỷ lệ còn lại: ${request.percentage}%.`} Không trừ theo số tiền đã thu; hóa đơn đã hủy không tính vào công thức.`);
+      } else if (kind === "complete") {
+        setInstallmentNotice(`${copied} Hợp đồng đã được lập đủ 100% giá trị (hoặc vượt giá trị); không còn phần tiền để tự tạo đợt tiếp theo. Kiểm tra các hóa đơn hiện có trước khi lập thêm.`);
+      } else if (kind === "conflict") {
+        setInstallmentNotice(`${copied} Ngày ký/giá trị hợp đồng giữa các đợt chưa thống nhất hoặc số tiền không hợp lệ; chưa tự tính phần còn lại. Hãy kiểm tra lại chứng từ.`);
+      } else {
+        setInstallmentNotice(`${copied} Đợt trước chưa lưu đủ thông tin đề nghị thanh toán hoặc số hợp đồng, nên chưa thể tự tính phần còn lại. Bổ sung thông tin ở đợt trước hoặc nhập thủ công.`);
+      }
+    }
+    setShowNew(true);
+  };
 
   const totals = useMemo(() => {
     const live = items.filter((i) => i.status !== "cancelled");
@@ -270,7 +312,8 @@ export default function InvoiceSection({
           <p className="mt-0.5 text-xs text-navy-900/55">Mỗi đợt thu = 1 hóa đơn. VAT mặc định {DEFAULT_VAT_RATE}%.</p>
         </div>
         <button
-          onClick={() => setShowNew(!showNew)}
+          onClick={openNewInvoice}
+          disabled={busy}
           className="rounded-xl bg-navy-900 px-4 py-2 text-sm font-bold text-white"
         >
           {showNew ? "Đóng" : `+ Tạo hóa đơn đợt ${inst}`}
@@ -300,6 +343,7 @@ export default function InvoiceSection({
       {/* Form tạo HĐ */}
       {showNew && (
         <div className="mt-4 rounded-2xl border border-teal-200 bg-teal-50/50 p-4">
+          {installmentNotice && <p role="status" className="mb-4 rounded-xl bg-white p-3 text-sm leading-relaxed text-navy-900">{installmentNotice}</p>}
           <div className="grid gap-3 md:grid-cols-3">
             <label className="text-xs font-bold text-navy-900">
               Đợt thu
