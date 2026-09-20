@@ -13,12 +13,12 @@ export async function generateMetadata({ params }: { params: { code: string } })
     title: item && item.status !== "draft"
       ? `${item.certificate_no} · ${item.company_name} | Vexim Global`
       : "Certificate Verification | Vexim Global",
-    description: "Verify validity of FDA / GACC records issued by Vexim Global.",
+    description: "Verify FDA / GACC registration records maintained by Vexim Global.",
   };
 }
 
 export default async function VerifyPage({ params }: { params: { code: string } }) {
   const item = await getCertificateByPublicCode(params.code);
   if (!item || item.status === "draft") notFound();
-  return <VerifyView cert={publicCertificate(item)} />;
+  return <VerifyView cert={publicCertificate(item)} checkedAt={new Date().toISOString()} />;
 }

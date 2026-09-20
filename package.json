@@ -8,7 +8,8 @@
     "build": "next build",
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
-    "test:certificates": "node --test tests/certificate-workflow.test.cjs"
+    "test:certificates": "node --test tests/certificate-workflow.test.cjs",
+    "test:verification": "node --test tests/verification-view.test.cjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",
