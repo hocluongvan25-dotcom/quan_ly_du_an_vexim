@@ -99,7 +99,8 @@ test('rendered public record retains the approved snapshot and no private data',
   const html = renderToStaticMarkup(React.createElement(VerifyView, { cert: publicCertificate(input), checkedAt }));
   for (const secret of ['999123', 'private@example.test', 'UNAPPROVED NAME', 'UNAPPROVED SCOPE']) assert.ok(!html.includes(secret));
   assert.ok(html.includes('Example Foods'));
-  assert.ok(html.includes('Dịch vụ hỗ trợ xuất khẩu'));
+  assert.ok(html.includes('Hồ sơ đã sẵn sàng bạn đã có phương án đưa sản phẩm vào Mỹ chưa?'));
+  assert.ok(html.includes('Khám phá mô hình phòng sale xuất khẩu &amp; Vận hành Amazon tại Vexim'));
   assert.ok(html.includes('https://veximtrade.com'));
   assert.ok(html.includes('https://veximops.com'));
 });

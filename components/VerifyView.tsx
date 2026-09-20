@@ -238,7 +238,7 @@ export function VerifyView({ cert, checkedAt }: Props) {
         </section>
 
         <details className={styles.services}>
-          <summary><span>Dịch vụ hỗ trợ xuất khẩu của Vexim Global<small>Tư vấn thị trường & vận hành kinh doanh</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
+          <summary><span>Hồ sơ đã sẵn sàng bạn đã có phương án đưa sản phẩm vào Mỹ chưa?<small>Khám phá mô hình phòng sale xuất khẩu &amp; Vận hành Amazon tại Vexim</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
           <div className={styles.serviceGrid}>
             {(Object.keys(services) as Service[]).map((key) => (
               <div className={styles.serviceCard} key={key}>
