@@ -17,7 +17,6 @@ import {
   Handshake,
   ReceiptText,
 } from "lucide-react";
-import { Logo } from "./Logo";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/lib/types";
 import { useI18n } from "@/lib/i18n/context";
@@ -51,7 +50,13 @@ export function Sidebar({ user }: { user: SessionUser }) {
   return (
     <aside className="flex h-full w-[268px] flex-col bg-navy-900 text-white">
       <div className="border-b border-white/10 px-5 py-5">
-        <Logo invert />
+        <Link
+          href="/dashboard"
+          aria-label="Vexim Global — Tổng quan"
+          className="inline-block whitespace-nowrap rounded font-display text-2xl font-extrabold tracking-tight text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold-400"
+        >
+          Vexim <span className="font-medium text-gold-400">Global</span>
+        </Link>
         <p className="mt-3 text-[11px] leading-relaxed text-white/55">
           {t("nav.fdaGaccManagement")}
         </p>
