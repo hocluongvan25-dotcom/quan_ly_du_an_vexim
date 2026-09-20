@@ -1,0 +1,9 @@
+{
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/cron/expiry-check?secret=${CRON_SECRET}",
+      "schedule": "0 2 * * *"
+    }
+  ]
+}
