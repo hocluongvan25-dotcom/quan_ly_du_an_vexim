@@ -35,6 +35,11 @@ export const translations: Record<Locale, TranslationTree> = {
       times: "times",
     },
     nav: {
+      expandSidebar: "Expand sidebar",
+      collapseSidebar: "Collapse sidebar",
+      mainNavigation: "Main navigation",
+      openMenu: "Open menu",
+      closeMenu: "Close menu",
       overview: "Overview",
       records: "FDA / GACC Records",
       newRecord: "New Record",
@@ -342,6 +347,11 @@ export const translations: Record<Locale, TranslationTree> = {
       times: "lần",
     },
     nav: {
+      expandSidebar: "Mở rộng thanh menu",
+      collapseSidebar: "Thu gọn thanh menu",
+      mainNavigation: "Điều hướng chính",
+      openMenu: "Mở menu",
+      closeMenu: "Đóng menu",
       overview: "Tổng quan",
       records: "Hồ sơ FDA / GACC",
       newRecord: "Tạo hồ sơ mới",
