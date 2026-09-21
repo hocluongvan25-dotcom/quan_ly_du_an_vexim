@@ -543,8 +543,38 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
     { font: doc.fonts.italic, size: 9.5, color: GREY }
   );
 
+  /* ------------- Thông tin thanh toán (chỉ in khi còn đủ chỗ) ------------ */
+  const bankRows: Array<[string, string, number]> = [
+    ["Đơn vị thụ hưởng", QUOTE_DEFAULTS.issuer_name, 0.52],
+    ["Số tài khoản", QUOTE_DEFAULTS.bank_account, 0.2],
+    ["Ngân hàng", QUOTE_DEFAULTS.bank_name, 0.28],
+  ].filter(([, value]) => Boolean(value)) as Array<[string, string, number]>;
+  const bankHeight = 32;
+  // Còn đủ chỗ cho khối thanh toán + khối chữ ký thì mới in, tránh đẩy chữ ký sang trang mới.
+  if (bankRows.length && doc.y - bankHeight - 150 >= doc.bottom) {
+    doc.y -= 6;
+    const bankTop = doc.y;
+    doc.page.drawRectangle({ x: doc.left, y: bankTop - bankHeight, width: doc.width, height: bankHeight, color: NAVY_TINT });
+    doc.page.drawRectangle({ x: doc.left, y: bankTop - bankHeight, width: 3, height: bankHeight, color: GOLD });
+    let bankX = doc.left;
+    for (const [label, value, ratio] of bankRows) {
+      const colWidth = doc.width * ratio;
+      const size = 9.5;
+      // Thu nhỏ chữ nếu tên dài để không tràn sang cột bên cạnh.
+      let text = value;
+      while (doc.fonts.bold.widthOfTextAtSize(text, size) > colWidth - 18 && text.length > 8) {
+        text = text.slice(0, -2);
+      }
+      if (text !== value) text = `${text.trimEnd()}…`;
+      doc.page.drawText(label.toUpperCase(), { x: bankX + 8, y: bankTop - 12, font: doc.fonts.bold, size: 7.5, color: GOLD_DEEP });
+      doc.page.drawText(text, { x: bankX + 8, y: bankTop - 25, font: doc.fonts.bold, size, color: INK });
+      bankX += colWidth;
+    }
+    doc.y = bankTop - bankHeight;
+  }
+
   /* ------------------------------ Chữ ký -------------------------------- */
-  doc.y -= 8;
+  doc.y -= 14;
   doc.ensure(120);
   const [issueYear, issueMonth, issueDay] = quote.issue_date.split("-");
   doc.write(

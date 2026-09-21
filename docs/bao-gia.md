@@ -87,6 +87,8 @@ mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, khô
   và `assets/quote/logo-wordmark.png` (bản mực dùng trên nền sáng). Bản xem trước trên màn hình dùng
   `public/quote/logo-wordmark-white.png`. Muốn đổi logo: thay 3 file PNG này (nền trong suốt, cắt sát chữ).
 - Bảng hạng mục dùng dòng kẻ chẵn màu navy rất nhạt; dòng **HẠNG MỤC TÙY CHỌN** có nền kem + vạch vàng.
+- **Khối thông tin thanh toán** (đơn vị thụ hưởng · số tài khoản · ngân hàng, lấy từ `lib/payment-request.ts`) chỉ in khi
+  trang cuối còn đủ chỗ, để chữ ký 2 bên không bị đẩy sang trang mới.
 - Màu được khai báo một chỗ trong `lib/quote-pdf.ts` (`NAVY`, `GOLD`, `NAVY_TINT`, `IVORY`, `GOLD_LIGHT`…).
 - PDF dùng font Tinos đã bundle (đủ dấu tiếng Việt), khổ A4, tự ngắt trang và **lặp lại tiêu đề bảng** khi sang trang.
 
