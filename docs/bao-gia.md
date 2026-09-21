@@ -38,9 +38,15 @@ mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, khô
 
 ## 2. Luồng làm việc
 
-1. **Tạo**: `/dashboard/bao-gia/moi` — 3 bước trên một màn hình:
-   **(1) Hạng mục & đơn giá** → **(2) Thông tin khách hàng** → **(3) Điều kiện & kiểm tra**.
+1. **Tạo**: `/dashboard/bao-gia/moi` — **2 bước** trên một màn hình, có nút **Tiếp tục** ngay dưới danh sách hạng mục:
+   **(1) Hạng mục & đơn giá** → **(2) Thông tin khách hàng & điều kiện**.
    Bước 1 chọn 1 trong 4 dịch vụ; hệ thống đổ sẵn hạng mục + đơn giá **theo bảng giá hiện hành**.
+   Bấm Tiếp tục chỉ chạy khi hạng mục đã có nội dung (báo lỗi ngay nếu còn dòng trống hoặc thiếu hạng mục chính);
+   có thể quay lại bước 1 bất cứ lúc nào, dữ liệu đã nhập không mất.
+1b. **Tự mapping thông tin công ty**: ở bước 2, gõ tên công ty **đã có trong Danh mục doanh nghiệp** là hệ thống tự điền
+   địa chỉ, mã số thuế, người liên hệ, số điện thoại, email (có gợi ý ngay khi gõ; bấm vào gợi ý để lấy đủ dữ liệu).
+   Công ty chưa có trong danh mục thì nhập tay — dữ liệu đã mapping **không bị xoá** khi sửa tên.
+   Điều kiện báo giá (ngày, hiệu lực, chiết khấu %, VAT %) nằm chung bước 2 cho gọn.
 2. **Tự động tính toán (thấy ngay khi nhập)**: mọi ô *số lượng / đơn giá / chiết khấu / VAT* đều được tính lại
    tức thì — thành tiền từng dòng ở ngay cạnh dòng đó, và cột **Tổng kết tự tính** bên phải hiển thị
    tạm tính → chiết khấu → VAT → **TỔNG CỘNG** kèm *bằng chữ*, cập nhật theo từng phím gõ.
@@ -71,6 +77,17 @@ mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, khô
   **Điều khoản thanh toán**, **Điều khoản & lưu ý chung**, **Vì sao chọn Vexim Global**.
 - **Chữ ký 2 bên** + ngày lập (`Hà Nội, ngày … tháng … năm …`), tên/người ký lấy từ mẫu chứng từ thanh toán
   (`LƯƠNG VĂN HỌC — GIÁM ĐỐC`), thông tin pháp lý ở chân trang mọi trang.
+
+### Nhận diện trên báo giá (navy + vàng đồng)
+
+- **Xanh navy** là màu chủ đạo: dải đầu trang và chân trang, tiêu đề mục, khối **TỔNG CỘNG**, bảng hạng mục.
+- **Vàng đồng** chỉ dùng làm điểm nhấn sang trọng: đường kẻ dưới dải navy, gạch đầu dòng, vạch nhấn dải thông tin,
+  số tiền tổng, đường kẻ chân trang và gạch dưới tên người ký.
+- **Logo chỉ có chữ, không kèm slogan**: file `assets/quote/logo-wordmark-white.png` (bản trắng dùng trên nền navy)
+  và `assets/quote/logo-wordmark.png` (bản mực dùng trên nền sáng). Bản xem trước trên màn hình dùng
+  `public/quote/logo-wordmark-white.png`. Muốn đổi logo: thay 3 file PNG này (nền trong suốt, cắt sát chữ).
+- Bảng hạng mục dùng dòng kẻ chẵn màu navy rất nhạt; dòng **HẠNG MỤC TÙY CHỌN** có nền kem + vạch vàng.
+- Màu được khai báo một chỗ trong `lib/quote-pdf.ts` (`NAVY`, `GOLD`, `NAVY_TINT`, `IVORY`, `GOLD_LIGHT`…).
 - PDF dùng font Tinos đã bundle (đủ dấu tiếng Việt), khổ A4, tự ngắt trang và **lặp lại tiêu đề bảng** khi sang trang.
 
 ## 4. Điểm kết nối trong CRM
@@ -102,7 +119,8 @@ Chạy migration riêng cho bảng giá nếu DB đã có dữ liệu: `supabase
 ## 6. Kiểm thử
 
 ```bash
-npm run test:quotes   # 16 test: mẫu, tính tiền, bảng giá, khóa bản đã gửi, API, PDF, preview, Supabase mock, migration DB cũ
+npm run test:quotes     # 17 test: mẫu, tính tiền, bảng giá, khóa bản đã gửi, API, PDF, preview, Supabase mock, migration DB cũ
+npm run test:quote-ui   # 1 test giao diện (jsdom): 2 bước + nút Tiếp tục + tự mapping công ty + tính tiền ngay
 npm run test:all      # chạy toàn bộ test trong tests/
 ```
 

@@ -60,6 +60,10 @@ Pre-built quote templates per service so staff only enter customer details and e
 
 - 4 templates: **FDA**, **GACC**, **Sale xuất khẩu Mỹ**, **Vận hành Amazon US** — line items, unit prices,
   scope of work, documents to be provided, timeline, payment terms and general terms are pre-filled.
+- **Two-step create screen** with a *Tiếp tục* (next) button under the line items: **(1)** items & unit prices →
+  **(2)** customer details + quote conditions.
+- **Customer details auto-map** from the company directory: typing a company name already in the system fills in
+  address, tax code, contact person, phone and email (suggestions while typing).
 - **Editable line items with live totals** while creating: changing quantity, unit price, discount or VAT
   recalculates line amounts, subtotal, VAT, grand total and the amount in words instantly.
 - **Service price list at `/dashboard/bao-gia/bang-gia` (Admin only)** — the single place to change service
@@ -72,6 +76,8 @@ Pre-built quote templates per service so staff only enter customer details and e
 - Quote lifecycle: **Nháp → Đã gửi khách → Khách đồng ý / Từ chối** (+ auto *Hết hiệu lực* after the validity date).
   A quote sent to the customer is locked; use **Nhân bản để sửa** to revise it.
 - PDF export (`/api/quotes/[id]/pdf`) uses the bundled Tinos fonts, repeats table headers across pages.
+  Brand look: **navy** dominant with **gold** accents (band, totals block, rules), and the **wordmark logo only —
+  no slogan** (`assets/quote/logo-wordmark-white.png`, swap to change the logo).
 - Created from a CRM opportunity with one click (service, company, contact, email, phone pre-filled).
 - Migration: `supabase/migrations/20260922_price_book.sql` adds the `quote_templates` table (re-runnable).
 - See `docs/bao-gia.md`. Prices shipped in `lib/quote-templates.ts` are **sample prices** — set the real ones
