@@ -334,6 +334,18 @@ create table if not exists public.quotes (
   updated_at timestamptz not null default now()
 );
 
+-- Bảng giá dịch vụ: Admin chỉnh đơn giá ngay trong hệ thống; DB đè giá mặc định trong code.
+create table if not exists public.quote_templates (
+  template_key text primary key check (template_key in ('FDA','GACC','SALE_EXPORT','AMAZON_OPS')),
+  payload jsonb not null,
+  updated_by bigint references public.staff_users(id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.quote_templates enable row level security;
+grant all on table public.quote_templates to service_role;
+grant all on table public.quote_templates to postgres;
+
 -- Indexes
 create index if not exists certificates_public_code_idx on public.certificates (public_code);
 create index if not exists certificates_status_idx on public.certificates (status);

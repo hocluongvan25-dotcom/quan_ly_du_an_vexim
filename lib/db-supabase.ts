@@ -43,7 +43,7 @@ import {
   type QuoteStatus,
   type QuoteView,
 } from "./quotes";
-import type { QuoteTemplateKey } from "./quote-templates";
+import type { QuoteTemplateDef, QuoteTemplateKey } from "./quote-templates";
 
 
 function mapUser(row: Record<string, unknown>): User {
@@ -2420,7 +2420,7 @@ function quotePayload(input: QuoteDraft, quote_no?: string) {
   return {
     ...(quote_no ? { quote_no } : {}),
     template_key: input.template_key,
-    service_name: quoteServiceName(input.template_key),
+    service_name: input.service_name,
     title: input.title,
     company_name: input.company_name,
     company_address: input.company_address,
@@ -2491,6 +2491,7 @@ export async function duplicateQuote(id: number, createdBy: number): Promise<num
   return createQuote(
     {
       template_key: current.template_key,
+      service_name: current.service_name,
       title: current.title,
       company_name: current.company_name,
       company_address: current.company_address,
@@ -2515,4 +2516,28 @@ export async function duplicateQuote(id: number, createdBy: number): Promise<num
     },
     createdBy
   );
+}
+
+/* ==================== BẢNG GIÁ DỊCH VỤ (PRICE BOOK) ==================== */
+
+export async function listQuoteTemplateRows(): Promise<Array<{ template_key: string; payload: unknown }>> {
+  const { data, error } = await supabaseAdmin().from("quote_templates").select("template_key, payload");
+  if (error) assertNoSupabaseError(error, "quote_templates");
+  return (data || []).map((row: any) => ({ template_key: String(row.template_key), payload: row.payload }));
+}
+
+export async function saveQuoteTemplateRow(
+  template_key: QuoteTemplateKey,
+  payload: QuoteTemplateDef,
+  updatedBy: number | null
+): Promise<void> {
+  const { error } = await supabaseAdmin()
+    .from("quote_templates")
+    .upsert({ template_key, payload, updated_by: updatedBy, updated_at: new Date().toISOString() }, { onConflict: "template_key" });
+  if (error) assertNoSupabaseError(error, "quote_templates");
+}
+
+export async function deleteQuoteTemplateRow(template_key: QuoteTemplateKey): Promise<void> {
+  const { error } = await supabaseAdmin().from("quote_templates").delete().eq("template_key", template_key);
+  if (error) assertNoSupabaseError(error, "quote_templates");
 }

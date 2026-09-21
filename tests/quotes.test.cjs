@@ -23,6 +23,7 @@ for (const ext of ['.ts', '.tsx']) require.extensions[ext] = (mod, filename) => 
   }).outputText, filename);
 };
 const db = require('../lib/db-sqlite.ts');
+const store = require('../lib/db.ts');
 const auth = require('../lib/auth.ts');
 // Users must exist in the isolated DB: quotes.created_by is a real foreign key.
 const STAFF_A = Number(db.createUser({ email: 'nhanvien.a@veximglobal.com', name: 'Nhân viên A', password: 'Test@1234', role: 'specialist' }));
@@ -35,11 +36,15 @@ const templates = require('../lib/quote-templates.ts');
 const { moneyInWords, numberToVietnameseWords } = require('../lib/money-words.ts');
 const { generateQuotePdf } = require('../lib/quote-pdf.ts');
 const listApi = require('../app/api/quotes/route.ts');
+const priceListApi = require('../app/api/quote-templates/route.ts');
+const priceItemApi = require('../app/api/quote-templates/[key]/route.ts');
 const itemApi = require('../app/api/quotes/[id]/route.ts');
 const pdfApi = require('../app/api/quotes/[id]/pdf/route.ts');
 const ctx = (id) => ({ params: { id: String(id) } });
+const keyCtx = (key) => ({ params: { key } });
 const request = (body, method = 'POST') =>
   new Request('http://test/api/quotes', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const bare = (path, method = 'GET') => new Request(`http://test${path}`, { method });
 after(() => { process.chdir(cwd); fs.rmSync(temp, { recursive: true, force: true }); });
 
 const quickCreate = (patch = {}) => {
@@ -128,8 +133,35 @@ test('nhân viên tạo báo giá chỉ với thông tin khách hàng — hạng
   assert.equal(quote.total, quote.subtotal + quote.vat_amount);
   assert.match(quote.quote_no, /^VXM-BG-\d{4}-\d{4}$/);
   assert.ok(quote.scope.length >= 3 && quote.terms.length >= 3);
+  // Nhân viên không gửi ngày hết hiệu lực / VAT → lấy theo dịch vụ trong bảng giá
+  const template = templates.getQuoteTemplate('GACC');
+  assert.equal(quote.valid_until, quotes.quoteValidUntil('2026-09-21', template.validity_days));
+  assert.equal(quote.vat_rate, template.vat_rate);
   assert.ok(quote.documents.length >= 3, 'hồ sơ cần cung cấp lấy từ mẫu');
   assert.deepEqual(quote.documents, templates.getQuoteTemplate('GACC').documents);
+});
+
+test('báo giá không gửi VAT/hiệu lực vẫn lấy đúng mặc định của dịch vụ trong bảng giá', async () => {
+  session = { id: ADMIN, role: 'admin', name: 'Test Admin' };
+  const edited = { ...(await store.loadQuoteTemplate('SALE_EXPORT')), validity_days: 30, vat_rate: 10 };
+  assert.equal((await priceItemApi.PUT(request(edited, 'PUT'), keyCtx('SALE_EXPORT'))).status, 200);
+
+  const id = (await (await listApi.POST(request({
+    template_key: 'SALE_EXPORT', company_name: 'KHÁCH MẶC ĐỊNH', issue_date: '2026-09-21',
+  }))).json()).id;
+  const quote = db.getQuote(id);
+  assert.equal(quote.valid_until, quotes.quoteValidUntil('2026-09-21', 30), 'hiệu lực lấy từ bảng giá');
+  assert.equal(quote.vat_rate, 10, 'VAT lấy từ bảng giá');
+  assert.equal(quote.total, Math.round(quote.subtotal * 1.1));
+
+  // Hiệu lực vượt 180 ngày vẫn bị chặn khi client tự gửi lên
+  const tooLong = await listApi.POST(request({
+    template_key: 'SALE_EXPORT', company_name: 'KHÁCH QUÁ HẠN', issue_date: '2026-09-21', valid_until: '2027-12-31',
+  }));
+  assert.equal(tooLong.status, 400);
+
+  await store.resetQuoteTemplate('SALE_EXPORT');
+  assert.equal((await store.loadQuoteTemplate('SALE_EXPORT')).validity_days, templates.getQuoteTemplate('SALE_EXPORT').validity_days);
 });
 
 test('server tự tính lại tiền: bỏ qua tổng do client gửi lên, có chiết khấu và hạng mục tùy chọn', async () => {
@@ -312,6 +344,92 @@ test('nội dung gửi khách và PDF: đủ số tiền, bằng chữ, hạng m
   assert.equal((await pdfApi.GET(new Request('http://test'), ctx(id))).status, 401);
   session = { id: 1, role: 'admin', name: 'Test Admin' };
   assert.equal((await pdfApi.GET(new Request('http://test'), ctx(999999))).status, 404);
+});
+
+test('bảng giá dịch vụ: Admin sửa giá, báo giá tạo mới dùng giá mới, báo giá cũ giữ nguyên', async () => {
+  session = { id: ADMIN, role: 'admin', name: 'Test Admin' };
+  const oldFdaId = quickCreate({ company_name: 'KHÁCH CŨ', items: templates.templateItems('FDA') });
+  // 1. Bảng giá ban đầu = giá mặc định trong code
+  const before = await store.loadQuoteTemplate('FDA');
+  assert.equal(before.items[0].unit_price, templates.getQuoteTemplate('FDA').items[0].unit_price);
+  assert.deepEqual(await store.listQuoteTemplateRows(), [], 'chưa chỉnh gì thì không có dòng nào trong DB');
+
+  // 2. Nhân viên không được sửa giá
+  session = { id: STAFF_A, role: 'specialist', name: 'Nhân viên A' };
+  const denied = await priceItemApi.PUT(request({ items: [{ name: 'X', unit: 'Gói', qty: 1, unit_price: 999 }] }, 'PUT'), keyCtx('FDA'));
+  assert.equal(denied.status, 403);
+
+  // 3. Admin thêm 01 hạng mục mới và đổi đơn giá
+  session = { id: ADMIN, role: 'admin', name: 'Test Admin' };
+  const edited = {
+    ...templates.getQuoteTemplate('FDA'),
+    items: [
+      { name: 'Hạng mục FDA (giá điều chỉnh)', unit: 'Gói', qty: 1, unit_price: 33_000_000 },
+      { name: 'Hạng mục mới thêm', unit: 'Lần', qty: 2, unit_price: 1_500_000, note: 'Do Admin thêm' },
+    ],
+  };
+  const saved = await priceItemApi.PUT(request(edited, 'PUT'), keyCtx('FDA'));
+  assert.equal(saved.status, 200);
+  const custom = await store.loadQuoteTemplate('FDA');
+  assert.equal(custom.items.length, 2);
+  assert.equal(custom.items[0].unit_price, 33_000_000);
+  assert.equal((await store.listQuoteTemplateRows()).length, 1);
+
+  // 4. Báo giá tạo mới lấy giá đã chỉnh (kể cả tên hạng mục mới)
+  const quoteId = (await (await listApi.POST(request({ template_key: 'FDA', company_name: 'KHÁCH GIÁ MỚI' }))).json()).id;
+  const fresh = db.getQuote(quoteId);
+  assert.deepEqual(fresh.items.map((i) => i.name), ['Hạng mục FDA (giá điều chỉnh)', 'Hạng mục mới thêm']);
+  assert.equal(fresh.subtotal, 33_000_000 + 2 * 1_500_000);
+
+  // 5. Báo giá cũ là ảnh chụp — không đổi theo bảng giá mới
+  const old = db.getQuote(oldFdaId);
+  assert.notEqual(old.items[0].unit_price, 33_000_000, 'báo giá cũ giữ giá tại thời điểm lập');
+  assert.equal(old.subtotal, old.items.reduce((sum, i) => sum + i.qty * i.unit_price, 0));
+
+  // 6. Xóa dòng giá riêng → quay về giá mặc định
+  const reset = await priceItemApi.DELETE(request({}, 'DELETE'), keyCtx('FDA'));
+  assert.equal(reset.status, 200);
+  assert.equal((await store.listQuoteTemplateRows()).length, 0);
+  assert.deepEqual((await store.loadQuoteTemplate('FDA')).items, templates.getQuoteTemplate('FDA').items);
+  assert.equal((await (await listApi.POST(request({ template_key: 'FDA', company_name: 'KHÁCH GIÁ GỐC' }))).json()).id > 0, true);
+});
+
+test('bảng giá dịch vụ: kiểm tra dữ liệu và phân quyền API', async () => {
+  session = { id: ADMIN, role: 'admin', name: 'Test Admin' };
+  // Hạng mục không tên / giá âm / mã tùy chọn sai → 400
+  for (const bad of [
+    { ...templates.getQuoteTemplate('GACC'), items: [{ name: '', unit: 'Gói', qty: 1, unit_price: 1000 }] },
+    { ...templates.getQuoteTemplate('GACC'), items: [{ name: 'A', unit: 'Gói', qty: 1, unit_price: -1 }] },
+    { ...templates.getQuoteTemplate('GACC'), items: [] },
+    { ...templates.getQuoteTemplate('GACC'), validity_days: 999 },
+    { ...templates.getQuoteTemplate('GACC'), vat_rate: 150 },
+    { ...templates.getQuoteTemplate('GACC'), options: [{ key: 'MÃ SAI', label: 'X', unit: 'Lần', qty: 1, unit_price: 1000, note: '', group: 'Khác' }] },
+  ]) {
+    const res = await priceItemApi.PUT(request(bad, 'PUT'), keyCtx('GACC'));
+    assert.equal(res.status, 400, `phải chặn: ${JSON.stringify(bad.items?.[0] || bad.validity_days || bad.vat_rate)}`);
+  }
+  assert.equal((await priceItemApi.PUT(request({}, 'PUT'), keyCtx('KHONG_CO'))).status, 400);
+
+  // Chưa đăng nhập → 401 (cả đọc lẫn ghi)
+  session = null;
+  assert.equal((await priceListApi.GET()).status, 401);
+  assert.equal((await priceItemApi.PUT(request({}, 'PUT'), keyCtx('FDA'))).status, 401);
+  assert.equal((await priceItemApi.GET(bare('/api/quote-templates/FDA'), keyCtx('FDA'))).status, 401);
+  assert.equal((await priceItemApi.DELETE(request({}, 'DELETE'), keyCtx('FDA'))).status, 401);
+  session = { id: STAFF_A, role: 'specialist', name: 'Nhân viên A' };
+  const list = await (await priceListApi.GET()).json();
+  assert.equal(list.items.length, 4, 'nhân viên vẫn xem được bảng giá để lập báo giá');
+  assert.ok(Array.isArray(list.customized));
+});
+
+test('bảng giá dịch vụ: dữ liệu hỏng trong DB bị bỏ qua, dùng lại giá mặc định', async () => {
+  session = { id: ADMIN, role: 'admin', name: 'Test Admin' };
+  db.saveQuoteTemplateRow('SALE_EXPORT', { items: [{ name: 'Rác', unit: 'Gói', qty: 0, unit_price: 1 }] }, ADMIN);
+  const merged = await store.listQuoteTemplates();
+  const sale = merged.find((t) => t.key === 'SALE_EXPORT');
+  assert.deepEqual(sale.items, templates.getQuoteTemplate('SALE_EXPORT').items, 'payload sai → rơi về mặc định');
+  db.deleteQuoteTemplateRow('SALE_EXPORT');
+  assert.equal((await store.loadQuoteTemplate('SALE_EXPORT')).items.length, templates.getQuoteTemplate('SALE_EXPORT').items.length);
 });
 
 test('Supabase adapter (mock): tạo, đọc, sửa, đổi trạng thái và nhân bản báo giá', async () => {

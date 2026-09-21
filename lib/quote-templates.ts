@@ -3,9 +3,12 @@
  * Một nguồn duy nhất cho mẫu báo giá: nhân viên chỉ chọn dịch vụ + nhập thông
  * tin khách hàng, toàn bộ hạng mục / đơn giá / điều khoản được điền sẵn.
  *
- * ⚠️ GIÁ DƯỚI ĐÂY LÀ GIÁ MẪU để chạy thử quy trình. Khi có bảng giá chính
- * thức, chỉ cần sửa số trong file này (hoặc sửa trực tiếp trên từng báo giá
- * ở trạng thái "Nháp" rồi lưu/nhân bản cho lần sau).
+ * Các mẫu dưới đây là GIÁ MẶC ĐỊNH (fallback). Bảng giá thật được chỉnh ngay
+ * trong hệ thống tại /dashboard/bao-gia/bang-gia (Admin) và lưu ở bảng
+ * quote_templates; giá trị trong DB luôn được ưu tiên hơn giá trong file này.
+ *
+ * ⚠️ Số trong file vẫn là giá mẫu để chạy thử quy trình — hãy chỉnh lại ở màn
+ * hình Bảng giá dịch vụ trước khi gửi khách thật.
  * ========================================================================== */
 
 export type QuoteTemplateKey = "FDA" | "GACC" | "SALE_EXPORT" | "AMAZON_OPS";
@@ -19,6 +22,15 @@ export type QuoteLine = {
   note: string;
   /** true = hạng mục tùy chọn, chỉ tính tiền khi khách chọn */
   optional: boolean;
+};
+
+/** Một hạng mục chính của mẫu (chưa phải dòng hàng trong báo giá) */
+export type QuoteTemplateItem = {
+  name: string;
+  unit: string;
+  qty: number;
+  unit_price: number;
+  note?: string;
 };
 
 /** Hạng mục tùy chọn gợi ý cho nhân viên tick chọn */
@@ -42,7 +54,7 @@ export type QuoteTemplateDef = {
   crm_pipeline_key: QuoteTemplateKey;
   validity_days: number;
   vat_rate: number;
-  items: Array<Omit<QuoteLine, "optional" | "note"> & { note?: string }>;
+  items: QuoteTemplateItem[];
   options: QuoteOptionDef[];
   scope: string[];
   /** Hồ sơ/tài liệu khách hàng cần cung cấp để triển khai */
@@ -62,6 +74,13 @@ export const QUOTE_STRENGTHS = [
 
 export const QUOTE_PRICE_NOTE =
   "Giá mẫu trong hệ thống — kiểm tra lại với bảng giá hiện hành trước khi gửi khách.";
+
+/* ------------------------- Giới hạn của bảng giá -------------------------- */
+
+export const MAX_TEMPLATE_ITEMS = 40;
+export const MAX_TEMPLATE_OPTIONS = 40;
+export const MAX_TEMPLATE_LINES = 30;
+export const MAX_TEMPLATE_TEXT = 500;
 
 export const QUOTE_TEMPLATES: QuoteTemplateDef[] = [
   {
@@ -363,7 +382,11 @@ export function isQuoteTemplateKey(value: unknown): value is QuoteTemplateKey {
 /** Hạng mục mặc định của mẫu → dòng hàng lưu trong báo giá */
 export function templateItems(key: QuoteTemplateKey): QuoteLine[] {
   const template = getQuoteTemplate(key);
-  if (!template) return [];
+  return template ? itemsFromTemplate(template) : [];
+}
+
+/** Hạng mục của một mẫu (đã resolve từ bảng giá) → dòng hàng lưu trong báo giá */
+export function itemsFromTemplate(template: QuoteTemplateDef): QuoteLine[] {
   return template.items.map((item) => ({
     name: item.name,
     unit: item.unit,
@@ -372,4 +395,144 @@ export function templateItems(key: QuoteTemplateKey): QuoteLine[] {
     note: item.note || "",
     optional: false,
   }));
+}
+
+/** Hạng mục tùy chọn của mẫu → dòng hàng (đánh dấu optional, không cộng vào tổng) */
+export function optionLine(option: QuoteOptionDef): QuoteLine {
+  return {
+    name: option.label,
+    unit: option.unit,
+    qty: option.qty,
+    unit_price: option.unit_price,
+    note: option.note || "",
+    optional: true,
+  };
+}
+
+/* ------------------------ Chuẩn hoá nội dung mẫu ------------------------- */
+
+function clean(value: unknown, label: string, max: number, required = false): string {
+  if (value === undefined || value === null) {
+    if (required) throw new Error(`${label} không được để trống.`);
+    return "";
+  }
+  const text = String(value).normalize("NFC").replace(/\s+/g, " ").trim();
+  if (required && !text) throw new Error(`${label} không được để trống.`);
+  if (text.length > max) throw new Error(`${label} tối đa ${max} ký tự.`);
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) throw new Error(`${label} không hợp lệ.`);
+  return text;
+}
+
+function cleanMoney(value: unknown, label: string): number {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n) || n < 0 || n > 1e12) {
+    throw new Error(`${label} phải là số nguyên từ 0 đến 1.000 tỷ đồng.`);
+  }
+  return n;
+}
+
+function cleanQty(value: unknown, label: string): number {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n) || n < 1 || n > 9999) {
+    throw new Error(`${label} phải là số nguyên từ 1 đến 9999.`);
+  }
+  return n;
+}
+
+function cleanLines(value: unknown, label: string): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error(`${label} không hợp lệ.`);
+  if (value.length > MAX_TEMPLATE_LINES) throw new Error(`${label} tối đa ${MAX_TEMPLATE_LINES} mục.`);
+  return value.map((row) => clean(row, label, 300)).filter(Boolean);
+}
+
+/**
+ * Kiểm tra & chuẩn hoá một mẫu báo giá do Admin gửi lên (bảng giá dịch vụ).
+ * Dùng chung cho cả lưu DB và đọc lại, nên dữ liệu bẩn không vào được hệ thống.
+ */
+export function normalizeQuoteTemplate(raw: unknown, key: QuoteTemplateKey): QuoteTemplateDef {
+  const base = getQuoteTemplate(key);
+  if (!base) throw new Error("Dịch vụ không hợp lệ.");
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Nội dung bảng giá không hợp lệ.");
+  const input = raw as Record<string, unknown>;
+
+  const itemsRaw = input.items === undefined ? base.items : input.items;
+  if (!Array.isArray(itemsRaw)) throw new Error("Danh sách hạng mục chính không hợp lệ.");
+  if (itemsRaw.length === 0) throw new Error("Bảng giá cần ít nhất 01 hạng mục chính.");
+  if (itemsRaw.length > MAX_TEMPLATE_ITEMS) throw new Error(`Bảng giá tối đa ${MAX_TEMPLATE_ITEMS} hạng mục chính.`);
+  const items: QuoteTemplateItem[] = itemsRaw.map((row, index) => {
+    const item = (row || {}) as Record<string, unknown>;
+    const label = `Hạng mục ${index + 1}`;
+    return {
+      name: clean(item.name, `${label}: nội dung`, 300, true),
+      unit: clean(item.unit, `${label}: đơn vị tính`, 30),
+      qty: cleanQty(item.qty, `${label}: số lượng`),
+      unit_price: cleanMoney(item.unit_price, `${label}: đơn giá`),
+      note: clean(item.note, `${label}: ghi chú`, 200),
+    };
+  });
+
+  const optionsRaw = input.options === undefined ? base.options : input.options;
+  if (!Array.isArray(optionsRaw)) throw new Error("Danh sách hạng mục tùy chọn không hợp lệ.");
+  if (optionsRaw.length > MAX_TEMPLATE_OPTIONS) throw new Error(`Bảng giá tối đa ${MAX_TEMPLATE_OPTIONS} hạng mục tùy chọn.`);
+  const options: QuoteOptionDef[] = optionsRaw.map((row, index) => {
+    const option = (row || {}) as Record<string, unknown>;
+    const label = `Tùy chọn ${index + 1}`;
+    const optionKey = clean(option.key, `${label}: mã`, 60, true);
+    if (!/^[a-z0-9_]+$/.test(optionKey)) throw new Error(`${label}: mã chỉ gồm chữ thường, số và dấu gạch dưới.`);
+    return {
+      key: optionKey,
+      label: clean(option.label, `${label}: tên hiển thị`, 300, true),
+      unit: clean(option.unit, `${label}: đơn vị tính`, 30),
+      qty: cleanQty(option.qty, `${label}: số lượng`),
+      unit_price: cleanMoney(option.unit_price, `${label}: đơn giá`),
+      note: clean(option.note, `${label}: ghi chú`, 200),
+      group: clean(option.group, `${label}: nhóm`, 60),
+    };
+  });
+  const optionKeys = new Set(options.map((o) => o.key));
+  if (optionKeys.size !== options.length) throw new Error("Mã hạng mục tùy chọn bị trùng.");
+
+  const vatRate = Number(input.vat_rate === undefined ? base.vat_rate : input.vat_rate);
+  if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) throw new Error("VAT phải từ 0 đến 100%.");
+  const validityDays = Number(input.validity_days === undefined ? base.validity_days : input.validity_days);
+  if (!Number.isSafeInteger(validityDays) || validityDays < 1 || validityDays > 180) {
+    throw new Error("Hiệu lực mặc định phải là số ngày từ 1 đến 180.");
+  }
+
+  return {
+    key,
+    name: clean(input.name, "Tên dịch vụ", 120, true),
+    short_name: clean(input.short_name, "Tên ngắn", 40, true),
+    tagline: clean(input.tagline, "Mô tả ngắn", 200),
+    title: clean(input.title, "Tiêu đề báo giá", 200, true),
+    crm_pipeline_key: key,
+    validity_days: validityDays,
+    vat_rate: vatRate,
+    items,
+    options,
+    scope: input.scope === undefined ? base.scope : cleanLines(input.scope, "Phạm vi công việc"),
+    documents: input.documents === undefined ? base.documents : cleanLines(input.documents, "Hồ sơ cần cung cấp"),
+    timeline: clean(input.timeline === undefined ? base.timeline : input.timeline, "Tiến độ thực hiện", MAX_TEMPLATE_TEXT),
+    payment_terms: clean(input.payment_terms === undefined ? base.payment_terms : input.payment_terms, "Điều khoản thanh toán", MAX_TEMPLATE_TEXT),
+    terms: input.terms === undefined ? base.terms : cleanLines(input.terms, "Điều khoản chung"),
+  };
+}
+
+/**
+ * Ghép bảng giá trong DB lên giá mặc định.
+ * Dòng trong DB luôn thắng; dòng hỏng bị bỏ qua để không làm sập trang báo giá.
+ */
+export function mergeQuoteTemplateRows(rows: Array<{ template_key: string; payload: unknown }>): QuoteTemplateDef[] {
+  const byKey = new Map(rows.map((row) => [String(row.template_key), row.payload]));
+  return QUOTE_TEMPLATES.map((fallback) => {
+    const payload = byKey.get(fallback.key);
+    if (payload === undefined || payload === null) return fallback;
+    try {
+      return normalizeQuoteTemplate(typeof payload === "string" ? JSON.parse(payload) : payload, fallback.key);
+    } catch (e) {
+      console.error(`[quote-templates] Bảng giá ${fallback.key} trong DB không hợp lệ, dùng giá mặc định:`, e);
+      return fallback;
+    }
+  });
 }

@@ -4,6 +4,7 @@ import * as sqlite from "./db-sqlite";
 import * as cloud from "./db-supabase";
 import type { Role, Standard } from "./types";
 import type { QuoteDraft, QuoteStatus } from "./quotes";
+import { mergeQuoteTemplateRows, type QuoteTemplateDef, type QuoteTemplateKey } from "./quote-templates";
 
 export function usingSupabase() {
   return isSupabaseEnabled();
@@ -477,4 +478,31 @@ export async function deleteQuote(id: number) {
 
 export async function duplicateQuote(id: number, createdBy: number) {
   return isSupabaseEnabled() ? cloud.duplicateQuote(id, createdBy) : sqlite.duplicateQuote(id, createdBy);
+}
+
+/* --------------------------- Bảng giá dịch vụ --------------------------- */
+
+/** Bảng giá đã ghép: giá trong DB (nếu có) đè lên giá mặc định của hệ thống. */
+export async function listQuoteTemplates(): Promise<QuoteTemplateDef[]> {
+  const rows = isSupabaseEnabled() ? await cloud.listQuoteTemplateRows() : sqlite.listQuoteTemplateRows();
+  return mergeQuoteTemplateRows(rows);
+}
+
+export async function loadQuoteTemplate(key: string): Promise<QuoteTemplateDef | undefined> {
+  const templates = await listQuoteTemplates();
+  return templates.find((t) => t.key === key);
+}
+
+export async function saveQuoteTemplate(key: QuoteTemplateKey, payload: QuoteTemplateDef, updatedBy: number | null) {
+  return isSupabaseEnabled()
+    ? cloud.saveQuoteTemplateRow(key, payload, updatedBy)
+    : sqlite.saveQuoteTemplateRow(key, payload, updatedBy);
+}
+
+export async function resetQuoteTemplate(key: QuoteTemplateKey) {
+  return isSupabaseEnabled() ? cloud.deleteQuoteTemplateRow(key) : sqlite.deleteQuoteTemplateRow(key);
+}
+
+export async function listQuoteTemplateRows() {
+  return isSupabaseEnabled() ? cloud.listQuoteTemplateRows() : sqlite.listQuoteTemplateRows();
 }

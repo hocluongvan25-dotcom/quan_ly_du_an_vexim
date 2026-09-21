@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { deleteQuote, duplicateQuote, getQuote, isCrmSchemaError, setQuoteStatus, updateQuote } from "@/lib/db";
+import { deleteQuote, duplicateQuote, getQuote, isCrmSchemaError, loadQuoteTemplate, setQuoteStatus, updateQuote } from "@/lib/db";
 import { handleApiError } from "@/lib/api-helpers";
 import { isQuoteStatus, normalizeQuoteItems, prepareQuoteInput } from "@/lib/quotes";
 import type { SessionUser } from "@/lib/types";
@@ -81,8 +81,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       );
     }
 
+    const templateKey = body.template_key === undefined ? current.template_key : (body.template_key as typeof current.template_key);
+    const template = (await loadQuoteTemplate(templateKey))!;
     const merged = {
-      template_key: body.template_key === undefined ? current.template_key : body.template_key,
+      template_key: templateKey,
+      service_name: template.name,
       title: body.title === undefined ? current.title : body.title,
       company_name: body.company_name === undefined ? current.company_name : body.company_name,
       company_address: body.company_address === undefined ? current.company_address : body.company_address,

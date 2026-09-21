@@ -1,5 +1,5 @@
 import { PAYMENT_REQUEST_DEFAULTS } from "./payment-request";
-import { formatMoney } from "./accounting";
+import { DEFAULT_VAT_RATE, formatMoney } from "./accounting";
 import { daysBetween, remainingDays, todayUtcIso } from "./utils";
 import { moneyInWords } from "./money-words";
 import {
@@ -36,6 +36,8 @@ export const QUOTE_STATE_LABELS: Record<QuoteState, string> = {
 export const MAX_QUOTE_ITEMS = 40;
 export const MAX_QUOTE_LINES = 20;
 export const MAX_VALIDITY_DAYS = 180;
+/** Hiệu lực mặc định khi dịch vụ không khai báo số ngày hiệu lực. */
+export const DEFAULT_VALIDITY_DAYS = 15;
 
 /** Thông tin người lập / đơn vị mặc định lấy từ mẫu chứng từ thanh toán */
 export const QUOTE_DEFAULTS = {
@@ -94,7 +96,7 @@ export type QuoteView = Quote & {
 
 export type QuoteDraft = Omit<
   Quote,
-  | "id" | "quote_no" | "service_name" | "subtotal" | "discount_amount" | "vat_amount"
+  | "id" | "quote_no" | "subtotal" | "discount_amount" | "vat_amount"
   | "total" | "optional_total" | "created_by" | "created_at" | "updated_at" | "created_by_name"
 >;
 
@@ -249,18 +251,27 @@ export function normalizeQuoteLines(value: unknown, label: string): string[] {
 /**
  * Chuẩn hoá + kiểm tra toàn bộ nội dung báo giá ở server.
  * Client gửi gì cũng không ảnh hưởng: mọi con số được tính lại từ hạng mục.
+ *
+ * `template` là mẫu đã resolve từ Bảng giá dịch vụ (DB ưu tiên hơn file), dùng
+ * để điền tiêu đề/tên dịch vụ khi client để trống.
  */
-export function prepareQuoteInput(raw: Record<string, unknown>): QuoteDraft {
+export function prepareQuoteInput(
+  raw: Record<string, unknown>,
+  template?: { title?: string; name?: string; vat_rate?: number; validity_days?: number }
+): QuoteDraft {
   const templateKey = raw.template_key;
   if (!isQuoteTemplateKey(templateKey)) {
     throw new Error("Dịch vụ không hợp lệ. Chọn một trong: FDA, GACC, Sale xuất khẩu, Vận hành Amazon.");
   }
+  // Bảng giá đã resolve (DB ưu tiên hơn file) — dùng làm giá trị mặc định cho các trường client bỏ trống.
+  const fallback = template || getQuoteTemplate(templateKey)!;
   const items = normalizeQuoteItems(raw.items);
   const discount = Number(raw.discount_percent ?? 0);
   if (!Number.isFinite(discount) || discount < 0 || discount > 100 || Math.abs(discount * 100 - Math.round(discount * 100)) > 1e-8) {
     throw new Error("Chiết khấu phải từ 0 đến 100%, tối đa 2 chữ số thập phân.");
   }
-  const vatRate = Number(raw.vat_rate ?? 8);
+  const hasVat = raw.vat_rate !== undefined && raw.vat_rate !== null && raw.vat_rate !== "";
+  const vatRate = hasVat ? Number(raw.vat_rate) : Number(fallback.vat_rate ?? DEFAULT_VAT_RATE);
   if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100 || Math.abs(vatRate * 100 - Math.round(vatRate * 100)) > 1e-8) {
     throw new Error("VAT phải từ 0 đến 100%, tối đa 2 chữ số thập phân.");
   }
@@ -268,8 +279,9 @@ export function prepareQuoteInput(raw: Record<string, unknown>): QuoteDraft {
     ? todayUtcIso()
     : String(raw.issue_date).slice(0, 10);
   if (!validIsoDate(issueDate)) throw new Error("Ngày báo giá không hợp lệ.");
+  // Không gửi ngày hết hiệu lực → lấy theo số ngày hiệu lực của dịch vụ trong bảng giá.
   let validUntil = raw.valid_until === undefined || raw.valid_until === null || raw.valid_until === ""
-    ? ""
+    ? quoteValidUntil(issueDate, Number(fallback.validity_days) || DEFAULT_VALIDITY_DAYS)
     : String(raw.valid_until).slice(0, 10);
   if (validUntil && !validIsoDate(validUntil)) throw new Error("Ngày hết hiệu lực không hợp lệ.");
   if (validUntil && validUntil < issueDate) throw new Error("Ngày hết hiệu lực phải sau ngày báo giá.");
@@ -282,10 +294,10 @@ export function prepareQuoteInput(raw: Record<string, unknown>): QuoteDraft {
   if (opportunityId !== null && (!Number.isSafeInteger(opportunityId) || opportunityId <= 0)) {
     throw new Error("Cơ hội CRM liên kết không hợp lệ.");
   }
-  const template = getQuoteTemplate(templateKey)!;
   return {
     template_key: templateKey,
-    title: cleanText(raw.title, "Tiêu đề báo giá", 200) || template.title,
+    service_name: cleanText(raw.service_name, "Tên dịch vụ", 120) || fallback.name || quoteServiceName(templateKey),
+    title: cleanText(raw.title, "Tiêu đề báo giá", 200) || fallback.title || "",
     company_name: cleanText(raw.company_name, "Tên công ty khách hàng", 250, true),
     company_address: cleanText(raw.company_address, "Địa chỉ khách hàng", 300),
     company_tax_code: cleanText(raw.company_tax_code, "Mã số thuế", 50),
@@ -346,7 +358,7 @@ export function quoteTemplateLabel(key: QuoteTemplateKey): string {
   return getQuoteTemplate(key)?.name || key;
 }
 
-/** Tên dịch vụ lưu kèm báo giá (snapshot theo mẫu tại thời điểm lập) */
+/** Tên dịch vụ mặc định của mẫu (giá mặc định) — tên thật lưu theo từng báo giá */
 export function quoteServiceName(key: QuoteTemplateKey): string {
   return getQuoteTemplate(key)?.name || key;
 }

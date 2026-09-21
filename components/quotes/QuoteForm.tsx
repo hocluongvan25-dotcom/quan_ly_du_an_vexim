@@ -3,7 +3,13 @@
 import { useState } from "react";
 import { Plus, RotateCcw, Trash2 } from "lucide-react";
 import { calcQuoteTotals, quoteValidUntil, type QuoteView } from "@/lib/quotes";
-import { QUOTE_TEMPLATES, getQuoteTemplate, type QuoteLine, type QuoteTemplateKey } from "@/lib/quote-templates";
+import {
+  QUOTE_TEMPLATES,
+  getQuoteTemplate,
+  type QuoteLine,
+  type QuoteTemplateDef,
+  type QuoteTemplateKey,
+} from "@/lib/quote-templates";
 import { formatMoney } from "@/lib/accounting";
 
 type FormState = {
@@ -37,10 +43,13 @@ function toLines(text: string): string[] {
 
 export function QuoteForm({
   quote,
+  templates = QUOTE_TEMPLATES,
   onSaved,
   onCancel,
 }: {
   quote: QuoteView;
+  /** Bảng giá hiện hành (DB đè giá mặc định) — do trang chi tiết truyền xuống */
+  templates?: QuoteTemplateDef[];
   onSaved: (item: QuoteView) => void;
   onCancel: () => void;
 }) {
@@ -82,7 +91,7 @@ export function QuoteForm({
 
   /** Đổi mẫu dịch vụ → nạp lại hạng mục/phạm vi/điều khoản chuẩn của mẫu đó. */
   function applyTemplate(key: QuoteTemplateKey, keepItems = false) {
-    const template = getQuoteTemplate(key);
+    const template = templates.find((t) => t.key === key) || getQuoteTemplate(key);
     if (!template) return;
     setForm((prev) => ({
       ...prev,
@@ -139,7 +148,7 @@ export function QuoteForm({
               onChange={(e) => applyTemplate(e.target.value as QuoteTemplateKey)}
               className="mt-1 w-full rounded-xl border border-navy-900/10 px-3 py-2.5 text-sm font-normal"
             >
-              {QUOTE_TEMPLATES.map((t) => (
+              {templates.map((t) => (
                 <option key={t.key} value={t.key}>{t.name}</option>
               ))}
             </select>

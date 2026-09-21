@@ -8,7 +8,7 @@ import { QuoteForm } from "@/components/quotes/QuoteForm";
 import { QuotePreview } from "@/components/quotes/QuotePreview";
 import { formatMoney } from "@/lib/accounting";
 import { QUOTE_STATE_LABELS, buildQuoteMessage, type QuoteStatus, type QuoteView } from "@/lib/quotes";
-import { getQuoteTemplate } from "@/lib/quote-templates";
+import { getQuoteTemplate, type QuoteTemplateDef } from "@/lib/quote-templates";
 
 const STATE_STYLES: Record<string, string> = {
   draft: "bg-slate-200 text-slate-600",
@@ -22,6 +22,7 @@ export default function QuoteDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [quote, setQuote] = useState<QuoteView | null>(null);
+  const [templates, setTemplates] = useState<QuoteTemplateDef[]>([]);
   const [role, setRole] = useState("");
   const [userId, setUserId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,6 +46,10 @@ export default function QuoteDetailPage() {
         setRole(d.user?.role || "");
         setUserId(d.user?.id ?? null);
       })
+      .catch(() => {});
+    fetch("/api/quote-templates")
+      .then((r) => r.json())
+      .then((d) => setTemplates(d.items || []))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
@@ -154,7 +159,7 @@ export default function QuoteDetailPage() {
                 {QUOTE_STATE_LABELS[quote.state]}
               </span>
               <span className="rounded-full bg-navy-900/5 px-2.5 py-0.5 text-[11px] font-bold text-navy-900">
-                {getQuoteTemplate(quote.template_key)?.name || quote.template_key}
+                {quote.service_name || getQuoteTemplate(quote.template_key)?.name || quote.template_key}
               </span>
             </div>
             <div className="mt-1 text-sm text-navy-900/60">
@@ -256,6 +261,7 @@ export default function QuoteDetailPage() {
       {editing ? (
         <QuoteForm
           quote={quote}
+          templates={templates}
           onSaved={(item) => {
             setQuote(item);
             setEditing(false);

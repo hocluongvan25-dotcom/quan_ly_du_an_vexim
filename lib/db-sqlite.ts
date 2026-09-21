@@ -45,7 +45,7 @@ import {
   type QuoteStatus,
   type QuoteView,
 } from "./quotes";
-import type { QuoteTemplateKey } from "./quote-templates";
+import type { QuoteTemplateDef, QuoteTemplateKey } from "./quote-templates";
 
 const dataDir = path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "vexim.db");
@@ -283,6 +283,13 @@ function migrate(db: DatabaseSync) {
       note TEXT NOT NULL DEFAULT '',
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS quote_templates (
+      template_key TEXT PRIMARY KEY CHECK (template_key IN ('FDA','GACC','SALE_EXPORT','AMAZON_OPS')),
+      payload TEXT NOT NULL,
+      updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
     CREATE TABLE IF NOT EXISTS quotes (
@@ -2720,7 +2727,7 @@ export function createQuote(input: QuoteDraft, createdBy: number): number {
     .run(
       nextQuoteNo(),
       input.template_key,
-      quoteServiceName(input.template_key),
+      input.service_name,
       input.title,
       input.company_name,
       input.company_address,
@@ -2768,7 +2775,7 @@ export function updateQuote(id: number, input: QuoteDraft): void {
     )
     .run(
       input.template_key,
-      quoteServiceName(input.template_key),
+      input.service_name,
       input.title,
       input.company_name,
       input.company_address,
@@ -2820,6 +2827,7 @@ export function duplicateQuote(id: number, createdBy: number): number {
   return createQuote(
     {
       template_key: current.template_key,
+      service_name: current.service_name,
       title: current.title,
       company_name: current.company_name,
       company_address: current.company_address,
@@ -2844,4 +2852,33 @@ export function duplicateQuote(id: number, createdBy: number): number {
     },
     createdBy
   );
+}
+
+/* ==================== BẢNG GIÁ DỊCH VỤ (PRICE BOOK) ==================== */
+
+/** Chỉ trả payload thô; việc ghép với giá mặc định do lib/db.ts làm. */
+export function listQuoteTemplateRows(): Array<{ template_key: string; payload: string }> {
+  const rows = db()
+    .prepare("SELECT template_key, payload FROM quote_templates")
+    .all() as any[];
+  return plain(rows).map((row: any) => ({ template_key: String(row.template_key), payload: String(row.payload) }));
+}
+
+export function saveQuoteTemplateRow(
+  template_key: QuoteTemplateKey,
+  payload: QuoteTemplateDef,
+  updatedBy: number | null
+): void {
+  db()
+    .prepare(
+      `INSERT INTO quote_templates (template_key, payload, updated_by, updated_at)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(template_key) DO UPDATE SET payload=excluded.payload, updated_by=excluded.updated_by, updated_at=excluded.updated_at`
+    )
+    .run(template_key, JSON.stringify(payload), updatedBy, nowSql());
+}
+
+/** Xoá dòng trong DB → mẫu quay về giá mặc định của hệ thống. */
+export function deleteQuoteTemplateRow(template_key: QuoteTemplateKey): void {
+  db().prepare("DELETE FROM quote_templates WHERE template_key = ?").run(template_key);
 }

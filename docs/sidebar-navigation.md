@@ -4,7 +4,8 @@
 - Khi thu gọn vẫn giữ chữ thương hiệu, biểu tượng menu, trạng thái mục đang chọn, tài khoản và đăng xuất. Tên mục hiển thị khi rê chuột hoặc focus bằng bàn phím; Escape đóng chú thích. Chuyển ngôn ngữ vẫn có ở header.
 - Trạng thái được lưu bằng cookie `vexim-sidebar` trong 1 năm, phạm vi `/dashboard`, `SameSite=Lax`, có `Secure` trên HTTPS. Server đọc trạng thái ngay khi render để tránh nháy sidebar lớn rồi nhỏ lúc tải lại. Không đọc/ghi preference qua localStorage; cookie bị chặn thì nút vẫn hoạt động trong phiên trang đang mở.
 - Điện thoại luôn mở drawer đủ nhãn (268px, tự giới hạn trên màn hình nhỏ), không dùng trạng thái thu gọn desktop. Bấm mục menu, nút đóng, vùng bên ngoài hoặc Escape đều đóng drawer. Chặn cuộn nền, giữ focus trong drawer và trả focus khi đóng. Drawer dùng portal để không bị khung header/backdrop-filter giới hạn chiều cao. Resize về desktop sẽ đóng drawer.
-- Menu có thêm mục **Báo Giá Dịch Vụ** (`/dashboard/bao-gia`) cho cả admin và specialist, đứng cạnh «Hợp Đồng Dịch Vụ»; trang con `/dashboard/bao-gia/[id]` vẫn đánh dấu đúng mục đang chọn.
+- Menu có thêm mục **Báo Giá Dịch Vụ** (`/dashboard/bao-gia`) cho cả admin và specialist, đứng cạnh «Hợp Đồng Dịch Vụ»; trang con `/dashboard/bao-gia/[id]` và `/dashboard/bao-gia/moi` vẫn đánh dấu đúng mục đang chọn.
+- Menu có thêm mục **Bảng Giá Dịch Vụ** (`/dashboard/bao-gia/bang-gia`, chỉ admin) để chỉnh đơn giá dịch vụ trong app; khi đang ở trang này thì mục cha «Báo Giá Dịch Vụ» không sáng (mục con là nơi duy nhất được đánh dấu).
 - Quyền và đường dẫn chức năng không thay đổi; specialist không thấy menu chỉ dành cho admin. Mục đang chọn cũng được đánh dấu ở các trang con của dịch vụ/kế toán/doanh nghiệp.
 - Không cần migration database hoặc thay đổi dữ liệu nghiệp vụ.
 

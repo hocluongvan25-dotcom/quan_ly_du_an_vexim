@@ -60,13 +60,22 @@ Pre-built quote templates per service so staff only enter customer details and e
 
 - 4 templates: **FDA**, **GACC**, **Sale xuất khẩu Mỹ**, **Vận hành Amazon US** — line items, unit prices,
   scope of work, documents to be provided, timeline, payment terms and general terms are pre-filled.
+- **Editable line items with live totals** while creating: changing quantity, unit price, discount or VAT
+  recalculates line amounts, subtotal, VAT, grand total and the amount in words instantly.
+- **Service price list at `/dashboard/bao-gia/bang-gia` (Admin only)** — the single place to change service
+  prices: edit/remove items, add new main items and new optional items, edit scope/terms/VAT/validity.
+  Saved in the `quote_templates` table; DB values override `lib/quote-templates.ts`. New quotes use the new
+  prices, existing quotes keep their snapshot.
+- Extra items can be added to any single quote (*Thêm hạng mục khác*) or reset back to the official template price.
 - Optional line items (US Agent, PPC, catalogue…) are quoted separately and **not added to the total**.
 - Numbers are recomputed server-side; the amount in Vietnamese words is printed on every quote.
 - Quote lifecycle: **Nháp → Đã gửi khách → Khách đồng ý / Từ chối** (+ auto *Hết hiệu lực* after the validity date).
   A quote sent to the customer is locked; use **Nhân bản để sửa** to revise it.
 - PDF export (`/api/quotes/[id]/pdf`) uses the bundled Tinos fonts, repeats table headers across pages.
 - Created from a CRM opportunity with one click (service, company, contact, email, phone pre-filled).
-- See `docs/bao-gia.md`. Prices in `lib/quote-templates.ts` are **sample prices** — update them before sending real quotes.
+- Migration: `supabase/migrations/20260922_price_book.sql` adds the `quote_templates` table (re-runnable).
+- See `docs/bao-gia.md`. Prices shipped in `lib/quote-templates.ts` are **sample prices** — set the real ones
+  in the in-app price list before sending real quotes.
 
 Migration: run `supabase/schema.sql` or `supabase/migrations/20260921_quotes.sql`, then `NOTIFY pgrst, 'reload schema';`
 

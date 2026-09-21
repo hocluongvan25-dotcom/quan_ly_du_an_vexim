@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { createQuote, isCrmSchemaError, listQuotes } from "@/lib/db";
+import { createQuote, isCrmSchemaError, listQuotes, loadQuoteTemplate } from "@/lib/db";
 import { handleApiError } from "@/lib/api-helpers";
 import { normalizeQuoteItems, prepareQuoteInput } from "@/lib/quotes";
 import {
-  QUOTE_TEMPLATES,
-  getQuoteTemplate,
+  QUOTE_TEMPLATE_KEYS,
   isQuoteTemplateKey,
-  templateItems,
+  itemsFromTemplate,
+  optionLine,
   type QuoteLine,
 } from "@/lib/quote-templates";
 
@@ -54,20 +54,25 @@ export async function POST(req: NextRequest) {
     const templateKey = body.template_key;
     if (!isQuoteTemplateKey(templateKey)) {
       return NextResponse.json(
-        { error: `Dịch vụ phải là một trong: ${QUOTE_TEMPLATES.map((t) => t.key).join(", ")}.` },
+        { error: `Dịch vụ phải là một trong: ${QUOTE_TEMPLATE_KEYS.join(", ")}.` },
         { status: 400 }
       );
     }
-    const template = getQuoteTemplate(templateKey)!;
+    // Giá lấy từ Bảng giá dịch vụ (DB) nếu Admin đã chỉnh, nếu không dùng giá mặc định.
+    const template = (await loadQuoteTemplate(templateKey))!;
 
-    // Client không gửi items → dùng nguyên mẫu. Có gửi → kiểm tra từng dòng.
+    // Client không gửi items → dùng nguyên mẫu (kèm hạng mục tùy chọn đã chọn).
+    // Có gửi → kiểm tra từng dòng, server vẫn tự tính lại tiền.
+    const optionKeys = Array.isArray(body.selected_options) ? body.selected_options.map(String) : [];
+    const optionalLines = template.options.filter((o) => optionKeys.includes(o.key)).map(optionLine);
     const items: QuoteLine[] = body.items === undefined
-      ? templateItems(templateKey)
+      ? [...itemsFromTemplate(template), ...optionalLines]
       : normalizeQuoteItems(body.items);
 
     const prepared = {
       template_key: templateKey,
-      title: body.title,
+      service_name: template.name,
+      title: body.title === undefined || body.title === "" ? template.title : body.title,
       company_name: body.company_name,
       company_address: body.company_address,
       company_tax_code: body.company_tax_code,
@@ -91,7 +96,8 @@ export async function POST(req: NextRequest) {
       opportunity_id: body.opportunity_id,
     };
 
-    const id = await createQuote(prepareQuoteInput(prepared), user.id);
+    // Truyền bảng giá đã resolve để các trường client bỏ trống (VAT, hiệu lực, tên dịch vụ) lấy đúng giá trị.
+    const id = await createQuote(prepareQuoteInput(prepared, template), user.id);
     return NextResponse.json({ id, success: true });
   } catch (e: any) {
     if (isCrmSchemaError(e)) return NextResponse.json({ error: MIGRATION_HINT }, { status: 500 });

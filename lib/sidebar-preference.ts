@@ -12,5 +12,9 @@ export function sidebarPreferenceCookie(collapsed: boolean, secure = false): str
 export function isSidebarItemActive(pathname: string, href: string): boolean {
   if (href === "/dashboard" || href === "/dashboard/crm") return pathname === href;
   if (href === "/dashboard/crm/pipeline") return pathname.startsWith("/dashboard/crm/");
+  // Trang quản trị con (bảng giá) không làm sáng mục cha; mục cha cũng không sáng ở trang con đó.
+  if (href === "/dashboard/bao-gia") {
+    return pathname === href || (pathname.startsWith("/dashboard/bao-gia/") && !pathname.startsWith("/dashboard/bao-gia/bang-gia"));
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

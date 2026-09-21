@@ -66,12 +66,20 @@ function QuotesListInner() {
             Mẫu báo giá dựng sẵn theo dịch vụ — nhân viên chỉ cần nhập thông tin khách hàng rồi tải PDF gửi khách.
           </p>
         </div>
-        <Link
-          href="/dashboard/bao-gia/moi"
-          className="rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white"
-        >
-          + Tạo báo giá
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/dashboard/bao-gia/bang-gia"
+            className="rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-navy-900 shadow-sm"
+          >
+            ⚙️ Bảng giá dịch vụ
+          </Link>
+          <Link
+            href="/dashboard/bao-gia/moi"
+            className="rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            + Tạo báo giá
+          </Link>
+        </div>
       </div>
 
       <div className="mt-5 grid gap-3 md:grid-cols-4">
@@ -154,7 +162,7 @@ function QuotesListInner() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="rounded-full bg-navy-900/5 px-2 py-0.5 text-[11px] font-bold text-navy-900">
-                      {getQuoteTemplate(item.template_key)?.short_name || item.template_key}
+                      {QUOTE_TEMPLATES.find((t) => t.key === item.template_key)?.short_name || item.template_key}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right font-bold">{formatMoney(item.total)} ₫</td>
