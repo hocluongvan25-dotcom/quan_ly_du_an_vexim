@@ -9,6 +9,7 @@ import {
   CalendarClock,
   CheckCircle2,
   Clock,
+  FileText,
   History,
   Pencil,
   Phone,
@@ -238,6 +239,17 @@ export default function OppDetailPage() {
             >
               <Pencil className="h-4 w-4" /> Sửa thông tin
             </button>
+            <Link
+              href={`/dashboard/bao-gia/moi?template=${opp.pipeline_key}` +
+                `&company=${encodeURIComponent(opp.company_name)}` +
+                `&opportunity=${opp.id}` +
+                (opp.contact_email ? `&email=${encodeURIComponent(opp.contact_email)}` : "") +
+                (opp.contact_name ? `&name=${encodeURIComponent(opp.contact_name)}` : "") +
+                (opp.contact_phone ? `&phone=${encodeURIComponent(opp.contact_phone)}` : "")}
+              className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-extrabold text-navy-950 hover:bg-teal-400"
+            >
+              <FileText className="h-4 w-4" /> Tạo báo giá
+            </Link>
             {permissions.canDelete && (
               <button
                 onClick={remove}

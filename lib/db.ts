@@ -3,6 +3,7 @@ import { isSupabaseEnabled } from "./supabase";
 import * as sqlite from "./db-sqlite";
 import * as cloud from "./db-supabase";
 import type { Role, Standard } from "./types";
+import type { QuoteDraft, QuoteStatus } from "./quotes";
 
 export function usingSupabase() {
   return isSupabaseEnabled();
@@ -446,4 +447,34 @@ export async function refSummary(ref_type: string, ref_id: number) {
 
 export async function accountingSummary() {
   return isSupabaseEnabled() ? cloud.accountingSummary() : sqlite.accountingSummary();
+}
+
+/* --------------------------- Báo giá dịch vụ --------------------------- */
+
+export async function listQuotes(filter: { template_key?: string; status?: string; q?: string } = {}) {
+  return isSupabaseEnabled() ? cloud.listQuotes(filter) : sqlite.listQuotes(filter);
+}
+
+export async function getQuote(id: number) {
+  return isSupabaseEnabled() ? cloud.getQuote(id) : sqlite.getQuote(id);
+}
+
+export async function createQuote(input: QuoteDraft, createdBy: number) {
+  return isSupabaseEnabled() ? cloud.createQuote(input, createdBy) : sqlite.createQuote(input, createdBy);
+}
+
+export async function updateQuote(id: number, input: QuoteDraft) {
+  return isSupabaseEnabled() ? cloud.updateQuote(id, input) : sqlite.updateQuote(id, input);
+}
+
+export async function setQuoteStatus(id: number, status: QuoteStatus) {
+  return isSupabaseEnabled() ? cloud.setQuoteStatus(id, status) : sqlite.setQuoteStatus(id, status);
+}
+
+export async function deleteQuote(id: number) {
+  return isSupabaseEnabled() ? cloud.deleteQuote(id) : sqlite.deleteQuote(id);
+}
+
+export async function duplicateQuote(id: number, createdBy: number) {
+  return isSupabaseEnabled() ? cloud.duplicateQuote(id, createdBy) : sqlite.duplicateQuote(id, createdBy);
 }

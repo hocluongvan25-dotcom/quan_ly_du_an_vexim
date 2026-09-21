@@ -33,6 +33,20 @@ import {
   type ServiceContract,
   type ServiceType,
 } from "./accounting";
+import {
+  assertQuoteEditable,
+  calcQuoteTotals,
+  enrichQuote,
+  parseJsonArray,
+  parseQuoteItems,
+  quoteServiceName,
+  type Quote,
+  type QuoteDraft,
+  type QuoteStatus,
+  type QuoteView,
+} from "./quotes";
+import type { QuoteTemplateKey } from "./quote-templates";
+
 const dataDir = path.join(process.cwd(), "data");
 const dbPath = path.join(dataDir, "vexim.db");
 
@@ -271,9 +285,48 @@ function migrate(db: DatabaseSync) {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
+    CREATE TABLE IF NOT EXISTS quotes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      quote_no TEXT NOT NULL UNIQUE,
+      template_key TEXT NOT NULL CHECK (template_key IN ('FDA','GACC','SALE_EXPORT','AMAZON_OPS')),
+      service_name TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL DEFAULT '',
+      company_name TEXT NOT NULL DEFAULT '',
+      company_address TEXT NOT NULL DEFAULT '',
+      company_tax_code TEXT NOT NULL DEFAULT '',
+      contact_name TEXT NOT NULL DEFAULT '',
+      contact_title TEXT NOT NULL DEFAULT '',
+      contact_phone TEXT NOT NULL DEFAULT '',
+      contact_email TEXT NOT NULL DEFAULT '',
+      items TEXT NOT NULL DEFAULT '[]',
+      scope TEXT NOT NULL DEFAULT '[]',
+      documents TEXT NOT NULL DEFAULT '[]',
+      terms TEXT NOT NULL DEFAULT '[]',
+      timeline TEXT NOT NULL DEFAULT '',
+      payment_terms TEXT NOT NULL DEFAULT '',
+      note TEXT NOT NULL DEFAULT '',
+      subtotal INTEGER NOT NULL DEFAULT 0,
+      discount_percent REAL NOT NULL DEFAULT 0,
+      discount_amount INTEGER NOT NULL DEFAULT 0,
+      vat_rate REAL NOT NULL DEFAULT 8,
+      vat_amount INTEGER NOT NULL DEFAULT 0,
+      total INTEGER NOT NULL DEFAULT 0,
+      optional_total INTEGER NOT NULL DEFAULT 0,
+      issue_date TEXT NOT NULL,
+      valid_until TEXT,
+      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','sent','accepted','rejected')),
+      opportunity_id INTEGER REFERENCES crm_opportunities(id) ON DELETE SET NULL,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS service_contracts_company_idx ON service_contracts (company_name);
     CREATE INDEX IF NOT EXISTS invoices_ref_idx ON invoices (ref_type, ref_id);
     CREATE INDEX IF NOT EXISTS invoice_payments_invoice_idx ON invoice_payments (invoice_id);
+    CREATE INDEX IF NOT EXISTS quotes_created_idx ON quotes (created_at DESC);
+    CREATE INDEX IF NOT EXISTS quotes_company_idx ON quotes (company_name);
+    CREATE INDEX IF NOT EXISTS quotes_pipeline_idx ON quotes (template_key, status);
     CREATE INDEX IF NOT EXISTS crm_stages_pipeline_idx ON crm_stages (pipeline_id, sort_order);
     CREATE INDEX IF NOT EXISTS crm_opportunities_pipeline_stage_idx ON crm_opportunities (pipeline_id, stage_id);
     CREATE INDEX IF NOT EXISTS crm_opportunities_owner_idx ON crm_opportunities (owner_id);
@@ -289,6 +342,12 @@ function migrate(db: DatabaseSync) {
 
   if (!invoiceColumns.some((column) => column.name === "payment_request")) {
     db.exec("ALTER TABLE invoices ADD COLUMN payment_request TEXT");
+  }
+
+  // Bảng báo giá tạo trước khi có phần "hồ sơ khách cần cung cấp"
+  const quoteColumns = db.prepare("PRAGMA table_info(quotes)").all() as Array<{ name: string }>;
+  if (quoteColumns.length && !quoteColumns.some((column) => column.name === "documents")) {
+    db.exec("ALTER TABLE quotes ADD COLUMN documents TEXT NOT NULL DEFAULT '[]'");
   }
 
   // Migration for old DBs
@@ -2547,4 +2606,242 @@ export function accountingSummary(): AccountingSummary {
     recentPayments,
     monthly,
   };
+}
+
+/* ==================== BÁO GIÁ DỊCH VỤ ==================== */
+
+function mapQuote(row: any): QuoteView {
+  const items = parseQuoteItems(row.items);
+  const quote: Quote = {
+    id: Number(row.id),
+    quote_no: String(row.quote_no),
+    template_key: row.template_key as QuoteTemplateKey,
+    service_name: String(row.service_name || ""),
+    title: String(row.title || ""),
+    company_name: String(row.company_name || ""),
+    company_address: String(row.company_address || ""),
+    company_tax_code: String(row.company_tax_code || ""),
+    contact_name: String(row.contact_name || ""),
+    contact_title: String(row.contact_title || ""),
+    contact_phone: String(row.contact_phone || ""),
+    contact_email: String(row.contact_email || ""),
+    items,
+    scope: parseJsonArray(row.scope),
+    documents: parseJsonArray(row.documents),
+    terms: parseJsonArray(row.terms),
+    timeline: String(row.timeline || ""),
+    payment_terms: String(row.payment_terms || ""),
+    note: String(row.note || ""),
+    subtotal: Number(row.subtotal || 0),
+    discount_percent: Number(row.discount_percent || 0),
+    discount_amount: Number(row.discount_amount || 0),
+    vat_rate: Number(row.vat_rate ?? 8),
+    vat_amount: Number(row.vat_amount || 0),
+    total: Number(row.total || 0),
+    optional_total: Number(row.optional_total || 0),
+    issue_date: String(row.issue_date).slice(0, 10),
+    valid_until: row.valid_until ? String(row.valid_until).slice(0, 10) : "",
+    status: row.status as QuoteStatus,
+    opportunity_id: row.opportunity_id === null || row.opportunity_id === undefined ? null : Number(row.opportunity_id),
+    created_by: row.created_by === null || row.created_by === undefined ? null : Number(row.created_by),
+    created_at: String(row.created_at || ""),
+    updated_at: String(row.updated_at || ""),
+    created_by_name: row.created_by_name ? String(row.created_by_name) : undefined,
+  };
+  return enrichQuote(quote);
+}
+
+export function nextQuoteNo(): string {
+  const year = new Date().getFullYear();
+  const prefix = `VXM-BG-${year}-`;
+  const row = db()
+    .prepare("SELECT quote_no FROM quotes WHERE quote_no LIKE ? ORDER BY quote_no DESC LIMIT 1")
+    .get(`${prefix}%`) as { quote_no: string } | undefined;
+  let seq = 1;
+  if (row?.quote_no) {
+    const n = Number(row.quote_no.split("-").pop());
+    if (Number.isFinite(n)) seq = n + 1;
+  }
+  return `${prefix}${String(seq).padStart(4, "0")}`;
+}
+
+export function listQuotes(filter: { template_key?: string; status?: string; q?: string } = {}): QuoteView[] {
+  const where: string[] = [];
+  const params: any[] = [];
+  if (filter.template_key) {
+    where.push("q.template_key = ?");
+    params.push(filter.template_key);
+  }
+  if (filter.status) {
+    where.push("q.status = ?");
+    params.push(filter.status);
+  }
+  const rows = db()
+    .prepare(
+      `SELECT q.*, u.name AS created_by_name FROM quotes q
+       LEFT JOIN users u ON u.id = q.created_by
+       ${where.length ? "WHERE " + where.join(" AND ") : ""}
+       ORDER BY q.created_at DESC, q.id DESC`
+    )
+    .all(...params) as any[];
+  let items = plain(rows).map(mapQuote);
+  // Tìm theo tiếng Việt ở tầng ứng dụng: LIKE của SQLite không bỏ dấu/không phân biệt hoa thường.
+  if (filter.q) {
+    const needle = filter.q.trim().toLowerCase();
+    items = items.filter((quote) =>
+      `${quote.quote_no} ${quote.company_name} ${quote.contact_name} ${quote.title}`.toLowerCase().includes(needle)
+    );
+  }
+  return items;
+}
+
+export function getQuote(id: number): QuoteView | undefined {
+  const row = db()
+    .prepare(
+      `SELECT q.*, u.name AS created_by_name FROM quotes q
+       LEFT JOIN users u ON u.id = q.created_by WHERE q.id = ?`
+    )
+    .get(id) as any;
+  return row ? mapQuote(plain(row)) : undefined;
+}
+
+export function createQuote(input: QuoteDraft, createdBy: number): number {
+  const t = calcQuoteTotals(input.items, input.discount_percent, input.vat_rate);
+  const now = nowSql();
+  const data = db()
+    .prepare(
+      `INSERT INTO quotes (
+        quote_no, template_key, service_name, title, company_name, company_address, company_tax_code,
+        contact_name, contact_title, contact_phone, contact_email, items, scope, documents, terms, timeline, payment_terms, note,
+        subtotal, discount_percent, discount_amount, vat_rate, vat_amount, total, optional_total,
+        issue_date, valid_until, status, opportunity_id, created_by, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      nextQuoteNo(),
+      input.template_key,
+      quoteServiceName(input.template_key),
+      input.title,
+      input.company_name,
+      input.company_address,
+      input.company_tax_code,
+      input.contact_name,
+      input.contact_title,
+      input.contact_phone,
+      input.contact_email,
+      JSON.stringify(input.items),
+      JSON.stringify(input.scope),
+      JSON.stringify(input.documents),
+      JSON.stringify(input.terms),
+      input.timeline,
+      input.payment_terms,
+      input.note,
+      t.subtotal,
+      t.discount_percent,
+      t.discount_amount,
+      t.vat_rate,
+      t.vat_amount,
+      t.total,
+      t.optional_total,
+      input.issue_date,
+      input.valid_until || null,
+      input.status,
+      input.opportunity_id,
+      createdBy,
+      now,
+      now
+    );
+  return Number(data.lastInsertRowid);
+}
+
+export function updateQuote(id: number, input: QuoteDraft): void {
+  const current = getQuote(id);
+  if (!current) throw new Error("NOT_FOUND");
+  assertQuoteEditable(current);
+  const t = calcQuoteTotals(input.items, input.discount_percent, input.vat_rate);
+  db()
+    .prepare(
+      `UPDATE quotes SET template_key=?, service_name=?, title=?, company_name=?, company_address=?, company_tax_code=?,
+        contact_name=?, contact_title=?, contact_phone=?, contact_email=?, items=?, scope=?, documents=?, terms=?, timeline=?, payment_terms=?, note=?,
+        subtotal=?, discount_percent=?, discount_amount=?, vat_rate=?, vat_amount=?, total=?, optional_total=?,
+        issue_date=?, valid_until=?, status=?, opportunity_id=?, updated_at=? WHERE id=?`
+    )
+    .run(
+      input.template_key,
+      quoteServiceName(input.template_key),
+      input.title,
+      input.company_name,
+      input.company_address,
+      input.company_tax_code,
+      input.contact_name,
+      input.contact_title,
+      input.contact_phone,
+      input.contact_email,
+      JSON.stringify(input.items),
+      JSON.stringify(input.scope),
+      JSON.stringify(input.documents),
+      JSON.stringify(input.terms),
+      input.timeline,
+      input.payment_terms,
+      input.note,
+      t.subtotal,
+      t.discount_percent,
+      t.discount_amount,
+      t.vat_rate,
+      t.vat_amount,
+      t.total,
+      t.optional_total,
+      input.issue_date,
+      input.valid_until || null,
+      input.status,
+      input.opportunity_id,
+      nowSql(),
+      id
+    );
+}
+
+export function setQuoteStatus(id: number, status: QuoteStatus): void {
+  const current = getQuote(id);
+  if (!current) throw new Error("NOT_FOUND");
+  // Bản đã gửi khách/có phản hồi là dấu vết đã gửi — không quay lại "Nháp".
+  if (status === "draft" && current.status !== "draft") throw new Error("INVALID_STATUS");
+  db().prepare("UPDATE quotes SET status=?, updated_at=? WHERE id=?").run(status, nowSql(), id);
+}
+
+export function deleteQuote(id: number): void {
+  const current = getQuote(id);
+  if (!current) throw new Error("NOT_FOUND");
+  db().prepare("DELETE FROM quotes WHERE id = ?").run(id);
+}
+
+export function duplicateQuote(id: number, createdBy: number): number {
+  const current = getQuote(id);
+  if (!current) throw new Error("NOT_FOUND");
+  return createQuote(
+    {
+      template_key: current.template_key,
+      title: current.title,
+      company_name: current.company_name,
+      company_address: current.company_address,
+      company_tax_code: current.company_tax_code,
+      contact_name: current.contact_name,
+      contact_title: current.contact_title,
+      contact_phone: current.contact_phone,
+      contact_email: current.contact_email,
+      items: current.items,
+      scope: current.scope,
+      documents: current.documents,
+      terms: current.terms,
+      timeline: current.timeline,
+      payment_terms: current.payment_terms,
+      note: current.note,
+      discount_percent: current.discount_percent,
+      vat_rate: current.vat_rate,
+      issue_date: todayUtcIso(),
+      valid_until: "",
+      status: "draft",
+      opportunity_id: current.opportunity_id,
+    },
+    createdBy
+  );
 }

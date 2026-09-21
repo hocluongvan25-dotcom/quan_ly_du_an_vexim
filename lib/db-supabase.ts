@@ -31,6 +31,20 @@ import {
   type ServiceContract,
   type ServiceType,
 } from "./accounting";
+import {
+  assertQuoteEditable,
+  calcQuoteTotals,
+  enrichQuote,
+  parseJsonArray,
+  parseQuoteItems,
+  quoteServiceName,
+  type Quote,
+  type QuoteDraft,
+  type QuoteStatus,
+  type QuoteView,
+} from "./quotes";
+import type { QuoteTemplateKey } from "./quote-templates";
+
 
 function mapUser(row: Record<string, unknown>): User {
   return {
@@ -2311,4 +2325,194 @@ export async function accountingSummary(): Promise<AccountingSummaryCloud> {
     recentPayments,
     monthly,
   };
+}
+
+/* ==================== BÁO GIÁ DỊCH VỤ ==================== */
+
+function hydrateQuote(row: Record<string, any>, creatorName?: string): QuoteView {
+  const quote: Quote = {
+    id: Number(row.id),
+    quote_no: String(row.quote_no),
+    template_key: row.template_key as QuoteTemplateKey,
+    service_name: String(row.service_name || ""),
+    title: String(row.title || ""),
+    company_name: String(row.company_name || ""),
+    company_address: String(row.company_address || ""),
+    company_tax_code: String(row.company_tax_code || ""),
+    contact_name: String(row.contact_name || ""),
+    contact_title: String(row.contact_title || ""),
+    contact_phone: String(row.contact_phone || ""),
+    contact_email: String(row.contact_email || ""),
+    items: parseQuoteItems(row.items),
+    scope: parseJsonArray(row.scope),
+    documents: parseJsonArray(row.documents),
+    terms: parseJsonArray(row.terms),
+    timeline: String(row.timeline || ""),
+    payment_terms: String(row.payment_terms || ""),
+    note: String(row.note || ""),
+    subtotal: Number(row.subtotal || 0),
+    discount_percent: Number(row.discount_percent || 0),
+    discount_amount: Number(row.discount_amount || 0),
+    vat_rate: Number(row.vat_rate ?? 8),
+    vat_amount: Number(row.vat_amount || 0),
+    total: Number(row.total || 0),
+    optional_total: Number(row.optional_total || 0),
+    issue_date: String(row.issue_date).slice(0, 10),
+    valid_until: row.valid_until ? String(row.valid_until).slice(0, 10) : "",
+    status: row.status as QuoteStatus,
+    opportunity_id: row.opportunity_id === null || row.opportunity_id === undefined ? null : Number(row.opportunity_id),
+    created_by: row.created_by === null || row.created_by === undefined ? null : Number(row.created_by),
+    created_at: String(row.created_at || ""),
+    updated_at: String(row.updated_at || ""),
+    created_by_name: creatorName,
+  };
+  return enrichQuote(quote);
+}
+
+export async function nextQuoteNo(): Promise<string> {
+  const year = new Date().getFullYear();
+  const prefix = `VXM-BG-${year}-`;
+  const { data, error } = await supabaseAdmin()
+    .from("quotes")
+    .select("quote_no")
+    .like("quote_no", `${prefix}%`)
+    .order("quote_no", { ascending: false })
+    .limit(1);
+  if (error) assertNoSupabaseError(error, "quotes");
+  let seq = 1;
+  const no = (data as any)?.[0]?.quote_no;
+  if (no) {
+    const n = Number(String(no).split("-").pop());
+    if (Number.isFinite(n)) seq = n + 1;
+  }
+  return `${prefix}${String(seq).padStart(4, "0")}`;
+}
+
+async function quoteRows(filter: { template_key?: string; status?: string; q?: string }) {
+  let query = supabaseAdmin().from("quotes").select("*").order("created_at", { ascending: false }).order("id", { ascending: false });
+  if (filter.template_key) query = query.eq("template_key", filter.template_key);
+  if (filter.status) query = query.eq("status", filter.status);
+  if (filter.q) {
+    const q = filter.q.replace(/[,()*]/g, "");
+    if (q) query = query.or(`company_name.ilike.%${q}%,quote_no.ilike.%${q}%,contact_name.ilike.%${q}%`);
+  }
+  const { data, error } = await query.limit(500);
+  if (error) assertNoSupabaseError(error, "quotes");
+  return (data || []) as Record<string, any>[];
+}
+
+export async function listQuotes(filter: { template_key?: string; status?: string; q?: string } = {}): Promise<QuoteView[]> {
+  const rows = await quoteRows(filter);
+  const names = await crmUserNameMap();
+  return rows.map((row) => hydrateQuote(row, row.created_by ? names.get(Number(row.created_by)) : undefined));
+}
+
+export async function getQuote(id: number): Promise<QuoteView | undefined> {
+  const { data, error } = await supabaseAdmin().from("quotes").select("*").eq("id", id).maybeSingle();
+  if (error) assertNoSupabaseError(error, "quotes");
+  if (!data) return undefined;
+  const names = await crmUserNameMap();
+  return hydrateQuote(data as Record<string, any>, (data as any).created_by ? names.get(Number((data as any).created_by)) : undefined);
+}
+
+function quotePayload(input: QuoteDraft, quote_no?: string) {
+  const t = calcQuoteTotals(input.items, input.discount_percent, input.vat_rate);
+  return {
+    ...(quote_no ? { quote_no } : {}),
+    template_key: input.template_key,
+    service_name: quoteServiceName(input.template_key),
+    title: input.title,
+    company_name: input.company_name,
+    company_address: input.company_address,
+    company_tax_code: input.company_tax_code,
+    contact_name: input.contact_name,
+    contact_title: input.contact_title,
+    contact_phone: input.contact_phone,
+    contact_email: input.contact_email,
+    items: input.items,
+    scope: input.scope,
+    documents: input.documents,
+    terms: input.terms,
+    timeline: input.timeline,
+    payment_terms: input.payment_terms,
+    note: input.note,
+    subtotal: t.subtotal,
+    discount_percent: t.discount_percent,
+    discount_amount: t.discount_amount,
+    vat_rate: t.vat_rate,
+    vat_amount: t.vat_amount,
+    total: t.total,
+    optional_total: t.optional_total,
+    issue_date: input.issue_date,
+    valid_until: input.valid_until || null,
+    status: input.status,
+    opportunity_id: input.opportunity_id,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+export async function createQuote(input: QuoteDraft, createdBy: number): Promise<number> {
+  const { data, error } = await supabaseAdmin()
+    .from("quotes")
+    .insert({ ...quotePayload(input, await nextQuoteNo()), created_by: createdBy })
+    .select("id")
+    .single();
+  if (error) assertNoSupabaseError(error, "quotes");
+  return Number((data as any)?.id ?? 0);
+}
+
+export async function updateQuote(id: number, input: QuoteDraft): Promise<void> {
+  const current = await getQuote(id);
+  if (!current) throw new Error("NOT_FOUND");
+  assertQuoteEditable(current);
+  const { error } = await supabaseAdmin().from("quotes").update(quotePayload(input)).eq("id", id);
+  if (error) assertNoSupabaseError(error, "quotes");
+}
+
+export async function setQuoteStatus(id: number, status: QuoteStatus): Promise<void> {
+  const current = await getQuote(id);
+  if (!current) throw new Error("NOT_FOUND");
+  if (status === "draft" && current.status !== "draft") throw new Error("INVALID_STATUS");
+  const { error } = await supabaseAdmin()
+    .from("quotes")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) assertNoSupabaseError(error, "quotes");
+}
+
+export async function deleteQuote(id: number): Promise<void> {
+  const { error } = await supabaseAdmin().from("quotes").delete().eq("id", id);
+  if (error) assertNoSupabaseError(error, "quotes");
+}
+
+export async function duplicateQuote(id: number, createdBy: number): Promise<number> {
+  const current = await getQuote(id);
+  if (!current) throw new Error("NOT_FOUND");
+  return createQuote(
+    {
+      template_key: current.template_key,
+      title: current.title,
+      company_name: current.company_name,
+      company_address: current.company_address,
+      company_tax_code: current.company_tax_code,
+      contact_name: current.contact_name,
+      contact_title: current.contact_title,
+      contact_phone: current.contact_phone,
+      contact_email: current.contact_email,
+      items: current.items,
+      scope: current.scope,
+      documents: current.documents,
+      terms: current.terms,
+      timeline: current.timeline,
+      payment_terms: current.payment_terms,
+      note: current.note,
+      discount_percent: current.discount_percent,
+      vat_rate: current.vat_rate,
+      issue_date: todayUtcIso(),
+      valid_until: "",
+      status: "draft",
+      opportunity_id: current.opportunity_id,
+    },
+    createdBy
+  );
 }

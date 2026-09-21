@@ -54,6 +54,22 @@ npm run dev
 
 If **no** Supabase vars, app falls back to SQLite `data/vexim.db` for UI preview.
 
+## 3b. Service Quotes (New) — `/dashboard/bao-gia`
+
+Pre-built quote templates per service so staff only enter customer details and export a PDF:
+
+- 4 templates: **FDA**, **GACC**, **Sale xuất khẩu Mỹ**, **Vận hành Amazon US** — line items, unit prices,
+  scope of work, documents to be provided, timeline, payment terms and general terms are pre-filled.
+- Optional line items (US Agent, PPC, catalogue…) are quoted separately and **not added to the total**.
+- Numbers are recomputed server-side; the amount in Vietnamese words is printed on every quote.
+- Quote lifecycle: **Nháp → Đã gửi khách → Khách đồng ý / Từ chối** (+ auto *Hết hiệu lực* after the validity date).
+  A quote sent to the customer is locked; use **Nhân bản để sửa** to revise it.
+- PDF export (`/api/quotes/[id]/pdf`) uses the bundled Tinos fonts, repeats table headers across pages.
+- Created from a CRM opportunity with one click (service, company, contact, email, phone pre-filled).
+- See `docs/bao-gia.md`. Prices in `lib/quote-templates.ts` are **sample prices** — update them before sending real quotes.
+
+Migration: run `supabase/schema.sql` or `supabase/migrations/20260921_quotes.sql`, then `NOTIFY pgrst, 'reload schema';`
+
 ## 4. Deploy to Vercel
 
 ```bash

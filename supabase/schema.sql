@@ -297,6 +297,43 @@ create table if not exists public.invoice_payments (
   created_at timestamptz not null default now()
 );
 
+-- Báo giá dịch vụ: mẫu dựng sẵn theo dịch vụ, nhân viên chỉ nhập thông tin khách hàng.
+create table if not exists public.quotes (
+  id bigint generated always as identity primary key,
+  quote_no text unique not null,
+  template_key text not null check (template_key in ('FDA','GACC','SALE_EXPORT','AMAZON_OPS')),
+  service_name text not null default '',
+  title text not null default '',
+  company_name text not null default '',
+  company_address text not null default '',
+  company_tax_code text not null default '',
+  contact_name text not null default '',
+  contact_title text not null default '',
+  contact_phone text not null default '',
+  contact_email text not null default '',
+  items jsonb not null default '[]'::jsonb,
+  scope jsonb not null default '[]'::jsonb,
+  documents jsonb not null default '[]'::jsonb,
+  terms jsonb not null default '[]'::jsonb,
+  timeline text not null default '',
+  payment_terms text not null default '',
+  note text not null default '',
+  subtotal bigint not null default 0,
+  discount_percent numeric not null default 0,
+  discount_amount bigint not null default 0,
+  vat_rate numeric not null default 8,
+  vat_amount bigint not null default 0,
+  total bigint not null default 0,
+  optional_total bigint not null default 0,
+  issue_date date not null,
+  valid_until date,
+  status text not null default 'draft' check (status in ('draft','sent','accepted','rejected')),
+  opportunity_id bigint references public.crm_opportunities(id) on delete set null,
+  created_by bigint references public.staff_users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 -- Indexes
 create index if not exists certificates_public_code_idx on public.certificates (public_code);
 create index if not exists certificates_status_idx on public.certificates (status);
@@ -329,6 +366,10 @@ create index if not exists invoices_ref_idx on public.invoices (ref_type, ref_id
 create index if not exists invoices_no_idx on public.invoices (invoice_no);
 create index if not exists invoices_due_idx on public.invoices (due_date);
 create index if not exists invoice_payments_invoice_idx on public.invoice_payments (invoice_id);
+create index if not exists quotes_no_idx on public.quotes (quote_no);
+create index if not exists quotes_company_idx on public.quotes (company_name);
+create index if not exists quotes_pipeline_idx on public.quotes (template_key, status);
+create index if not exists quotes_created_idx on public.quotes (created_at desc);
 
 -- RLS
 alter table public.staff_users enable row level security;
@@ -345,6 +386,7 @@ alter table public.crm_checklists enable row level security;
 alter table public.service_contracts enable row level security;
 alter table public.invoices enable row level security;
 alter table public.invoice_payments enable row level security;
+alter table public.quotes enable row level security;
 
 -- Grants
 grant all on table public.staff_users to service_role;
@@ -361,6 +403,7 @@ grant all on table public.crm_checklists to service_role;
 grant all on table public.service_contracts to service_role;
 grant all on table public.invoices to service_role;
 grant all on table public.invoice_payments to service_role;
+grant all on table public.quotes to service_role;
 grant all on table public.staff_users to postgres;
 grant all on table public.certificates to postgres;
 grant all on table public.consultation_leads to postgres;
@@ -375,6 +418,7 @@ grant all on table public.crm_checklists to postgres;
 grant all on table public.service_contracts to postgres;
 grant all on table public.invoices to postgres;
 grant all on table public.invoice_payments to postgres;
+grant all on table public.quotes to postgres;
 grant usage, select on all sequences in schema public to service_role;
 grant usage, select on all sequences in schema public to postgres;
 

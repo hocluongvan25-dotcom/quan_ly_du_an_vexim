@@ -9,7 +9,9 @@
     "start": "next start -H 0.0.0.0 -p 3000",
     "lint": "next lint",
     "test:certificates": "node --test tests/certificate-workflow.test.cjs",
-    "test:verification": "node --test tests/verification-view.test.cjs"
+    "test:verification": "node --test tests/verification-view.test.cjs",
+    "test:quotes": "node --test tests/quotes.test.cjs",
+    "test:all": "for f in tests/*.cjs; do node --test \"$f\" || exit 1; done"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "^1.1.1",
