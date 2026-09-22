@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { remainingMs, splitCountdown } from "@/lib/utils";
+import { countdownFor } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n/context";
 
 export function CountdownRing({
@@ -22,29 +22,28 @@ export function CountdownRing({
     return () => clearInterval(t);
   }, [running]);
 
-  const { remain, total, parts } = useMemo(() => {
-    // Use UTC to avoid timezone drift
-    const start = new Date(registeredAt.slice(0, 10) + "T00:00:00Z").getTime();
-    const end = new Date(expiresAt.slice(0, 10) + "T23:59:59Z").getTime();
-    const totalMs = Math.max(1, end - start);
-    const remainMs = running ? remainingMs(expiresAt, new Date(now)) : totalMs;
-    return {
-      remain: remainMs,
-      total: totalMs,
-      parts: splitCountdown(remainMs),
-    };
-  }, [registeredAt, expiresAt, now, running]);
+  // Luôn tính từ bây giờ: hồ sơ nháp quá hạn cũng phải hiện đã hết hạn, không hiện lại cả kỳ hạn
+  const state = useMemo(
+    () => countdownFor(registeredAt, expiresAt, new Date(now)),
+    [registeredAt, expiresAt, now]
+  );
+  const { remainMs, totalMs, days, hours, minutes, seconds, expired, lastDay } = state;
+  const pct = Math.max(0, Math.min(1, remainMs / totalMs));
 
-  const pct = Math.max(0, Math.min(1, remain / total));
+  const summary = expired
+    ? t("countdown.expired")
+    : lastDay
+      ? t("countdown.lastDay")
+      : t("countdown.remaining", { days });
   const r = 54;
   const c = 2 * Math.PI * r;
   const dash = c * pct;
 
   const items = [
-    { label: t("countdown.days"), value: parts.days },
-    { label: t("countdown.hours"), value: parts.hours },
-    { label: t("countdown.minutes"), value: parts.minutes },
-    { label: t("countdown.seconds"), value: parts.seconds },
+    { label: t("countdown.days"), value: days },
+    { label: t("countdown.hours"), value: hours },
+    { label: t("countdown.minutes"), value: minutes },
+    { label: t("countdown.seconds"), value: seconds },
   ];
 
   return (
@@ -52,24 +51,29 @@ export function CountdownRing({
       <div className="relative h-36 w-36">
         <svg viewBox="0 0 128 128" className="h-full w-full -rotate-90">
           <circle cx="64" cy="64" r={r} fill="none" stroke="#f3e6c2" strokeWidth="10" />
-          <circle
-            cx="64"
-            cy="64"
-            r={r}
-            fill="none"
-            stroke={pct > 0.15 ? "#E8B22A" : "#e11d48"}
-            strokeWidth="10"
-            strokeLinecap="round"
-            strokeDasharray={`${dash} ${c}`}
-          />
+          {/* Hết hạn thì không vẽ cung tiến độ, tránh chấm tròn lạ ở đỉnh vòng */}
+          {!expired && (
+            <circle
+              cx="64"
+              cy="64"
+              r={r}
+              fill="none"
+              stroke={pct > 0.15 ? "#E8B22A" : "#e11d48"}
+              strokeWidth="10"
+              strokeLinecap="round"
+              strokeDasharray={`${dash} ${c}`}
+            />
+          )}
         </svg>
         <div className="absolute inset-0 grid place-items-center text-center">
           <div>
             <div className="font-display text-2xl font-extrabold text-navy-900">
-              {Math.ceil(remain / 86400000)}
+              {days}
             </div>
             <div className="text-[10px] font-semibold uppercase tracking-widest text-navy-900/50">
-              {t("countdown.days")} {t("common.days") === "ngày" ? "còn lại" : "remaining"}
+              {expired
+                ? t("countdown.expired")
+                : `${t("countdown.days")} ${t("common.days") === "ngày" ? "còn lại" : "remaining"}`}
             </div>
           </div>
         </div>
@@ -88,7 +92,7 @@ export function CountdownRing({
         ))}
       </div>
       <p className="max-w-xs text-center text-[11px] leading-relaxed text-navy-900/55">
-        {t("countdown.remaining", { days: Math.ceil(remain / 86400000) })}
+        {summary}
       </p>
     </div>
   );

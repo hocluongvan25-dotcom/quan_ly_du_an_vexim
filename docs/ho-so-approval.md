@@ -18,10 +18,21 @@
   không gửi trong email cảnh báo hết hạn. Ô mật khẩu mặc định bị che, bấm con mắt để xem; bảng đối chiếu chờ duyệt chỉ hiện dấu `•••`.
   Sửa User/Pass cũng đi theo luồng duyệt như các trường khác (nháp lưu ngay, hồ sơ đã xuất bản thì chờ admin duyệt).
 
+## Đồng hồ đếm ngược (Hiệu lực chứng nhận)
+
+- Số ngày còn lại là **số ngày trọn vẹn** tính tới hết ngày hết hạn, khớp đúng cột “Số ngày còn lại” và danh sách hồ sơ:
+  kỳ hạn 1 năm đăng ký hôm nay = **365 ngày**, không phải 366; hết hạn hôm nay = 0.
+- Ô giữa vòng tròn, 4 ô Ngày/Giờ/Phút/Giây và dòng “Còn N ngày” dùng **cùng một số ngày**, không còn lệch 1 ngày.
+- Đồng hồ **luôn tính từ thời điểm hiện tại**, kể cả hồ sơ nháp hoặc hồ sơ đang nhập: quá hạn thì hiện *“Đã hết hạn”* và 00:00:00:00,
+  ngày hết hạn thì hiện *“Hết hạn hôm nay”*, thay vì hiện lại cả kỳ hạn như còn nguyên.
+- Chữ dưới vòng tròn đổi theo trạng thái: *“Còn … ngày”* khi còn hạn, *“Đã hết hạn”* khi quá hạn; hồ sơ quá hạn không vẽ cung tiến độ
+  (tránh chấm tròn lạ ở đỉnh vòng) và vành vòng chuyển sang màu cảnh báo.
+
 ## Thời hạn hợp đồng (FDA 1-10 năm · GACC cố định 5 năm)
 
 - **FDA**: ô **Thời hạn hợp đồng (năm)** là dropdown chọn 1-10 năm, mặc định 2 năm (ghi rõ `(mặc định)` trong danh sách).
 - **GACC**: ô này là `5 năm (cố định)` chỉ đọc, kèm ghi chú *“GACC cố định 5 năm — không đổi được thời hạn.”* Không có dropdown để chọn.
+- **GACC** giữ đúng 5 năm kể cả dữ liệu cũ gửi lên số khác (API trả lỗi, DB luôn lưu 5).
 - Đổi số năm (FDA) → **Ngày hết hạn** và dòng `Hợp đồng N năm: … → …` tự tính lại ngay; lưu form là lưu đúng số năm đó.
 - Hồ sơ đã xuất bản: đổi số năm cũng đi theo luồng duyệt (bản công khai giữ nguyên tới khi admin duyệt).
 - Hộp thoại **Gia hạn**: FDA chọn 1-10 năm (mặc định là kỳ hạn hiện tại); GACC luôn `5 năm (cố định)`, nút là “Gia hạn 5 năm”.

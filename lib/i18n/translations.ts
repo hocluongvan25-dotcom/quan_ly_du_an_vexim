@@ -321,6 +321,7 @@ export const translations: Record<Locale, TranslationTree> = {
       minutes: "Minutes",
       seconds: "Seconds",
       expired: "Expired",
+      lastDay: "Expires today",
       remaining: "{days} days remaining",
     },
     status: {
@@ -642,7 +643,8 @@ export const translations: Record<Locale, TranslationTree> = {
       hours: "Giờ",
       minutes: "Phút",
       seconds: "Giây",
-      expired: "Hết hạn",
+      expired: "Đã hết hạn",
+      lastDay: "Hết hạn hôm nay",
       remaining: "Còn {days} ngày",
     },
     status: {

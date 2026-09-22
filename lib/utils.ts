@@ -188,6 +188,52 @@ export function randomCode(len = 10) {
   return out;
 }
 
+/**
+ * Số ngày trọn vẹn còn lại tính đến hết ngày hết hạn — khớp đúng remainingDays()
+ * (hết hạn hôm nay => 0, mai hết hạn => 1). Không cộng thêm ngày hết hạn như Math.ceil.
+ */
+export function remainingWholeDays(expiresAt: string, now = new Date()) {
+  return Math.max(0, daysBetween(todayUtcIso(now), expiresAt));
+}
+
+export type CountdownState = {
+  /** Số ngày trọn vẹn còn lại (0 khi hết hạn hôm nay hoặc đã quá hạn) */
+  days: number;
+  hours: number;
+  minutes: number;
+  seconds: number;
+  expired: boolean;
+  /** Còn đúng ngày hết hạn (chưa quá hạn nhưng không còn ngày trọn vẹn nào) */
+  lastDay: boolean;
+  remainMs: number;
+  totalMs: number;
+};
+
+/**
+ * Đồng hồ đếm ngược của một hồ sơ, luôn tính từ BÂY GIỜ tới hết ngày hết hạn.
+ * Dùng chung cho cả hồ sơ nháp để không hiện cả kỳ hạn như thể còn nguyên.
+ */
+export function countdownFor(registeredAt: string, expiresAt: string, now = new Date()): CountdownState {
+  const start = parseDate(registeredAt);
+  const end = parseDate(expiresAt);
+  const endOfDay = end ? new Date(end) : null;
+  if (endOfDay) endOfDay.setUTCHours(23, 59, 59, 999);
+  const remainMs = remainingMs(expiresAt, now);
+  const parts = splitCountdown(remainMs);
+  const dayDiff = end ? daysBetween(todayUtcIso(now), expiresAt) : 0;
+  const totalMs = start && endOfDay ? Math.max(1, endOfDay.getTime() - start.getTime()) : 1;
+  return {
+    days: Math.max(0, dayDiff),
+    hours: parts.hours,
+    minutes: parts.minutes,
+    seconds: parts.seconds,
+    expired: Boolean(end) && dayDiff < 0,
+    lastDay: Boolean(end) && dayDiff === 0,
+    remainMs,
+    totalMs,
+  };
+}
+
 export function splitCountdown(ms: number) {
   const total = Math.max(0, Math.floor(ms / 1000));
   const days = Math.floor(total / 86400);
