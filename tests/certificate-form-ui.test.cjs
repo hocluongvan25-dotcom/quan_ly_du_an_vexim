@@ -221,3 +221,58 @@ test('bảng đối chiếu chờ admin duyệt che mật khẩu, không in ch�
   // User không phải mật khẩu nên vẫn xem được để đối chiếu
   assert.match(text, /khach-portal-2/);
 });
+
+test('thời hạn hợp đồng là dropdown 1-10 năm, đổi số năm là ngày hết hạn tự tính lại', async () => {
+  const { container } = await renderForm(CERT);
+
+  const durationLabel = [...container.querySelectorAll('label')]
+    .find((l) => l.textContent.trim().startsWith('Thời hạn hợp đồng'));
+  assert.ok(durationLabel, 'thiếu ô Thời hạn hợp đồng');
+  const select = durationLabel.querySelector('select');
+  assert.ok(select, 'Thời hạn hợp đồng phải là dropdown chọn được, không phải ô khoá');
+
+  const options = [...select.options].map((o) => Number(o.value));
+  assert.deepEqual(options, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'phải chọn được từ 1 đến 10 năm');
+  assert.equal(select.value, '2', 'FDA mặc định 2 năm');
+  assert.equal(select.disabled, false);
+  assert.ok(options.includes(3) && options.includes(9), 'không còn bị khoá ở 2 năm');
+  assert.ok([...select.options].some((o) => o.textContent.includes('(mặc định)')), 'có ghi rõ mặc định');
+
+  // Đổi sang 5 năm -> ngày hết hạn tự tính lại (đăng ký 01/01/2026 → 01/01/2031)
+  const expiryInput = inputByLabel(container, 'Ngày hết hạn');
+  assert.equal(expiryInput.value, '2028-01-01', 'mặc định 2 năm');
+  await act(async () => {
+    select.value = '5';
+    select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  });
+  await flush(20);
+  assert.equal(inputByLabel(container, 'Ngày hết hạn').value, '2031-01-01', 'ngày hết hạn phải tính theo 5 năm');
+  assert.match(container.textContent, /Hợp đồng 5 năm: 01\/01\/2026 → 01\/01\/2031/);
+
+  // Đổi tiếp sang 10 năm vẫn tự tính
+  await act(async () => {
+    select.value = '10';
+    select.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  });
+  await flush(20);
+  assert.equal(inputByLabel(container, 'Ngày hết hạn').value, '2036-01-01');
+
+  // GACC cũng chọn được số năm khác, không bị ép 5
+  const standardSelect = [...container.querySelectorAll('select')].find((s) => s !== select);
+  assert.ok(standardSelect, 'thiếu dropdown tiêu chuẩn');
+  await act(async () => {
+    standardSelect.value = 'GACC';
+    standardSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  });
+  await flush(20);
+  const gaccSelect = [...container.querySelectorAll('label')]
+    .find((l) => l.textContent.trim().startsWith('Thời hạn hợp đồng'))
+    .querySelector('select');
+  assert.equal(gaccSelect.value, '5', 'GACC mặc định 5 năm');
+  await act(async () => {
+    gaccSelect.value = '4';
+    gaccSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+  });
+  await flush(20);
+  assert.equal(inputByLabel(container, 'Ngày hết hạn').value, '2030-01-01', 'GACC 4 năm phải tính được');
+});

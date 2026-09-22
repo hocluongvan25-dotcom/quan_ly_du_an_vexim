@@ -85,13 +85,17 @@ export const STANDARD_YEARS: Record<Standard, number> = {
   GACC: 5,
 };
 
-// FDA fixed 2 years (đăng ký 2 năm/lần vào năm chẵn), GACC fixed 5 years
+// Mặc định theo tiêu chuẩn: FDA 2 năm (đăng ký 2 năm/lần vào năm chẵn), GACC 5 năm.
+// Nhân viên vẫn chọn được 1-10 năm theo hợp đồng thật; ngày hết hạn tự tính theo số năm đã chọn.
 // US Agent là dịch vụ thuê riêng theo năm, không phải hiệu lực đăng ký FDA
 export const FDA_FIXED_YEARS = 2 as const;
 export const GACC_FIXED_YEARS = 5 as const;
-export const FDA_VALIDITY_OPTIONS = [2] as const; // giữ tên cũ để không vỡ chỗ dùng
+export const VALIDITY_YEARS_MIN = 1 as const;
+export const VALIDITY_YEARS_MAX = 10 as const;
+export const VALIDITY_YEARS_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
+export const FDA_VALIDITY_OPTIONS = VALIDITY_YEARS_OPTIONS; // giữ tên cũ để không vỡ chỗ dùng
 export const VALIDITY_OPTIONS = FDA_VALIDITY_OPTIONS;
-export type ValidityYears = (typeof FDA_VALIDITY_OPTIONS)[number];
+export type ValidityYears = number;
 
 export const DEFAULT_VALIDITY: Record<Standard, number> = {
   FDA: 2,
@@ -103,19 +107,31 @@ export function getDefaultValidity(standard: Standard): number {
 }
 
 export function isValidValidityYears(n: number): boolean {
-  return Number.isInteger(n) && n >= 1 && n <= 10;
+  return Number.isInteger(n) && n >= VALIDITY_YEARS_MIN && n <= VALIDITY_YEARS_MAX;
 }
 
-export function isValidValidityYearsForStandard(n: number, standard: Standard): boolean {
-  if (standard === "GACC") {
-    return n === GACC_FIXED_YEARS;
-  }
-  return n === FDA_FIXED_YEARS;
+/** Cả FDA và GACC đều chọn được 1-10 năm theo hợp đồng thật. */
+export function isValidValidityYearsForStandard(n: number, _standard?: Standard): boolean {
+  return isValidValidityYears(n);
 }
 
-export function getValidityOptionsForStandard(standard: Standard): number[] {
-  if (standard === "GACC") return [GACC_FIXED_YEARS];
-  return [FDA_FIXED_YEARS];
+export function getValidityOptionsForStandard(_standard?: Standard): number[] {
+  return [...VALIDITY_YEARS_OPTIONS];
+}
+
+/** Số năm nhân viên gửi lên; trống/không hợp lệ -> mặc định theo tiêu chuẩn. */
+export function resolveValidityYears(input: unknown, standard: Standard): number {
+  const raw = typeof input === "number" ? input : Number(String(input ?? "").trim());
+  if (Number.isFinite(raw) && isValidValidityYears(Math.round(raw))) return Math.round(raw);
+  return getDefaultValidity(standard);
+}
+
+/** true khi ô số năm có giá trị nhưng nằm ngoài 1-10 (để API trả lỗi rõ ràng). */
+export function isInvalidValidityInput(input: unknown): boolean {
+  const text = String(input ?? "").trim();
+  if (!text) return false;
+  const n = Number(text);
+  return !Number.isFinite(n) || !isValidValidityYears(Math.round(n));
 }
 
 // DUNS validation - 9 digits, but allow with dashes/spaces, store normalized

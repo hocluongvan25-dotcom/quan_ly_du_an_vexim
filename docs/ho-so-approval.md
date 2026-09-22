@@ -18,6 +18,14 @@
   không gửi trong email cảnh báo hết hạn. Ô mật khẩu mặc định bị che, bấm con mắt để xem; bảng đối chiếu chờ duyệt chỉ hiện dấu `•••`.
   Sửa User/Pass cũng đi theo luồng duyệt như các trường khác (nháp lưu ngay, hồ sơ đã xuất bản thì chờ admin duyệt).
 
+## Thời hạn hợp đồng (1-10 năm)
+
+- Ô **Thời hạn hợp đồng (năm)** trên form là dropdown chọn 1-10 năm; mặc định theo tiêu chuẩn (FDA 2 năm, GACC 5 năm) và ghi rõ `(mặc định)` ngay trong danh sách.
+- Đổi số năm → **Ngày hết hạn** và dòng `Hợp đồng N năm: … → …` tự tính lại ngay; lưu form là lưu đúng số năm đó.
+- Hồ sơ đã xuất bản: đổi số năm cũng đi theo luồng duyệt (bản công khai giữ nguyên tới khi admin duyệt).
+- Hộp thoại **Gia hạn** cũng chọn được 1-10 năm, mặc định là kỳ hạn hiện tại của hồ sơ, và xem trước ngày hết hạn mới.
+- API từ chối giá trị ngoài 1-10 (`Thời hạn hợp đồng phải từ 1 đến 10 năm.`); bỏ trống thì lấy mặc định theo tiêu chuẩn. Không cần migration Supabase: cột `validity_years` đã có sẵn và vẫn giới hạn 1-10.
+
 ## Triển khai
 
 ### Supabase — chạy trước khi deploy mã mới

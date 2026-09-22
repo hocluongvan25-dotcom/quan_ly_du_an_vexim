@@ -15,14 +15,15 @@ Font: **Be Vietnam Pro** (full Vietnamese diacritics support, but UI is English)
 
 ## 1. Flexible Validity + DUNS (New)
 
-**Flexible Validity:** Previously FDA fixed 2 years, GACC fixed 5 years. Now supports **1-10 years** per contract:
+**Flexible Validity:** FDA defaults to 2 years, GACC defaults to 5 years, and both support **1-10 years** per contract:
 
-- When creating a new record, select **Contract Duration**: 1 year, 2 years, 3 years, ..., 10 years
-- FDA: typically 2 years but can be 1, 3, 5, 10 years per client
-- GACC: default 5 years, but customizable 1-10 years
-- Expiry auto-calculated: `registered_at + validity_years`
-- **Renewal follows contract duration** — e.g., 3-year contract renews +3 years, 5-year contract renews +5 years. No fixed 2-year renewal.
-- Dashboard shows stats per validity duration
+- **Contract Duration** is a dropdown on the record form: 1, 2, 3, ..., 10 years (the standard's default is tagged right in the list)
+- FDA: default 2 years but can be 1, 3, 5, 7, 10 years per client
+- GACC: default 5 years, customizable 1-10 years
+- Expiry auto-calculated from the chosen years: `registered_at + validity_years` (updates as soon as you change the dropdown)
+- Values outside 1-10 are rejected by the API (`Thời hạn hợp đồng phải từ 1 đến 10 năm.`); an empty value falls back to the standard's default
+- **Renewal follows contract duration** — the renewal dialog picks 1-10 years and defaults to the current term. No fixed 2/5-year renewal.
+- Dashboard shows stats per validity duration (only durations actually in use)
 
 **DUNS Number:**
 

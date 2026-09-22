@@ -9,7 +9,7 @@ import {
 } from "@/lib/db";
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
-import { isValidDunsCode, GACC_FIXED_YEARS, FDA_FIXED_YEARS } from "@/lib/types";
+import { isInvalidValidityInput, isValidDunsCode, resolveValidityYears } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,24 +52,19 @@ export async function PUT(req: Request, ctx: Ctx) {
       const extraFee = Number(body.extra_fee || body.renew_fee || 0);
       const renewalYearsRaw = body.validity_years ?? body.renew_years ?? body.years;
       const renewalYears = renewalYearsRaw ? Number(renewalYearsRaw) : undefined;
+      if (renewalYearsRaw !== undefined && renewalYearsRaw !== null && isInvalidValidityInput(renewalYearsRaw)) {
+        return NextResponse.json({ error: "Thời hạn gia hạn phải từ 1 đến 10 năm." }, { status: 400 });
+      }
       const current = await getCertificate(id);
       if (!current) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
-      if (current.standard === "GACC" && renewalYears !== undefined && renewalYears !== GACC_FIXED_YEARS) {
-        return NextResponse.json({ error: "GACC renewal is fixed 5 years." }, { status: 400 });
-      }
-      if (current.standard === "FDA" && renewalYears !== undefined && renewalYears !== FDA_FIXED_YEARS) {
-        return NextResponse.json({ error: "FDA renewal is fixed 2 years." }, { status: 400 });
-      }
       const item = await renewCertificate(id, extraFee, renewalYears);
       return NextResponse.json({ item });
     }
     const standard = body.standard === "GACC" ? "GACC" : "FDA";
-    let validity_years = body.validity_years ? Number(body.validity_years) : undefined;
-    if (standard === "GACC") {
-      validity_years = GACC_FIXED_YEARS;
-    } else if (validity_years && validity_years !== FDA_FIXED_YEARS) {
-      return NextResponse.json({ error: "FDA validity is fixed 2 years." }, { status: 400 });
+    if (isInvalidValidityInput(body.validity_years)) {
+      return NextResponse.json({ error: "Thời hạn hợp đồng phải từ 1 đến 10 năm." }, { status: 400 });
     }
+    const validity_years = resolveValidityYears(body.validity_years, standard);
     const isGacc = standard === "GACC";
     if (!isGacc && body.duns_code) {
       const raw = String(body.duns_code).replace(/\D/g, "");

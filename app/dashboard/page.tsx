@@ -50,8 +50,8 @@ export default function DashboardPage() {
     return d >= 0 && d <= 90;
   });
 
-  const validityStats = [FDA_FIXED_YEARS, GACC_FIXED_YEARS]
-    .filter((v, i, a) => a.indexOf(v) === i)
+  const validityStats = Array.from(new Set(items.map((c) => getValidityYears(c))))
+    .filter((years) => years >= 1 && years <= 10)
     .sort((a, b) => a - b)
     .map((y) => ({
       years: y,
@@ -181,7 +181,7 @@ export default function DashboardPage() {
               <p className="mt-1 text-sm text-white/65">{t("dashboard.fdaDesc")}</p>
               <div className="mt-2">
                 <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold">
-                  {FDA_FIXED_YEARS}Y fixed
+                  {t("dashboard.defaultYears", { years: FDA_FIXED_YEARS })}
                 </span>
               </div>
             </div>
@@ -191,7 +191,7 @@ export default function DashboardPage() {
               <p className="mt-1 text-sm text-white/65">{t("dashboard.gaccDesc")}</p>
               <div className="mt-2">
                 <span className="rounded-full bg-gold-400/20 px-2 py-0.5 text-[10px] font-bold text-gold-300">
-                  {GACC_FIXED_YEARS}Y fixed
+                  {t("dashboard.defaultYears", { years: GACC_FIXED_YEARS })}
                 </span>
               </div>
             </div>

@@ -27,6 +27,7 @@ const auth = require('../lib/auth.ts');
 let session = null;
 auth.getSession = () => session;
 const api = require('../app/api/certificates/[id]/route.ts');
+const createApi = require('../app/api/certificates/route.ts');
 const publicApi = require('../app/api/public/certificates/[code]/route.ts');
 const { publicCertificate } = require('../lib/certificate-workflow.ts');
 const input = {
@@ -36,6 +37,10 @@ const input = {
   portal_user: 'khach-hang-portal', portal_pass: 'MatKhau@123',
 };
 function create(patch = {}) { return db.createCertificate({ ...input, ...patch }); }
+function expiryFromStandardForTest(registeredAt, years) {
+  const [y, m, d] = registeredAt.split('-').map(Number);
+  return new Date(Date.UTC(y + years, m - 1, d)).toISOString().slice(0, 10);
+}
 function ctx(id) { return { params: { id: String(id) } }; }
 function put(id, body) {
   return api.PUT(new Request(`http://test/api/certificates/${id}`, {
@@ -216,6 +221,99 @@ test('API: staff may edit but cannot publish/confirm/renew, admin must review cu
   assert.equal(db.getCertificate(id).scope, 'Staff edit');
   const get = await api.GET(new Request('http://test'), ctx(id));
   assert.equal(get.headers.get('cache-control'), 'no-store');
+});
+
+test('thời hạn hợp đồng chọn 1-10 năm: ngày hết hạn tự tính, không còn cố định 2/5 năm', () => {
+  const types = require('../lib/types.ts');
+  const { expiryFromStandard, getValidityYears } = require('../lib/utils.ts');
+
+  // Mặc định giữ nguyên: FDA 2 năm, GACC 5 năm
+  assert.equal(types.getDefaultValidity('FDA'), 2);
+  assert.equal(types.getDefaultValidity('GACC'), 5);
+  assert.deepEqual(types.getValidityOptionsForStandard('FDA'), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(types.getValidityOptionsForStandard('GACC'), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.equal(types.resolveValidityYears(undefined, 'FDA'), 2);
+  assert.equal(types.resolveValidityYears('', 'GACC'), 5);
+  assert.equal(types.resolveValidityYears(3, 'FDA'), 3);
+  assert.equal(types.isInvalidValidityInput(''), false, 'bỏ trống thì lấy mặc định, không phải lỗi');
+  assert.equal(types.isInvalidValidityInput(0), true);
+  assert.equal(types.isInvalidValidityInput(11), true);
+  assert.equal(types.isInvalidValidityInput('abc'), true);
+
+  // Mọi số năm 1-10 đều tính được ngày hết hạn
+  assert.equal(expiryFromStandard('2026-01-01', 'FDA', 1), '2027-01-01');
+  assert.equal(expiryFromStandard('2026-01-01', 'FDA', 3), '2029-01-01');
+  assert.equal(expiryFromStandard('2026-01-01', 'GACC', 4), '2030-01-01');
+  assert.equal(expiryFromStandard('2026-01-01', 'FDA', 10), '2036-01-01');
+
+  // Lưu thật: FDA 3 năm và GACC 4 năm
+  const fda = db.getCertificate(create({ validity_years: 3, registered_at: '2026-01-01' }));
+  assert.equal(fda.validity_years, 3);
+  assert.equal(fda.expires_at, '2029-01-01');
+  assert.equal(getValidityYears(fda), 3);
+
+  const gacc = db.getCertificate(create({ standard: 'GACC', validity_years: 4, registered_at: '2026-01-01' }));
+  assert.equal(gacc.validity_years, 4, 'GACC chọn được 4 năm chứ không bị ép về 5');
+  assert.equal(gacc.expires_at, '2030-01-01');
+  assert.equal(getValidityYears(gacc), 4);
+
+  // Sửa số năm của hồ sơ nháp -> tính lại ngày hết hạn ngay
+  db.updateCertificate(fda.id, { ...fda, validity_years: 7 });
+  const widened = db.getCertificate(fda.id);
+  assert.equal(widened.validity_years, 7);
+  assert.equal(widened.expires_at, '2033-01-01');
+
+  // Hồ sơ đã xuất bản: đổi số năm phải chờ duyệt, ngày công khai chưa đổi
+  const published = db.publishCertificate(fda.id);
+  db.updateCertificate(fda.id, { ...published, validity_years: 2 });
+  const pending = db.getCertificate(fda.id);
+  assert.equal(pending.expires_at, published.expires_at);
+  assert.equal(pending.pending_changes.validity_years, 2);
+  const approved = db.publishCertificate(fda.id, pending.updated_at);
+  assert.equal(approved.validity_years, 2);
+  assert.equal(approved.expires_at, '2028-01-01');
+});
+
+test('API tạo/sửa/gia hạn nhận số năm 1-10 và từ chối giá trị ngoài khoảng', async () => {
+  session = { id: 1, role: 'admin' };
+  const post = (body) => createApi.POST(new Request('http://test/api/certificates', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  }));
+  const base = {
+    standard: 'FDA', registration_code: 'REG-YEARS', company_name: 'Công ty chọn năm',
+    scope: 'Phạm vi', registered_at: '2026-01-01',
+  };
+
+  assert.equal((await post({ ...base, validity_years: 11 })).status, 400);
+  assert.equal((await post({ ...base, validity_years: 0 })).status, 400);
+  assert.equal((await post({ ...base, validity_years: 'nhiều' })).status, 400);
+
+  const created = await post({ ...base, validity_years: 6 });
+  assert.equal(created.status, 200);
+  const id = (await created.json()).id;
+  const six = db.getCertificate(id);
+  assert.equal(six.validity_years, 6);
+  assert.equal(six.expires_at, '2032-01-01');
+
+  // Bỏ trống -> mặc định theo tiêu chuẩn (FDA 2 năm)
+  const defaulted = await post({ ...base, registration_code: 'REG-YEARS-2', company_name: 'Công ty mặc định' });
+  assert.equal(db.getCertificate((await defaulted.json()).id).validity_years, 2);
+
+  // Sửa qua API với số năm 9
+  const published = db.publishCertificate(id);
+  const putRes = await put(id, { ...published, validity_years: 9, expected_updated_at: published.updated_at });
+  assert.equal(putRes.status, 200);
+  assert.equal(db.getCertificate(id).pending_changes.validity_years, 9);
+  assert.equal((await put(id, { ...published, validity_years: 12 })).status, 400);
+
+  // Gia hạn theo số năm chọn (7 năm)
+  const approved = db.publishCertificate(id);
+  const renewed = await put(id, { action: 'renew', validity_years: 7, renew_years: 7, extra_fee: 0, expected_updated_at: approved.updated_at });
+  assert.equal(renewed.status, 200);
+  const afterRenew = db.getCertificate(id);
+  assert.equal(afterRenew.validity_years, 7);
+  assert.equal(afterRenew.expires_at, expiryFromStandardForTest(approved.expires_at, 7));
+  assert.equal((await put(id, { action: 'renew', validity_years: 15 })).status, 400);
 });
 
 test('GACC and expired published certificates keep their QR during review', () => {

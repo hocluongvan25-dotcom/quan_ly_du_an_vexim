@@ -1,5 +1,5 @@
 import type { Certificate, Standard } from "./types";
-import { FDA_FIXED_YEARS, GACC_FIXED_YEARS } from "./types";
+import { resolveValidityYears } from "./types";
 import { expiryFromStandard } from "./utils";
 
 export type CertificateInput = {
@@ -27,7 +27,7 @@ export const certificateFields = [
 
 /** Only changing contract dates/standard may recalculate expiry. Never lose a renewal on a metadata edit. */
 export function prepareCertificateChanges(current: Certificate, input: CertificateInput): CertificateChanges {
-  const validity = input.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS;
+  const validity = resolveValidityYears(input.validity_years, input.standard);
   const datesChanged = current.registered_at !== input.registered_at ||
     current.standard !== input.standard || current.validity_years !== validity;
   const changes: CertificateChanges = {

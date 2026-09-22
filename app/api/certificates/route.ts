@@ -3,7 +3,7 @@ import { getSession } from "@/lib/auth";
 import { createCertificate, listCertificates } from "@/lib/db";
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
-import { isValidDunsCode, GACC_FIXED_YEARS, FDA_FIXED_YEARS } from "@/lib/types";
+import { isInvalidValidityInput, isValidDunsCode, resolveValidityYears } from "@/lib/types";
 
 export const runtime = "nodejs";
 
@@ -26,8 +26,11 @@ export async function POST(req: Request) {
     if (!body.company_name || !body.registered_at || !body.registration_code) {
       return NextResponse.json({ error: "Please fill all required fields." }, { status: 400 });
     }
-    // FDA cố định 2 năm (đăng ký 2 năm/lần), GACC cố định 5 năm
-    const validity_years = standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS;
+    // Thời hạn hợp đồng chọn 1-10 năm (mặc định FDA 2, GACC 5), ngày hết hạn tự tính
+    if (isInvalidValidityInput(body.validity_years)) {
+      return NextResponse.json({ error: "Thời hạn hợp đồng phải từ 1 đến 10 năm." }, { status: 400 });
+    }
+    const validity_years = resolveValidityYears(body.validity_years, standard);
     const isGacc = standard === "GACC";
     if (!isGacc && body.duns_code) {
       const raw = String(body.duns_code).replace(/\D/g, "");

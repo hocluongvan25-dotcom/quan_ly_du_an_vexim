@@ -6,7 +6,7 @@ import path from "path";
 import { hashPassword } from "./auth";
 import { expiryFromStandard, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
-import { DEFAULT_VALIDITY, isValidValidityYears, GACC_FIXED_YEARS, isValidValidityYearsForStandard } from "./types";
+import { isValidValidityYearsForStandard, resolveValidityYears } from "./types";
 import {
   PIPELINE_DEFS,
   enrichOpportunity,
@@ -922,9 +922,7 @@ export function getCertificateByPublicCode(code: string) {
 }
 
 function normalizeValidityYears(input: number | undefined, standard: Standard): number {
-  if (standard === "GACC") return GACC_FIXED_YEARS;
-  if (input && isValidValidityYears(input)) return Math.round(input);
-  return DEFAULT_VALIDITY[standard] ?? 2;
+  return resolveValidityYears(input, standard);
 }
 
 export function createCertificate(input: {
@@ -1071,15 +1069,10 @@ export function renewCertificate(id: number, extraFee = 0, renewalYears?: number
   const current = getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
   if (needsCertificateApproval(current)) throw new Error("APPROVAL_REQUIRED");
-  // FDA fixed 2, GACC fixed 5
-  let validity: number;
-  if (current.standard === "GACC") {
-    validity = GACC_FIXED_YEARS;
-  } else if (renewalYears && isValidValidityYearsForStandard(renewalYears, current.standard)) {
-    validity = Math.round(renewalYears);
-  } else {
-    validity = getValidityYears(current);
-  }
+  // Gia hạn theo số năm nhân viên chọn (1-10), mặc định giữ nguyên kỳ hạn hiện tại
+  const validity = renewalYears && isValidValidityYearsForStandard(renewalYears, current.standard)
+    ? Math.round(renewalYears)
+    : getValidityYears(current);
   const baseDate =
     remainingDays(current.expires_at) >= 0
       ? current.expires_at

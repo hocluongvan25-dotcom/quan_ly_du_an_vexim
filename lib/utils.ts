@@ -1,4 +1,4 @@
-import { DEFAULT_VALIDITY, STANDARD_YEARS, GACC_FIXED_YEARS, type Standard } from "./types";
+import { DEFAULT_VALIDITY, STANDARD_YEARS, type Standard } from "./types";
 
 export function cn(...parts: Array<string | false | null | undefined>) {
   return parts.filter(Boolean).join(" ");
@@ -94,15 +94,12 @@ export function addYears(isoDate: string, years: number) {
   return toIsoDate(next);
 }
 
-// FDA fixed 2 years, GACC fixed 5 years
+// Ngày hết hạn luôn tính từ số năm hợp đồng đã chọn (mặc định FDA 2, GACC 5)
 export function expiryFromStandard(
   registeredAt: string,
   standard: Standard,
   validityYears?: number | null
 ) {
-  if (standard === "GACC") {
-    return addYears(registeredAt, GACC_FIXED_YEARS);
-  }
   const years =
     validityYears && Number.isFinite(validityYears) && validityYears >= 1 && validityYears <= 10
       ? Math.round(validityYears)
@@ -116,9 +113,6 @@ export function getValidityYears(cert: {
   expires_at?: string;
   registered_at?: string;
 }): number {
-  if (cert.standard === "GACC") {
-    return GACC_FIXED_YEARS;
-  }
   if (cert.validity_years && cert.validity_years >= 1 && cert.validity_years <= 10) {
     return cert.validity_years;
   }
