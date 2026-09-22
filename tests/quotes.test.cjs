@@ -33,6 +33,7 @@ let session = { id: ADMIN, role: 'admin', name: 'Test Admin' };
 auth.getSession = () => session;
 const quotes = require('../lib/quotes.ts');
 const templates = require('../lib/quote-templates.ts');
+const { QUOTE_DEFAULTS: QUOTE_DEFAULTS_FOR_TEST } = require('../lib/quotes.ts');
 const { moneyInWords, numberToVietnameseWords } = require('../lib/money-words.ts');
 const { generateQuotePdf } = require('../lib/quote-pdf.ts');
 const listApi = require('../app/api/quotes/route.ts');
@@ -308,6 +309,11 @@ test('bản xem trước trên màn hình khớp dữ liệu đã lưu (không t
   assert.ok(html.includes(formatMoney(quote.discount_amount)), 'chiết khấu hiển thị đúng');
   assert.ok(html.includes('Hồ sơ Quý khách cần cung cấp'));
   assert.ok(html.includes('Vì sao chọn Vexim Global'));
+  // Khối thông tin thanh toán + chữ ký Vexim canh theo cột NGÂN HÀNG (đúng như bản PDF)
+  assert.ok(html.includes('Đơn vị thụ hưởng') && html.includes('Số tài khoản') && html.includes('Ngân hàng'));
+  assert.ok(html.includes(QUOTE_DEFAULTS_FOR_TEST.bank_account), 'hiện số tài khoản nhận tiền');
+  assert.ok(html.includes(QUOTE_DEFAULTS_FOR_TEST.signer_name), 'hiện tên người ký');
+  assert.ok(html.split('grid-cols-[52fr_20fr_28fr]').length - 1 >= 2, 'dải thanh toán và chữ ký dùng chung tỉ lệ 3 cột');
   assert.ok(!html.includes('<script'), 'không chèn HTML lạ từ dữ liệu người dùng');
   // Nội dung người dùng nhập được escape an toàn
   const evil = quickCreate({ company_name: 'CÔNG TY <b>X</b> & Co' });

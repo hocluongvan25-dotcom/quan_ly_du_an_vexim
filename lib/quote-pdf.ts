@@ -77,6 +77,14 @@ async function readAsset(file: string): Promise<Buffer> {
 
 type Fonts = { regular: PDFFont; bold: PDFFont; italic: PDFFont };
 
+/**
+ * Tỉ lệ 3 cột của dải "Thông tin thanh toán": đơn vị thụ hưởng | số tài khoản | ngân hàng.
+ * Chữ ký bên Vexim Global được canh theo cột NGÂN HÀNG (cột cuối) để nằm thẳng dưới cột đó và
+ * trải ra tận lề ngoài của trang.
+ */
+const PAYMENT_COL_RATIOS = [0.52, 0.2, 0.28];
+const sumRatios = (ratios: number[]) => ratios.reduce((total, value) => total + value, 0);
+
 type TextOptions = {
   x?: number;
   width?: number;
@@ -545,9 +553,9 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
 
   /* ------------- Thông tin thanh toán (chỉ in khi còn đủ chỗ) ------------ */
   const bankRows: Array<[string, string, number]> = [
-    ["Đơn vị thụ hưởng", QUOTE_DEFAULTS.issuer_name, 0.52],
-    ["Số tài khoản", QUOTE_DEFAULTS.bank_account, 0.2],
-    ["Ngân hàng", QUOTE_DEFAULTS.bank_name, 0.28],
+    ["Đơn vị thụ hưởng", QUOTE_DEFAULTS.issuer_name, PAYMENT_COL_RATIOS[0]],
+    ["Số tài khoản", QUOTE_DEFAULTS.bank_account, PAYMENT_COL_RATIOS[1]],
+    ["Ngân hàng", QUOTE_DEFAULTS.bank_name, PAYMENT_COL_RATIOS[2]],
   ].filter(([, value]) => Boolean(value)) as Array<[string, string, number]>;
   const bankHeight = 32;
   // Còn đủ chỗ cho khối thanh toán + khối chữ ký thì mới in, tránh đẩy chữ ký sang trang mới.
@@ -583,8 +591,11 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
   );
   doc.y -= 4;
   const signTop = doc.y;
-  const signWidth = (doc.width - 20) / 2;
-  const signRightX = doc.left + signWidth + 20;
+  // Cột khách hàng: hết ở mốc cột "số tài khoản" để phần chữ ký Vexim nằm trọn dưới cột ngân hàng.
+  const signWidth = doc.width * sumRatios([PAYMENT_COL_RATIOS[0]]) - 14;
+  // Cột Vexim Global: bắt đầu đúng mốc cột "NGÂN HÀNG" của dải thanh toán, kéo dài ra lề ngoài.
+  const signRightX = doc.left + doc.width * sumRatios([PAYMENT_COL_RATIOS[0], PAYMENT_COL_RATIOS[1]]);
+  const signRightWidth = doc.right - signRightX;
 
   doc.page.drawText("ĐẠI DIỆN KHÁCH HÀNG", { x: doc.left, y: signTop - 12, font: doc.fonts.bold, size: 10, color: NAVY });
   doc.page.drawLine({ start: { x: doc.left, y: signTop - 15.5 }, end: { x: doc.left + 52, y: signTop - 15.5 }, thickness: 1.4, color: GOLD });
@@ -599,8 +610,9 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
     { x: signRightX, y: signTop - 24, font: doc.fonts.bold, size: 8.5, color: GREY }
   );
   const lineY = signTop - 24 - 40;
-  doc.page.drawLine({ start: { x: doc.left, y: lineY }, end: { x: doc.left + signWidth - 10, y: lineY }, thickness: 0.5, color: LINE_GREY });
-  doc.page.drawLine({ start: { x: signRightX, y: lineY }, end: { x: signRightX + signWidth - 10, y: lineY }, thickness: 0.5, color: LINE_GREY });
+  doc.page.drawLine({ start: { x: doc.left, y: lineY }, end: { x: doc.left + signWidth, y: lineY }, thickness: 0.5, color: LINE_GREY });
+  // Gạch ký của Vexim kéo tới sát lề ngoài của trang.
+  doc.page.drawLine({ start: { x: signRightX, y: lineY }, end: { x: signRightX + signRightWidth, y: lineY }, thickness: 0.5, color: LINE_GREY });
   doc.page.drawText(
     QUOTE_DEFAULTS.signer_name,
     { x: signRightX, y: lineY - 14, font: doc.fonts.bold, size: 11, color: BRAND_DARK }

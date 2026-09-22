@@ -218,15 +218,33 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
         </>
       )}
 
-      <div className="mt-8 text-right text-xs italic text-navy-900/60">
+      {/* Thông tin thanh toán — 3 cột đúng tỉ lệ như trên PDF */}
+      <div className="mt-6 grid grid-cols-[52fr_20fr_28fr] border-l-[3px] border-[#C99C25] bg-[#F2F5FA]">
+        <div className="px-3 py-2.5">
+          <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#836514]">Đơn vị thụ hưởng</div>
+          <div className="mt-0.5 text-[11px] font-bold text-navy-900">{QUOTE_DEFAULTS.issuer_name}</div>
+        </div>
+        <div className="px-3 py-2.5">
+          <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#836514]">Số tài khoản</div>
+          <div className="mt-0.5 text-[11px] font-bold text-navy-900">{QUOTE_DEFAULTS.bank_account}</div>
+        </div>
+        <div className="px-3 py-2.5">
+          <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#836514]">Ngân hàng</div>
+          <div className="mt-0.5 text-[11px] font-bold text-navy-900">{QUOTE_DEFAULTS.bank_name}</div>
+        </div>
+      </div>
+
+      <div className="mt-6 text-right text-xs italic text-navy-900/60">
         {QUOTE_DEFAULTS.city}, ngày {day} tháng {month} năm {year}
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-8 text-center text-xs">
-        <div>
+      {/* Chữ ký: cột Vexim nằm dưới cột NGÂN HÀNG và trải ra lề ngoài, giống bản PDF */}
+      <div className="mt-4 grid grid-cols-[52fr_20fr_28fr] text-xs">
+        <div className="pr-6">
           <div className="font-extrabold text-navy-900">ĐẠI DIỆN KHÁCH HÀNG</div>
           <div className="mt-0.5 text-[11px] italic text-navy-900/50">(Ký, ghi rõ họ tên, đóng dấu nếu có)</div>
           <div className="mt-16 border-t border-dashed border-navy-900/20 pt-1 text-[11px] text-navy-900/40">Họ tên &amp; chức danh</div>
         </div>
+        <div aria-hidden="true" />
         <div>
           <div className="font-extrabold text-navy-900">ĐẠI DIỆN VEXIM GLOBAL</div>
           <div className="mt-0.5 text-[11px] font-bold uppercase text-navy-900/60">{QUOTE_DEFAULTS.signer_title}</div>
