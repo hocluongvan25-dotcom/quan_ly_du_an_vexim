@@ -76,6 +76,8 @@ Pre-built quote templates per service so staff only enter customer details and e
 - Extra items can be added to any single quote (*Thêm hạng mục khác*) or reset back to the official template price.
 - Optional line items (US Agent, PPC, catalogue…) are quoted separately and **not added to the total**.
 - Numbers are recomputed server-side; the amount in Vietnamese words is printed on every quote.
+- Quote numbers continue from the real-world counter: `QUOTE_NO_START = 290` → `VXM-BG-2026-0290`, `-0291`, …
+  (change the constant in `lib/quotes.ts` to move the starting point).
 - Quote lifecycle: **Nháp → Đã gửi khách → Khách đồng ý / Từ chối** (+ auto *Hết hiệu lực* after the validity date).
   A quote sent to the customer is locked; use **Nhân bản để sửa** to revise it.
 - PDF export (`/api/quotes/[id]/pdf`) uses the bundled Tinos fonts, repeats table headers across pages.

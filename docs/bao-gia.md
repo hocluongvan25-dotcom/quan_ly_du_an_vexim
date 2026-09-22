@@ -105,6 +105,9 @@ mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, khô
   chữ ký không bị đẩy sang trang mới. Bản xem trước trên màn hình dùng cùng khoảng cách đó (`mt-[4.6rem]`).
 - Màu được khai báo một chỗ trong `lib/quote-pdf.ts` (`NAVY`, `GOLD`, `NAVY_TINT`, `IVORY`, `GOLD_LIGHT`…).
 - PDF dùng font Tinos đã bundle (đủ dấu tiếng Việt), khổ A4, tự ngắt trang và **lặp lại tiêu đề bảng** khi sang trang.
+- **Số báo giá** đánh tiếp từ mốc thực tế đang dùng: `QUOTE_NO_START = 290` → `VXM-BG-<năm>-0290`, `-0291`, …
+  (`nextQuoteSeq`/`formatQuoteNo` trong `lib/quotes.ts`, dùng chung cho cả SQLite và Supabase). Số đã có trong hệ thống
+  không bị đánh lại, và nếu năm sau mốc năm mới lại bắt đầu từ 290. Muốn đổi mốc khác chỉ cần sửa `QUOTE_NO_START`.
 
 ## 4. Điểm kết nối trong CRM
 

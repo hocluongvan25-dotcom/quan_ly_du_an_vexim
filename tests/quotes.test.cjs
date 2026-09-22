@@ -133,6 +133,7 @@ test('nhân viên tạo báo giá chỉ với thông tin khách hàng — hạng
   assert.equal(quote.subtotal, expected.reduce((sum, i) => sum + i.qty * i.unit_price, 0));
   assert.equal(quote.total, quote.subtotal + quote.vat_amount);
   assert.match(quote.quote_no, /^VXM-BG-\d{4}-\d{4}$/);
+  assert.ok(Number(quote.quote_no.split('-').pop()) >= 290, 'số báo giá đánh từ 290 trở đi');
   assert.ok(quote.scope.length >= 3 && quote.terms.length >= 3);
   // Nhân viên không gửi ngày hết hiệu lực / VAT → lấy theo dịch vụ trong bảng giá
   const template = templates.getQuoteTemplate('GACC');
@@ -141,6 +142,46 @@ test('nhân viên tạo báo giá chỉ với thông tin khách hàng — hạng
   assert.equal(quote.vat_rate, template.vat_rate);
   assert.ok(quote.documents.length >= 3, 'hồ sơ cần cung cấp lấy từ mẫu');
   assert.deepEqual(quote.documents, templates.getQuoteTemplate('GACC').documents);
+});
+
+test('số báo giá đánh tiếp từ 0290 theo thực tế, không đánh lại từ 0001', async () => {
+  session = { id: ADMIN, role: 'admin', name: 'Test Admin' };
+  assert.equal(quotes.QUOTE_NO_START, 290, 'mốc bắt đầu là 290');
+
+  // Chưa có báo giá nào → bắt đầu 0290
+  assert.equal(quotes.nextQuoteSeq(null), 290);
+  assert.equal(quotes.formatQuoteNo(2026, 290), 'VXM-BG-2026-0290');
+
+  // Báo giá cũ đánh số nhỏ (0001) không kéo số mới về 0002
+  assert.equal(quotes.nextQuoteSeq(1), 290);
+  assert.equal(quotes.nextQuoteSeq(289), 290);
+  // Đã vượt mốc 290 thì đánh tiếp
+  assert.equal(quotes.nextQuoteSeq(290), 291);
+  assert.equal(quotes.nextQuoteSeq(315), 316);
+  assert.equal(quotes.formatQuoteNo(2026, 316), 'VXM-BG-2026-0316');
+
+  // Trên DB sạch (thư mục riêng): báo giá đầu tiên là 0290, cái tiếp theo 0291
+  const fresh = fs.mkdtempSync(path.join(os.tmpdir(), 'vexim-quoteno-'));
+  const workingDir = process.cwd();
+  try {
+    process.chdir(fresh);
+    const modulePath = require.resolve('../lib/db-sqlite.ts');
+    delete require.cache[modulePath];
+    const clean = require(modulePath);
+    clean.createUser({ email: 'seq@veximglobal.com', name: 'Seq', password: 'Test@1234', role: 'admin' });
+    const first = clean.nextQuoteNo();
+    clean.createQuote(quotes.prepareQuoteInput({
+      template_key: 'FDA', company_name: 'KHÁCH ĐẦU TIÊN', issue_date: '2026-09-22',
+      items: templates.templateItems('FDA'),
+    }), 1);
+    const second = clean.nextQuoteNo();
+    assert.equal(first.split('-').pop(), '0290', 'báo giá đầu tiên là 0290');
+    assert.equal(second.split('-').pop(), '0291', 'báo giá tiếp theo là 0291');
+  } finally {
+    process.chdir(workingDir);
+    delete require.cache[require.resolve('../lib/db-sqlite.ts')];
+    fs.rmSync(fresh, { recursive: true, force: true });
+  }
 });
 
 test('báo giá không gửi VAT/hiệu lực vẫn lấy đúng mặc định của dịch vụ trong bảng giá', async () => {

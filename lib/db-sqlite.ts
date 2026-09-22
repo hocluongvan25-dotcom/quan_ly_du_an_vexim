@@ -37,6 +37,8 @@ import {
   assertQuoteEditable,
   calcQuoteTotals,
   enrichQuote,
+  formatQuoteNo,
+  nextQuoteSeq,
   parseJsonArray,
   parseQuoteItems,
   quoteServiceName,
@@ -2664,12 +2666,9 @@ export function nextQuoteNo(): string {
   const row = db()
     .prepare("SELECT quote_no FROM quotes WHERE quote_no LIKE ? ORDER BY quote_no DESC LIMIT 1")
     .get(`${prefix}%`) as { quote_no: string } | undefined;
-  let seq = 1;
-  if (row?.quote_no) {
-    const n = Number(row.quote_no.split("-").pop());
-    if (Number.isFinite(n)) seq = n + 1;
-  }
-  return `${prefix}${String(seq).padStart(4, "0")}`;
+  // Đánh số tiếp từ QUOTE_NO_START (0290) — không đánh lại từ 0001.
+  const lastSeq = row?.quote_no ? Number(row.quote_no.split("-").pop()) : null;
+  return formatQuoteNo(year, nextQuoteSeq(lastSeq));
 }
 
 export function listQuotes(filter: { template_key?: string; status?: string; q?: string } = {}): QuoteView[] {

@@ -39,6 +39,23 @@ export const MAX_VALIDITY_DAYS = 180;
 /** Hiệu lực mặc định khi dịch vụ không khai báo số ngày hiệu lực. */
 export const DEFAULT_VALIDITY_DAYS = 15;
 
+/**
+ * Số báo giá bắt đầu — đánh tiếp từ số thực tế đang dùng ngoài đời (bắt đầu 0290),
+ * không đánh lại từ 0001. Báo giá cũ trong hệ thống (nếu có) vẫn giữ nguyên số.
+ */
+export const QUOTE_NO_START = 290;
+
+/** Số kế tiếp: luôn lớn hơn số lớn nhất đã dùng và không nhỏ hơn QUOTE_NO_START. */
+export function nextQuoteSeq(lastSeq: number | null | undefined): number {
+  const last = Number.isFinite(Number(lastSeq)) ? Number(lastSeq) : 0;
+  return Math.max(QUOTE_NO_START, last + 1);
+}
+
+/** Định dạng số báo giá: VXM-BG-<năm>-<số 4 chữ số>. */
+export function formatQuoteNo(year: number | string, seq: number): string {
+  return `VXM-BG-${year}-${String(seq).padStart(4, "0")}`;
+}
+
 /** Thông tin người lập / đơn vị mặc định lấy từ mẫu chứng từ thanh toán */
 export const QUOTE_DEFAULTS = {
   issuer_name: PAYMENT_REQUEST_DEFAULTS.issuer_name,

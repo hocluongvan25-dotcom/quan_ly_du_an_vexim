@@ -35,6 +35,8 @@ import {
   assertQuoteEditable,
   calcQuoteTotals,
   enrichQuote,
+  formatQuoteNo,
+  nextQuoteSeq,
   parseJsonArray,
   parseQuoteItems,
   quoteServiceName,
@@ -2379,13 +2381,10 @@ export async function nextQuoteNo(): Promise<string> {
     .order("quote_no", { ascending: false })
     .limit(1);
   if (error) assertNoSupabaseError(error, "quotes");
-  let seq = 1;
+  // Đánh số tiếp từ QUOTE_NO_START (0290) — không đánh lại từ 0001.
   const no = (data as any)?.[0]?.quote_no;
-  if (no) {
-    const n = Number(String(no).split("-").pop());
-    if (Number.isFinite(n)) seq = n + 1;
-  }
-  return `${prefix}${String(seq).padStart(4, "0")}`;
+  const lastSeq = no ? Number(String(no).split("-").pop()) : null;
+  return formatQuoteNo(year, nextQuoteSeq(lastSeq));
 }
 
 async function quoteRows(filter: { template_key?: string; status?: string; q?: string }) {
