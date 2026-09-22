@@ -47,6 +47,13 @@ mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, khô
    địa chỉ, mã số thuế, người liên hệ, số điện thoại, email (có gợi ý ngay khi gõ; bấm vào gợi ý để lấy đủ dữ liệu).
    Công ty chưa có trong danh mục thì nhập tay — dữ liệu đã mapping **không bị xoá** khi sửa tên.
    Điều kiện báo giá (ngày, hiệu lực, chiết khấu %, VAT %) nằm chung bước 2 cho gọn.
+1c. **Chỉ gợi ý doanh nghiệp chưa đăng ký dịch vụ đang báo giá**: báo giá **FDA** thì danh mục đã ẩn doanh nghiệp
+   đã có chứng nhận FDA (vẫn hiện doanh nghiệp mới chỉ có GACC để bán chéo dịch vụ), và ngược lại với **GACC**.
+   Doanh nghiệp đã đăng ký đúng dịch vụ đó bị **ẩn hoàn toàn**: không xuất hiện trong gợi ý *và* gõ đúng tên cũng
+   không tự điền — tránh báo giá trùng cho khách đã đăng ký. Dòng dưới ô tên công ty ghi rõ
+   *“Đã ẩn N doanh nghiệp đã đăng ký FDA”*; mỗi gợi ý còn ghi doanh nghiệp đã có dịch vụ nào
+   (ví dụ *“Chưa đăng ký FDA (đã có: GACC)”*). Báo giá **Sale xuất khẩu Mỹ** và **Vận hành Amazon US** chưa gắn chứng
+   nhận nên vẫn hiện đầy đủ danh mục. Đổi dịch vụ ở bước 1 thì bộ lọc áp dụng lại ngay.
 2. **Tự động tính toán (thấy ngay khi nhập)**: mọi ô *số lượng / đơn giá / chiết khấu / VAT* đều được tính lại
    tức thì — thành tiền từng dòng ở ngay cạnh dòng đó, và cột **Tổng kết tự tính** bên phải hiển thị
    tạm tính → chiết khấu → VAT → **TỔNG CỘNG** kèm *bằng chữ*, cập nhật theo từng phím gõ.
@@ -126,6 +133,10 @@ npm run test:quote-ui   # 1 test giao diện (jsdom): 2 bước + nút Tiếp t�
 npm run test:all      # chạy toàn bộ test trong tests/
 ```
 
-Trong đó 3 test mới của **bảng giá dịch vụ** kiểm tra: non-admin bị chặn 403 khi PUT, Admin sửa giá + thêm hạng mục
+Trong đó 3 test của **bảng giá dịch vụ** kiểm tra: non-admin bị chặn 403 khi PUT, Admin sửa giá + thêm hạng mục
 mới thì báo giá tạo sau đó dùng giá mới, **báo giá cũ giữ nguyên số cũ**, xóa dòng giá riêng thì quay về giá mặc định,
 dữ liệu hỏng trong DB bị bỏ qua, và các trường hợp sai (thiếu tên, giá âm, quá số ngày hiệu lực, VAT sai, mã tùy chọn sai) trả 400.
+
+`tests/quote-create-ui.test.cjs` dựng giao diện thật bằng jsdom và kiểm tra: nút **Tiếp tục** ở dưới danh sách hạng mục,
+còn đúng 2 bước, tự mapping thông tin công ty, **bộ lọc doanh nghiệp đã đăng ký theo từng dịch vụ** (ẩn cả gợi ý lẫn tự
+điền, vẫn cho bán chéo dịch vụ khác), và tiền tự tính lại ngay khi sửa số lượng/đơn giá/chiết khấu/VAT.

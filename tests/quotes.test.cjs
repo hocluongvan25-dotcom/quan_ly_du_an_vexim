@@ -135,7 +135,8 @@ test('nhân viên tạo báo giá chỉ với thông tin khách hàng — hạng
   assert.ok(quote.scope.length >= 3 && quote.terms.length >= 3);
   // Nhân viên không gửi ngày hết hiệu lực / VAT → lấy theo dịch vụ trong bảng giá
   const template = templates.getQuoteTemplate('GACC');
-  assert.equal(quote.valid_until, quotes.quoteValidUntil('2026-09-21', template.validity_days));
+  assert.equal(quote.issue_date, new Date().toISOString().slice(0, 10), 'ngày báo giá mặc định là hôm nay');
+  assert.equal(quote.valid_until, quotes.quoteValidUntil(quote.issue_date, template.validity_days));
   assert.equal(quote.vat_rate, template.vat_rate);
   assert.ok(quote.documents.length >= 3, 'hồ sơ cần cung cấp lấy từ mẫu');
   assert.deepEqual(quote.documents, templates.getQuoteTemplate('GACC').documents);
@@ -178,7 +179,8 @@ test('server tự tính lại tiền: bỏ qua tổng do client gửi lên, có 
   assert.equal(quote.total, 18_000_000 + quote.vat_amount);
   assert.equal(quote.optional_total, 7_000_000, 'hạng mục tùy chọn không cộng vào tổng');
   assert.equal(quote.total_in_words, moneyInWords(quote.total));
-  assert.ok(quote.state === 'draft' && quote.days_left === 15);
+  assert.equal(quote.state, 'draft');
+  assert.equal(quote.days_left, quotes.quoteDaysLeft({ valid_until: quote.valid_until }), 'số ngày còn lại tính từ hiệu lực');
 });
 
 test('kiểm tra dữ liệu: chặn hạng mục sai, ngày/hiệu lực sai và dịch vụ lạ', () => {

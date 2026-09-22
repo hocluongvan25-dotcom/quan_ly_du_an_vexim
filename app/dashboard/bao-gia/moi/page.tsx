@@ -30,6 +30,19 @@ type CompanyOption = {
   tax_code: string;
   address: string;
   contact_person: string;
+  /** Các dịch vụ doanh nghiệp đã đăng ký (theo chứng nhận FDA/GACC) */
+  standards?: string[];
+  certificate_count?: number;
+};
+
+/**
+ * Dịch vụ báo giá ↔ chứng nhận tương ứng. Doanh nghiệp đã đăng ký dịch vụ đang báo giá sẽ
+ * không được gợi ý và không tự điền (ẩn hoàn toàn) — tránh báo giá trùng cho khách đã đăng ký.
+ * Sale xuất khẩu / Vận hành Amazon chưa gắn chứng nhận nên vẫn hiện đầy đủ danh mục.
+ */
+const SERVICE_STANDARD: Partial<Record<QuoteTemplateKey, string>> = {
+  FDA: "FDA",
+  GACC: "GACC",
 };
 
 const emptyLine = (): EditLine => ({ name: "", unit: "Gói", qty: 1, unit_price: 0, note: "", optional: false });
@@ -66,7 +79,7 @@ function NewQuoteInner() {
 
   // Danh mục doanh nghiệp để tự mapping thông tin khách hàng.
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
-  const [pickedCompany, setPickedCompany] = useState("");
+  const [mappedFrom, setMappedFrom] = useState<CompanyOption | null>(null);
   const [showSuggest, setShowSuggest] = useState(false);
   const companyBox = useRef<HTMLDivElement | null>(null);
 
@@ -100,6 +113,8 @@ function NewQuoteInner() {
           tax_code: c.tax_code || "",
           address: c.address || "",
           contact_person: c.contact_person || "",
+          standards: Array.isArray(c.standards) ? c.standards.map(String) : [],
+          certificate_count: c.certificate_count || 0,
         }));
         setCompanies(list);
       })
@@ -125,41 +140,76 @@ function NewQuoteInner() {
   const validUntil = quoteValidUntil(issueDate, validDays);
   const mainItems = items.filter((i) => !i.optional);
 
-  /** Điền thông tin khách hàng từ danh mục doanh nghiệp (chỉ điền ô đang trống hoặc do lần chọn trước). */
+  /** Dịch vụ đang báo giá có chứng nhận tương ứng hay không (FDA/GACC). */
+  const requiredStandard = SERVICE_STANDARD[templateKey];
+
+  /**
+   * Chỉ gợi ý doanh nghiệp CHƯA đăng ký dịch vụ đang báo giá.
+   * Doanh nghiệp đã có chứng nhận của dịch vụ này bị ẩn hoàn toàn (không gợi ý, không tự điền).
+   */
+  const eligibleCompanies = useMemo(
+    () =>
+      requiredStandard
+        ? companies.filter((c) => !(c.standards || []).includes(requiredStandard))
+        : companies,
+    [companies, requiredStandard]
+  );
+  const hiddenRegistered = companies.length - eligibleCompanies.length;
+
+  /**
+   * Điền thông tin khách hàng từ danh mục doanh nghiệp.
+   * Ghi đè khi: chọn từ gợi ý (force), ô đang trống, hoặc ô vẫn đang giữ giá trị của doanh nghiệp
+   * vừa mapping trước đó — nhờ vậy đổi công ty là đổi đúng dữ liệu, mà không xoá chỗ nhân viên tự sửa tay.
+   */
   function applyCompany(record: CompanyOption, force = false) {
     const fill = (current: string, next: string, previous: string) =>
-      next && (force || !current.trim() || current === previous) ? next : current;
-    const previous = companies.find((c) => normalized(c.company_name) === normalized(pickedCompany));
+      next && (force || !current.trim() || (previous !== "" && current === previous)) ? next : current;
+    const previous = mappedFrom || { address: "", tax_code: "", contact_person: "", email: "", phone: "" };
     setCompany(record.company_name);
-    setAddress((v) => fill(v, record.address, previous?.address || "") as string);
-    setTaxCode((v) => fill(v, record.tax_code, previous?.tax_code || "") as string);
-    setContact((v) => fill(v, record.contact_person, previous?.contact_person || "") as string);
-    setEmail((v) => fill(v, record.email, previous?.email || "") as string);
-    setPhone((v) => fill(v, record.phone, previous?.phone || "") as string);
-    setPickedCompany(record.company_name);
+    setAddress((v) => fill(v, record.address, previous.address || "") as string);
+    setTaxCode((v) => fill(v, record.tax_code, previous.tax_code || "") as string);
+    setContact((v) => fill(v, record.contact_person, previous.contact_person || "") as string);
+    setEmail((v) => fill(v, record.email, previous.email || "") as string);
+    setPhone((v) => fill(v, record.phone, previous.phone || "") as string);
+    setMappedFrom(record);
     setShowSuggest(false);
   }
 
-  /** Gõ đúng tên công ty đã có trong danh mục → tự mapping. */
+  /** Gõ đúng tên công ty chưa đăng ký dịch vụ này trong danh mục → tự mapping. */
   function onCompanyChange(value: string) {
     setCompany(value);
     setShowSuggest(true);
-    const match = companies.find((c) => normalized(c.company_name) === normalized(value));
+    const match = eligibleCompanies.find((c) => normalized(c.company_name) === normalized(value));
     if (match) applyCompany(match);
-    else setPickedCompany("");
   }
+
+  // Đổi dịch vụ (bộ lọc đăng ký thay đổi) → mapping lại nếu tên công ty đang nhập vẫn hợp lệ.
+  useEffect(() => {
+    if (!company.trim() || companies.length === 0) return;
+    const match = eligibleCompanies.find((c) => normalized(c.company_name) === normalized(company));
+    if (match) applyCompany(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [templateKey, companies.length]);
 
   const suggestions = useMemo(() => {
     const key = normalized(company);
     const list = key
-      ? companies.filter((c) => normalized(c.company_name).includes(key))
-      : companies;
+      ? eligibleCompanies.filter((c) => normalized(c.company_name).includes(key))
+      : eligibleCompanies;
     return list.slice(0, 6);
-  }, [company, companies]);
+  }, [company, eligibleCompanies]);
 
-  const mappedFromCatalogue = companies.some(
-    (c) => normalized(c.company_name) === normalized(company) && normalized(pickedCompany) === normalized(company)
-  );
+  const mappedFromCatalogue =
+    !!mappedFrom &&
+    normalized(mappedFrom.company_name) === normalized(company) &&
+    eligibleCompanies.some((c) => normalized(c.company_name) === normalized(company));
+
+  /** Trạng thái đăng ký của doanh nghiệp so với dịch vụ đang báo giá (hiển thị trong gợi ý). */
+  const registrationHint = (record: CompanyOption) => {
+    const registered = (record.standards || []).join(", ");
+    if (requiredStandard) return registered ? `Chưa đăng ký ${requiredStandard} (đã có: ${registered})` : `Chưa đăng ký ${requiredStandard}`;
+    return registered ? `Đã đăng ký: ${registered}` : "";
+  };
 
   function applyTemplate(key: QuoteTemplateKey, keepItems = false) {
     const next = templates.find((t) => t.key === key);
@@ -477,9 +527,26 @@ function NewQuoteInner() {
                   <div className="text-xs font-extrabold uppercase tracking-wider text-navy-900/60">
                     Thông tin khách hàng
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] font-bold text-navy-900/45">
-                    <Building2 className="h-3.5 w-3.5" />
-                    Gõ tên công ty có trong danh mục doanh nghiệp → tự điền địa chỉ, MST, người liên hệ, email, SĐT
+                  <div className="max-w-md text-right text-[10px] font-semibold text-navy-900/45">
+                    <span className="inline-flex items-center gap-1 text-right">
+                      <Building2 className="h-3.5 w-3.5 shrink-0" />
+                      {requiredStandard ? (
+                        <>
+                          Chỉ gợi ý doanh nghiệp <b>chưa đăng ký {requiredStandard}</b> → tự điền địa chỉ, MST,
+                          người liên hệ, email, SĐT
+                        </>
+                      ) : (
+                        <>
+                          Gõ tên công ty có trong danh mục doanh nghiệp → tự điền địa chỉ, MST, người liên hệ,
+                          email, SĐT
+                        </>
+                      )}
+                    </span>
+                    {requiredStandard && hiddenRegistered > 0 && (
+                      <span className="mt-0.5 block text-navy-900/35">
+                        Đã ẩn {hiddenRegistered} doanh nghiệp đã đăng ký {requiredStandard}.
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -499,6 +566,12 @@ function NewQuoteInner() {
                         <Check className="h-3 w-3" /> Đã lấy dữ liệu từ danh mục doanh nghiệp
                       </span>
                     )}
+                    {showSuggest && suggestions.length === 0 && (
+                      <div className="absolute z-20 mt-1 w-full rounded-xl border border-navy-900/10 bg-white px-3 py-2 text-[11px] font-normal text-navy-900/50 shadow-lift">
+                        Không còn doanh nghiệp chưa đăng ký {requiredStandard || template.short_name} trong danh mục — nhập
+                        tay thông tin khách hàng mới.
+                      </div>
+                    )}
                     {showSuggest && suggestions.length > 0 && (
                       <div className="absolute z-20 mt-1 max-h-64 w-full overflow-y-auto rounded-xl border border-navy-900/10 bg-white py-1 shadow-lift">
                         {suggestions.map((c) => (
@@ -513,6 +586,11 @@ function NewQuoteInner() {
                               {(c.tax_code || c.address || c.phone) && (
                                 <span className="mt-0.5 block text-[10px] text-navy-900/50">
                                   {[c.tax_code && `MST ${c.tax_code}`, c.phone, c.address].filter(Boolean).join(" · ")}
+                                </span>
+                              )}
+                              {registrationHint(c) && (
+                                <span className="mt-0.5 block text-[10px] font-semibold text-amber-700">
+                                  {registrationHint(c)}
                                 </span>
                               )}
                             </span>

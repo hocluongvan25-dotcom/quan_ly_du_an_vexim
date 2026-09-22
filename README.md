@@ -64,6 +64,9 @@ Pre-built quote templates per service so staff only enter customer details and e
   **(2)** customer details + quote conditions.
 - **Customer details auto-map** from the company directory: typing a company name already in the system fills in
   address, tax code, contact person, phone and email (suggestions while typing).
+- **Only companies that have not registered the service being quoted are suggested**: quoting FDA hides companies
+  that already hold an FDA certificate (GACC-only companies still appear, for cross-selling) and vice versa.
+  Companies already registered for that service are hidden completely — no suggestion and no auto-fill.
 - **Editable line items with live totals** while creating: changing quantity, unit price, discount or VAT
   recalculates line amounts, subtotal, VAT, grand total and the amount in words instantly.
 - **Service price list at `/dashboard/bao-gia/bang-gia` (Admin only)** — the single place to change service

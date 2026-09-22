@@ -67,6 +67,7 @@ const { formatMoney } = require('../lib/accounting.ts');
 const TEMPLATE_FIXTURES = JSON.parse(JSON.stringify(templates.QUOTE_TEMPLATES));
 const COMPANY_FIXTURES = [
   {
+    // Đã có chứng nhận GACC → vẫn gợi ý khi báo giá FDA, bị ẩn khi báo giá GACC.
     id: 7,
     company_name: 'CÔNG TY TNHH THỰC PHẨM ABC',
     email: 'xuatkhau@abc-food.vn',
@@ -74,8 +75,11 @@ const COMPANY_FIXTURES = [
     tax_code: '0107654321',
     address: 'Lô B2 KCN Tân Tạo, Bình Tân, TP. HCM',
     contact_person: 'Chị Trần Thu Hà',
+    standards: ['GACC'],
+    certificate_count: 1,
   },
   {
+    // Chưa đăng ký dịch vụ nào → luôn được gợi ý.
     id: 8,
     company_name: 'CÔNG TY CP NÔNG SẢN SẠCH VIỆT',
     email: 'info@nongsansachviet.vn',
@@ -83,6 +87,20 @@ const COMPANY_FIXTURES = [
     tax_code: '0101234567',
     address: 'Số 12 Lý Thường Kiệt, Hoàn Kiếm, Hà Nội',
     contact_person: 'Anh Lê Văn Nam',
+    standards: [],
+    certificate_count: 0,
+  },
+  {
+    // Đã có chứng nhận FDA → bị ẩn khi báo giá FDA.
+    id: 9,
+    company_name: 'CÔNG TY TNHH ĐÃ CÓ FDA',
+    email: 'fda@dacofda.vn',
+    phone: '0903 777 888',
+    tax_code: '0312345678',
+    address: 'Số 99 Nguyễn Văn Linh, Q. 7, TP. HCM',
+    contact_person: 'Anh Hoàng Đăng Khoa',
+    standards: ['FDA'],
+    certificate_count: 1,
   },
 ];
 
@@ -143,6 +161,73 @@ const inputByLabel = (label) => {
 };
 
 /* ---------------------------------- Test ---------------------------------- */
+test('chỉ gợi ý doanh nghiệp chưa đăng ký đúng dịch vụ đang báo giá', async () => {
+  const container = document.getElementById('root');
+  const reactRoot = createRoot(container);
+  const Page = require('../app/dashboard/bao-gia/moi/page.tsx').default;
+  await act(async () => {
+    reactRoot.render(React.createElement(Page));
+  });
+  await flush(40);
+
+  // Vào bước 2 để thao tác ô tên công ty
+  await clickByText(container, 'Tiếp tục: thông tin khách hàng');
+  const companyInput = inputByPlaceholder('VD: CÔNG TY TNHH THỰC PHẨM ABC');
+  assert.ok(companyInput, 'thiếu ô tên công ty khách hàng');
+
+  // 1. Báo giá FDA: doanh nghiệp đã có FDA bị ẩn hoàn toàn (không tự điền)
+  await typeInto(companyInput, 'CÔNG TY TNHH ĐÃ CÓ FDA');
+  assert.ok(!container.textContent.includes('Đã lấy dữ liệu từ danh mục doanh nghiệp'), 'không được tự điền cho khách đã đăng ký FDA');
+  assert.equal(inputByLabel('Địa chỉ').value, '', 'địa chỉ phải để trống với doanh nghiệp đã đăng ký');
+  assert.equal(inputByLabel('Mã số thuế').value, '', 'không mapping MST cho doanh nghiệp đã đăng ký FDA');
+  const suggestText = container.querySelector('.absolute.z-20')?.textContent || '';
+  assert.ok(!suggestText.includes('ĐÃ CÓ FDA'), 'doanh nghiệp đã đăng ký FDA không được xuất hiện trong gợi ý');
+
+  // 2. Doanh nghiệp chưa đăng ký vẫn tự điền bình thường
+  await typeInto(companyInput, 'CÔNG TY CP NÔNG SẢN SẠCH VIỆT');
+  assert.match(container.textContent, /Đã lấy dữ liệu từ danh mục doanh nghiệp/);
+  assert.equal(inputByLabel('Mã số thuế').value, COMPANY_FIXTURES[1].tax_code);
+
+  // 3. Doanh nghiệp mới chỉ có GACC vẫn dùng được cho báo giá FDA (bán chéo dịch vụ)
+  await typeInto(companyInput, 'CÔNG TY TNHH THỰC PHẨM ABC');
+  assert.match(container.textContent, /Đã lấy dữ liệu từ danh mục doanh nghiệp/);
+  assert.equal(inputByLabel('Mã số thuế').value, COMPANY_FIXTURES[0].tax_code);
+  assert.match(container.textContent, /Đã ẩn 1 doanh nghiệp đã đăng ký FDA/, 'phải cho biết đã ẩn bao nhiêu doanh nghiệp');
+
+  // Gõ một phần tên (chưa khớp hẳn) → mở danh sách gợi ý để xem nhãn trạng thái
+  await typeInto(companyInput, 'THỰC PHẨM');
+  const partialSuggest = container.querySelector('.absolute.z-20')?.textContent || '';
+  assert.match(partialSuggest, /Chưa đăng ký FDA \(đã có: GACC\)/, 'gợi ý phải nêu rõ doanh nghiệp đã đăng ký dịch vụ nào');
+  assert.ok(!partialSuggest.includes('ĐÃ CÓ FDA'), 'doanh nghiệp đã đăng ký FDA vẫn không được xuất hiện');
+
+  // Gõ lại đúng tên để kiểm tra tự mapping
+  await typeInto(companyInput, 'CÔNG TY TNHH THỰC PHẨM ABC');
+  assert.equal(inputByLabel('Mã số thuế').value, COMPANY_FIXTURES[0].tax_code, 'gõ đúng tên vẫn tự mapping');
+
+  // 4. Chuyển sang báo giá GACC → doanh nghiệp đã có GACC bị ẩn, báo giá FDA lại hiện
+  await clickByText(container, '1. Hạng mục & đơn giá');
+  await clickByText(container, 'Đăng ký GACC (Trung Quốc)');
+  await clickByText(container, 'Tiếp tục: thông tin khách hàng');
+
+  const gaccInput = inputByPlaceholder('VD: CÔNG TY TNHH THỰC PHẨM ABC');
+  await typeInto(gaccInput, 'CÔNG TY CP NÔNG SẢN SẠCH VIỆT');
+  assert.match(container.textContent, /Đã lấy dữ liệu từ danh mục doanh nghiệp/, 'doanh nghiệp chưa đăng ký vẫn phải tự điền');
+  assert.equal(inputByLabel('Mã số thuế').value, COMPANY_FIXTURES[1].tax_code);
+
+  await typeInto(gaccInput, 'CÔNG TY TNHH THỰC PHẨM ABC');
+  const gaccSuggest = container.querySelector('.absolute.z-20')?.textContent || '';
+  assert.ok(!gaccSuggest.includes('THỰC PHẨM ABC'), 'doanh nghiệp đã đăng ký GACC không được gợi ý khi báo giá GACC');
+
+  // 5. Báo giá Sale xuất khẩu không gắn chứng nhận → hiện đầy đủ danh mục
+  await clickByText(container, '1. Hạng mục & đơn giá');
+  await clickByText(container, 'Sale xuất khẩu Mỹ');
+  await clickByText(container, 'Tiếp tục: thông tin khách hàng');
+  assert.ok(!container.textContent.includes('Đã ẩn'), 'dịch vụ không gắn chứng nhận thì không ẩn doanh nghiệp nào');
+  const saleInput = inputByPlaceholder('VD: CÔNG TY TNHH THỰC PHẨM ABC');
+  await typeInto(saleInput, 'CÔNG TY TNHH THỰC PHẨM ABC');
+  assert.match(container.textContent, /Đã lấy dữ liệu từ danh mục doanh nghiệp/);
+});
+
 test('tạo báo giá: 2 bước, nút Tiếp tục ở dưới, tự mapping dữ liệu công ty và tính tiền ngay', async () => {
   const container = document.getElementById('root');
   const reactRoot = createRoot(container);
