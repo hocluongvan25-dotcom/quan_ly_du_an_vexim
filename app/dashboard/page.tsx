@@ -181,7 +181,7 @@ export default function DashboardPage() {
               <p className="mt-1 text-sm text-white/65">{t("dashboard.fdaDesc")}</p>
               <div className="mt-2">
                 <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold">
-                  {t("dashboard.defaultYears", { years: FDA_FIXED_YEARS })}
+                  {t("dashboard.flexibleYears")}
                 </span>
               </div>
             </div>
@@ -191,7 +191,7 @@ export default function DashboardPage() {
               <p className="mt-1 text-sm text-white/65">{t("dashboard.gaccDesc")}</p>
               <div className="mt-2">
                 <span className="rounded-full bg-gold-400/20 px-2 py-0.5 text-[10px] font-bold text-gold-300">
-                  {t("dashboard.defaultYears", { years: GACC_FIXED_YEARS })}
+                  {t("dashboard.fixedYears", { years: GACC_FIXED_YEARS })}
                 </span>
               </div>
             </div>

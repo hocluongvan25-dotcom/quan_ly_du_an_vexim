@@ -301,7 +301,7 @@ export function buildExpiryWarningEmail(data: ExpiryWarningData, type: Notificat
         <ul style="margin:8px 0 0 18px; padding:0; font-size:13px; line-height:1.6; color:#334155">
           ${isExpired
             ? `<li>Liên hệ Vexim ngay để gia hạn khẩn cấp, tránh bị FDA/GACC thu hồi mã</li><li>Chuẩn bị hồ sơ cập nhật nếu có thay đổi về công ty, sản phẩm</li><li>Không xuất khẩu lô hàng mới cho đến khi gia hạn xong</li>`
-            : `<li>Liên hệ Vexim để được tư vấn gia hạn ${data.standard} (hiệu lực FDA thường 2 năm, GACC 5 năm — gia hạn theo thời hạn hợp đồng)</li><li>Chuẩn bị phí gia hạn và hồ sơ liên quan</li><li>Gia hạn sớm để được giá ưu đãi và tránh phí gấp</li>`}
+            : `<li>Liên hệ Vexim để được tư vấn gia hạn ${data.standard} (hiệu lực FDA 1-10 năm theo hợp đồng (thường 2 năm), GACC cố định 5 năm)</li><li>Chuẩn bị phí gia hạn và hồ sơ liên quan</li><li>Gia hạn sớm để được giá ưu đãi và tránh phí gấp</li>`}
         </ul>
       </div>
 

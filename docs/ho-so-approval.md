@@ -18,13 +18,14 @@
   không gửi trong email cảnh báo hết hạn. Ô mật khẩu mặc định bị che, bấm con mắt để xem; bảng đối chiếu chờ duyệt chỉ hiện dấu `•••`.
   Sửa User/Pass cũng đi theo luồng duyệt như các trường khác (nháp lưu ngay, hồ sơ đã xuất bản thì chờ admin duyệt).
 
-## Thời hạn hợp đồng (1-10 năm)
+## Thời hạn hợp đồng (FDA 1-10 năm · GACC cố định 5 năm)
 
-- Ô **Thời hạn hợp đồng (năm)** trên form là dropdown chọn 1-10 năm; mặc định theo tiêu chuẩn (FDA 2 năm, GACC 5 năm) và ghi rõ `(mặc định)` ngay trong danh sách.
-- Đổi số năm → **Ngày hết hạn** và dòng `Hợp đồng N năm: … → …` tự tính lại ngay; lưu form là lưu đúng số năm đó.
+- **FDA**: ô **Thời hạn hợp đồng (năm)** là dropdown chọn 1-10 năm, mặc định 2 năm (ghi rõ `(mặc định)` trong danh sách).
+- **GACC**: ô này là `5 năm (cố định)` chỉ đọc, kèm ghi chú *“GACC cố định 5 năm — không đổi được thời hạn.”* Không có dropdown để chọn.
+- Đổi số năm (FDA) → **Ngày hết hạn** và dòng `Hợp đồng N năm: … → …` tự tính lại ngay; lưu form là lưu đúng số năm đó.
 - Hồ sơ đã xuất bản: đổi số năm cũng đi theo luồng duyệt (bản công khai giữ nguyên tới khi admin duyệt).
-- Hộp thoại **Gia hạn** cũng chọn được 1-10 năm, mặc định là kỳ hạn hiện tại của hồ sơ, và xem trước ngày hết hạn mới.
-- API từ chối giá trị ngoài 1-10 (`Thời hạn hợp đồng phải từ 1 đến 10 năm.`); bỏ trống thì lấy mặc định theo tiêu chuẩn. Không cần migration Supabase: cột `validity_years` đã có sẵn và vẫn giới hạn 1-10.
+- Hộp thoại **Gia hạn**: FDA chọn 1-10 năm (mặc định là kỳ hạn hiện tại); GACC luôn `5 năm (cố định)`, nút là “Gia hạn 5 năm”.
+- API: `validity_years` ngoài 1-10 bị từ chối (`Thời hạn hợp đồng phải từ 1 đến 10 năm.`); với GACC mọi giá trị khác 5 bị từ chối (`GACC cố định 5 năm, không đổi được thời hạn.`); bỏ trống thì lấy mặc định (FDA 2, GACC 5). Không cần migration Supabase: cột `validity_years` đã có sẵn và vẫn giới hạn 1-10.
 
 ## Triển khai
 

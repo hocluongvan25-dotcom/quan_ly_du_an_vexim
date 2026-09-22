@@ -15,14 +15,13 @@ Font: **Be Vietnam Pro** (full Vietnamese diacritics support, but UI is English)
 
 ## 1. Flexible Validity + DUNS (New)
 
-**Flexible Validity:** FDA defaults to 2 years, GACC defaults to 5 years, and both support **1-10 years** per contract:
+**Flexible Validity:** FDA is a **1-10 year** choice per contract (default 2), GACC stays **fixed at 5 years**:
 
-- **Contract Duration** is a dropdown on the record form: 1, 2, 3, ..., 10 years (the standard's default is tagged right in the list)
-- FDA: default 2 years but can be 1, 3, 5, 7, 10 years per client
-- GACC: default 5 years, customizable 1-10 years
-- Expiry auto-calculated from the chosen years: `registered_at + validity_years` (updates as soon as you change the dropdown)
-- Values outside 1-10 are rejected by the API (`Thời hạn hợp đồng phải từ 1 đến 10 năm.`); an empty value falls back to the standard's default
-- **Renewal follows contract duration** — the renewal dialog picks 1-10 years and defaults to the current term. No fixed 2/5-year renewal.
+- **Contract Duration** on the record form is a dropdown for **FDA only**: 1, 2, 3, ..., 10 years (default 2 is tagged in the list)
+- **GACC is a read-only `5 years (fixed)` field** — staff cannot pick another duration, and the API rejects any other value with `GACC cố định 5 năm, không đổi được thời hạn.`
+- Expiry auto-calculated from the chosen years: `registered_at + validity_years` (updates as soon as you change the FDA dropdown)
+- FDA values outside 1-10 are rejected (`Thời hạn hợp đồng phải từ 1 đến 10 năm.`); an empty value falls back to the default (FDA 2, GACC 5)
+- **Renewal follows contract duration** — FDA renewals pick 1-10 years (defaulting to the current term); GACC renewals are always +5 years
 - Dashboard shows stats per validity duration (only durations actually in use)
 
 **DUNS Number:**

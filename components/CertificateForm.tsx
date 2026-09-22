@@ -6,7 +6,7 @@ import { CountdownRing } from "./CountdownRing";
 import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
 import { expiryFromStandard, formatDate, remainingDays, getValidityYears, formatDuns, todayLocalIso, todayUtcIso } from "@/lib/utils";
-import { GACC_FIXED_YEARS, VALIDITY_YEARS_OPTIONS, getDefaultValidity, type Certificate, type Standard, type Role } from "@/lib/types";
+import { GACC_FIXED_YEARS, VALIDITY_YEARS_OPTIONS, canChooseValidityYears, getDefaultValidity, getValidityOptionsForStandard, type Certificate, type Standard, type Role } from "@/lib/types";
 import { CheckCircle2, Loader2, X, Building2, Mail, EyeOff, Eye, KeyRound, Lock, Search } from "lucide-react";
 import { needsCertificateApproval, certificateFields, maskCredential } from "@/lib/certificate-workflow";
 import { useI18n } from "@/lib/i18n/context";
@@ -45,8 +45,8 @@ function toForm(item?: Certificate, prefill?: Prefill): FormState {
     portal_pass: source?.portal_pass || "",
     scope: source?.scope || "",
     registered_at: source?.registered_at?.slice(0, 10) || todayLocalIso(),
-    // Thời hạn hợp đồng 1-10 năm: giữ đúng số năm đã lưu, hồ sơ mới lấy mặc định theo tiêu chuẩn
-    validity_years: source?.validity_years || getDefaultValidity(standard),
+    // FDA: giữ đúng số năm đã lưu (1-10). GACC: luôn 5 năm cố định.
+    validity_years: standard === "GACC" ? GACC_FIXED_YEARS : source?.validity_years || getDefaultValidity(standard),
   };
 }
 
@@ -165,7 +165,8 @@ export function CertificateForm({ initial, prefill, role }: {
   const valid = published && Boolean(item?.validity_confirmed) && savedLeft >= 0;
   const confirmed = published && Boolean(item?.validity_confirmed);
   // Số năm đang chọn trên form - ngày hết hạn luôn tính lại theo số này
-  const displayValidity = form.validity_years;
+  const displayValidity = form.standard === "GACC" ? GACC_FIXED_YEARS : form.validity_years;
+  const validitySelectable = canChooseValidityYears(form.standard);
 
   const renewBaseDate = useMemo(() => {
     if (!item) return todayUtcIso();
@@ -221,7 +222,9 @@ export function CertificateForm({ initial, prefill, role }: {
         return;
       }
     }
-    const finalValidity = Math.min(10, Math.max(1, Math.round(Number(form.validity_years) || getDefaultValidity(form.standard))));
+    const finalValidity = form.standard === "GACC"
+      ? GACC_FIXED_YEARS
+      : Math.min(10, Math.max(1, Math.round(Number(form.validity_years) || getDefaultValidity(form.standard))));
     const isGacc = form.standard === "GACC";
     const payload = {
       ...form,
@@ -287,7 +290,9 @@ export function CertificateForm({ initial, prefill, role }: {
     if (!item || !isAdmin || busy || dirty || needsApproval) return;
     setBusy("renew");
     setMsg("");
-    const finalRenewYears = Math.min(10, Math.max(1, Math.round(Number(renewYears) || item.validity_years || getDefaultValidity(item.standard))));
+    const finalRenewYears = item.standard === "GACC"
+      ? GACC_FIXED_YEARS
+      : Math.min(10, Math.max(1, Math.round(Number(renewYears) || item.validity_years || getDefaultValidity(item.standard))));
     const payload = {
       action: "renew",
       validity_years: finalRenewYears,
@@ -381,19 +386,32 @@ export function CertificateForm({ initial, prefill, role }: {
             </select>
           </Field>
           <Field label={t("form.contractDuration")}>
-            <select
-              className="input font-bold"
-              value={String(form.validity_years)}
-              onChange={(e) => patch("validity_years", Number(e.target.value))}
-            >
-              {VALIDITY_YEARS_OPTIONS.map((years) => (
-                <option key={years} value={years}>
-                  {years} {years === 1 ? t("common.year") : t("common.years")}
-                  {years === getDefaultValidity(form.standard) ? ` ${t("form.validityDefaultTag")}` : ""}
-                </option>
-              ))}
-            </select>
-            <div className="mt-1 text-[11px] text-navy-900/50">{t("form.validityHelp")}</div>
+            {validitySelectable ? (
+              <>
+                <select
+                  className="input font-bold"
+                  value={String(form.validity_years)}
+                  onChange={(e) => patch("validity_years", Number(e.target.value))}
+                >
+                  {getValidityOptionsForStandard(form.standard).map((years) => (
+                    <option key={years} value={years}>
+                      {years} {years === 1 ? t("common.year") : t("common.years")}
+                      {years === getDefaultValidity(form.standard) ? ` ${t("form.validityDefaultTag")}` : ""}
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-1 text-[11px] text-navy-900/50">{t("form.validityHelp")}</div>
+              </>
+            ) : (
+              <>
+                <input
+                  className="input bg-slate-50 font-bold"
+                  readOnly
+                  value={`${GACC_FIXED_YEARS} ${t("common.years")} ${t("form.validityFixedTag")}`}
+                />
+                <div className="mt-1 text-[11px] text-navy-900/50">{t("form.gaccFixed")}</div>
+              </>
+            )}
           </Field>
           <Field label={t("form.certificateNo")}>
             <input className="input bg-slate-50" readOnly value={item?.certificate_no || t("form.autoGenerated")} />
@@ -751,7 +769,7 @@ export function CertificateForm({ initial, prefill, role }: {
               </b>{" "}
               · {t("form.renewal")}:{" "}
               <b>
-                {displayValidity} {displayValidity === 1 ? t("common.year") : t("common.years")}
+                {isGacc ? `${GACC_FIXED_YEARS} ${t("common.years")} ${t("form.validityFixedTag")}` : `${displayValidity} ${displayValidity === 1 ? t("common.year") : t("common.years")}`}
               </b>
             </div>
             {isFda && form.duns_code && (
@@ -797,19 +815,32 @@ export function CertificateForm({ initial, prefill, role }: {
                 <div className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-navy-900/50">
                   {t("form.renewalDuration")}
                 </div>
-                <select
-                  className="input font-bold"
-                  value={String(renewYears)}
-                  onChange={(e) => setRenewYears(Number(e.target.value))}
-                >
-                  {VALIDITY_YEARS_OPTIONS.map((years) => (
-                    <option key={years} value={years}>
-                      {years} {years === 1 ? t("common.year") : t("common.years")}
-                      {years === (item.validity_years || getDefaultValidity(item.standard)) ? ` ${t("form.validityCurrentTag")}` : ""}
-                    </option>
-                  ))}
-                </select>
-                <div className="mt-1 text-[11px] text-navy-900/50">{t("form.renewalHelp")}</div>
+                {canChooseValidityYears(item.standard) ? (
+                  <>
+                    <select
+                      className="input font-bold"
+                      value={String(renewYears)}
+                      onChange={(e) => setRenewYears(Number(e.target.value))}
+                    >
+                      {getValidityOptionsForStandard(item.standard).map((years) => (
+                        <option key={years} value={years}>
+                          {years} {years === 1 ? t("common.year") : t("common.years")}
+                          {years === (item.validity_years || getDefaultValidity(item.standard)) ? ` ${t("form.validityCurrentTag")}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mt-1 text-[11px] text-navy-900/50">{t("form.renewalHelp")}</div>
+                  </>
+                ) : (
+                  <>
+                    <input
+                      className="input bg-slate-50 font-bold"
+                      readOnly
+                      value={`${GACC_FIXED_YEARS} ${t("common.years")} ${t("form.validityFixedTag")}`}
+                    />
+                    <div className="mt-1 text-[11px] text-navy-900/50">{t("form.gaccFixed")}</div>
+                  </>
+                )}
               </label>
 
               <label>
@@ -825,8 +856,8 @@ export function CertificateForm({ initial, prefill, role }: {
                 <div className="mt-1 text-emerald-800">
                   {t("form.previewText", {
                     from: formatDate(renewBaseDate),
-                    years: renewYears,
-                    yearLabel: renewYears === 1 ? t("common.year") : t("common.years"),
+                    years: item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears,
+                    yearLabel: (item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears) === 1 ? t("common.year") : t("common.years"),
                     to: formatDate(renewNewExpiry),
                   })}
                 </div>
@@ -852,8 +883,8 @@ export function CertificateForm({ initial, prefill, role }: {
                   </span>
                 ) : (
                   t("form.renewAction", {
-                    years: renewYears,
-                    yearLabel: renewYears === 1 ? t("common.year") : t("common.years"),
+                    years: item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears,
+                    yearLabel: (item.standard === "GACC" ? GACC_FIXED_YEARS : renewYears) === 1 ? t("common.year") : t("common.years"),
                   })
                 )}
               </button>

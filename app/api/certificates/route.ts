@@ -26,9 +26,14 @@ export async function POST(req: Request) {
     if (!body.company_name || !body.registered_at || !body.registration_code) {
       return NextResponse.json({ error: "Please fill all required fields." }, { status: 400 });
     }
-    // Thời hạn hợp đồng chọn 1-10 năm (mặc định FDA 2, GACC 5), ngày hết hạn tự tính
-    if (isInvalidValidityInput(body.validity_years)) {
-      return NextResponse.json({ error: "Thời hạn hợp đồng phải từ 1 đến 10 năm." }, { status: 400 });
+    // FDA chọn 1-10 năm; GACC cố định 5 năm
+    if (isInvalidValidityInput(body.validity_years, standard)) {
+      return NextResponse.json(
+        { error: standard === "GACC"
+          ? "GACC cố định 5 năm, không đổi được thời hạn."
+          : "Thời hạn hợp đồng phải từ 1 đến 10 năm." },
+        { status: 400 }
+      );
     }
     const validity_years = resolveValidityYears(body.validity_years, standard);
     const isGacc = standard === "GACC";

@@ -231,7 +231,14 @@ test('thời hạn hợp đồng chọn 1-10 năm: ngày hết hạn tự tính,
   assert.equal(types.getDefaultValidity('FDA'), 2);
   assert.equal(types.getDefaultValidity('GACC'), 5);
   assert.deepEqual(types.getValidityOptionsForStandard('FDA'), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
-  assert.deepEqual(types.getValidityOptionsForStandard('GACC'), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(types.getValidityOptionsForStandard('GACC'), [5], 'GACC chỉ có 5 năm, không cho chọn');
+  assert.equal(types.canChooseValidityYears('FDA'), true);
+  assert.equal(types.canChooseValidityYears('GACC'), false, 'GACC không được cho chọn số năm');
+  assert.equal(types.isValidValidityYearsForStandard(4, 'GACC'), false);
+  assert.equal(types.isValidValidityYearsForStandard(5, 'GACC'), true);
+  assert.equal(types.resolveValidityYears(4, 'GACC'), 5, 'GACC gửi số năm khác vẫn về 5');
+  assert.equal(types.isInvalidValidityInput(4, 'GACC'), true);
+  assert.equal(types.isInvalidValidityInput(5, 'GACC'), false);
   assert.equal(types.resolveValidityYears(undefined, 'FDA'), 2);
   assert.equal(types.resolveValidityYears('', 'GACC'), 5);
   assert.equal(types.resolveValidityYears(3, 'FDA'), 3);
@@ -243,7 +250,7 @@ test('thời hạn hợp đồng chọn 1-10 năm: ngày hết hạn tự tính,
   // Mọi số năm 1-10 đều tính được ngày hết hạn
   assert.equal(expiryFromStandard('2026-01-01', 'FDA', 1), '2027-01-01');
   assert.equal(expiryFromStandard('2026-01-01', 'FDA', 3), '2029-01-01');
-  assert.equal(expiryFromStandard('2026-01-01', 'GACC', 4), '2030-01-01');
+  assert.equal(expiryFromStandard('2026-01-01', 'GACC', 4), '2031-01-01', 'GACC luôn tính 5 năm');
   assert.equal(expiryFromStandard('2026-01-01', 'FDA', 10), '2036-01-01');
 
   // Lưu thật: FDA 3 năm và GACC 4 năm
@@ -253,9 +260,9 @@ test('thời hạn hợp đồng chọn 1-10 năm: ngày hết hạn tự tính,
   assert.equal(getValidityYears(fda), 3);
 
   const gacc = db.getCertificate(create({ standard: 'GACC', validity_years: 4, registered_at: '2026-01-01' }));
-  assert.equal(gacc.validity_years, 4, 'GACC chọn được 4 năm chứ không bị ép về 5');
-  assert.equal(gacc.expires_at, '2030-01-01');
-  assert.equal(getValidityYears(gacc), 4);
+  assert.equal(gacc.validity_years, 5, 'GACC luôn 5 năm, không nhận 4');
+  assert.equal(gacc.expires_at, '2031-01-01');
+  assert.equal(getValidityYears(gacc), 5);
 
   // Sửa số năm của hồ sơ nháp -> tính lại ngày hết hạn ngay
   db.updateCertificate(fda.id, { ...fda, validity_years: 7 });
@@ -306,7 +313,7 @@ test('API tạo/sửa/gia hạn nhận số năm 1-10 và từ chối giá trị
   assert.equal(db.getCertificate(id).pending_changes.validity_years, 9);
   assert.equal((await put(id, { ...published, validity_years: 12 })).status, 400);
 
-  // Gia hạn theo số năm chọn (7 năm)
+  // Gia hạn theo số năm chọn (7 năm) - chỉ áp dụng cho FDA
   const approved = db.publishCertificate(id);
   const renewed = await put(id, { action: 'renew', validity_years: 7, renew_years: 7, extra_fee: 0, expected_updated_at: approved.updated_at });
   assert.equal(renewed.status, 200);
@@ -314,6 +321,47 @@ test('API tạo/sửa/gia hạn nhận số năm 1-10 và từ chối giá trị
   assert.equal(afterRenew.validity_years, 7);
   assert.equal(afterRenew.expires_at, expiryFromStandardForTest(approved.expires_at, 7));
   assert.equal((await put(id, { action: 'renew', validity_years: 15 })).status, 400);
+});
+
+test('GACC là 5 năm cố định: API không nhận số năm khác, ngày hết hạn luôn +5', async () => {
+  session = { id: 1, role: 'admin' };
+  const post = (body) => createApi.POST(new Request('http://test/api/certificates', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  }));
+  const base = { standard: 'GACC', registration_code: 'REG-GACC-FIX', company_name: 'Công ty GACC', scope: 'Phạm vi', registered_at: '2026-01-01' };
+
+  for (const years of [1, 4, 6, 10]) {
+    const res = await post({ ...base, validity_years: years });
+    assert.equal(res.status, 400, `GACC không được nhận ${years} năm`);
+    assert.match((await res.json()).error, /GACC cố định 5 năm/);
+  }
+
+  const ok = await post({ ...base, validity_years: 5 });
+  assert.equal(ok.status, 200);
+  const gacc = db.getCertificate((await ok.json()).id);
+  assert.equal(gacc.validity_years, 5);
+  assert.equal(gacc.expires_at, '2031-01-01');
+
+  // Bỏ trống cũng là 5 năm
+  const blank = await post({ ...base, registration_code: 'REG-GACC-FIX-2' });
+  assert.equal(db.getCertificate((await blank.json()).id).validity_years, 5);
+
+  // Sửa/sửa hồ sơ GACC sang số năm khác bị chặn, gia hạn cũng vậy
+  const published = db.publishCertificate(gacc.id);
+  const edited = await put(gacc.id, { ...published, validity_years: 3, expected_updated_at: published.updated_at });
+  assert.equal(edited.status, 400);
+  assert.match((await edited.json()).error, /GACC cố định 5 năm/);
+  const renewed = await put(gacc.id, { action: 'renew', validity_years: 3, renew_years: 3, expected_updated_at: published.updated_at });
+  assert.equal(renewed.status, 400);
+  assert.match((await renewed.json()).error, /GACC cố định 5 năm/);
+  assert.equal(db.getCertificate(gacc.id).validity_years, 5, 'GACC giữ nguyên 5 năm');
+
+  // Gia hạn hợp lệ cho GACC: vẫn 5 năm
+  const okRenew = await put(gacc.id, { action: 'renew', validity_years: 5, renew_years: 5, extra_fee: 0, expected_updated_at: published.updated_at });
+  assert.equal(okRenew.status, 200);
+  const afterRenew = db.getCertificate(gacc.id);
+  assert.equal(afterRenew.validity_years, 5);
+  assert.equal(afterRenew.expires_at, '2036-01-01');
 });
 
 test('GACC and expired published certificates keep their QR during review', () => {

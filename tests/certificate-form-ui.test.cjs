@@ -257,7 +257,7 @@ test('thời hạn hợp đồng là dropdown 1-10 năm, đổi số năm là ng
   await flush(20);
   assert.equal(inputByLabel(container, 'Ngày hết hạn').value, '2036-01-01');
 
-  // GACC cũng chọn được số năm khác, không bị ép 5
+  // GACC: KHÔNG cho chọn số năm như FDA — chỉ hiện 5 năm cố định
   const standardSelect = [...container.querySelectorAll('select')].find((s) => s !== select);
   assert.ok(standardSelect, 'thiếu dropdown tiêu chuẩn');
   await act(async () => {
@@ -265,14 +265,27 @@ test('thời hạn hợp đồng là dropdown 1-10 năm, đổi số năm là ng
     standardSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
   });
   await flush(20);
-  const gaccSelect = [...container.querySelectorAll('label')]
-    .find((l) => l.textContent.trim().startsWith('Thời hạn hợp đồng'))
-    .querySelector('select');
-  assert.equal(gaccSelect.value, '5', 'GACC mặc định 5 năm');
+  const gaccLabel = () => [...container.querySelectorAll('label')]
+    .find((l) => l.textContent.trim().startsWith('Thời hạn hợp đồng'));
+  assert.equal(gaccLabel().querySelector('select'), null, 'GACC không được có dropdown chọn số năm');
+  const gaccInput = gaccLabel().querySelector('input');
+  assert.ok(gaccInput, 'GACC phải hiện ô thời hạn');
+  assert.equal(gaccInput.readOnly, true, 'ô thời hạn GACC phải là chỉ đọc');
+  assert.match(gaccInput.value, /5 .*(cố định|fixed)/, 'GACC ghi rõ 5 năm cố định');
+  assert.match(container.textContent, /GACC cố định 5 năm/, 'có ghi chú giải thích GACC cố định');
+  assert.equal(inputByLabel(container, 'Ngày hết hạn').value, '2031-01-01', 'GACC luôn tính 5 năm');
+
+  // Quay lại FDA: dropdown 1-10 năm hiện lại với mặc định 2 năm
   await act(async () => {
-    gaccSelect.value = '4';
-    gaccSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    standardSelect.value = 'FDA';
+    standardSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
   });
   await flush(20);
-  assert.equal(inputByLabel(container, 'Ngày hết hạn').value, '2030-01-01', 'GACC 4 năm phải tính được');
+  const fdaSelect = [...container.querySelectorAll('label')]
+    .find((l) => l.textContent.trim().startsWith('Thời hạn hợp đồng'))
+    .querySelector('select');
+  assert.ok(fdaSelect, 'FDA phải giữ dropdown chọn năm');
+  assert.equal(fdaSelect.options.length, 10, 'FDA vẫn đủ 1-10 năm');
+  assert.equal(fdaSelect.value, '2', 'FDA về mặc định 2 năm');
+  assert.equal(inputByLabel(container, 'Ngày hết hạn').value, '2028-01-01');
 });

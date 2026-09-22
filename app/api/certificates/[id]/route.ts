@@ -52,17 +52,28 @@ export async function PUT(req: Request, ctx: Ctx) {
       const extraFee = Number(body.extra_fee || body.renew_fee || 0);
       const renewalYearsRaw = body.validity_years ?? body.renew_years ?? body.years;
       const renewalYears = renewalYearsRaw ? Number(renewalYearsRaw) : undefined;
-      if (renewalYearsRaw !== undefined && renewalYearsRaw !== null && isInvalidValidityInput(renewalYearsRaw)) {
-        return NextResponse.json({ error: "Thời hạn gia hạn phải từ 1 đến 10 năm." }, { status: 400 });
-      }
       const current = await getCertificate(id);
       if (!current) return NextResponse.json({ error: "NOT_FOUND" }, { status: 404 });
+      if (renewalYearsRaw !== undefined && renewalYearsRaw !== null &&
+          isInvalidValidityInput(renewalYearsRaw, current.standard)) {
+        return NextResponse.json(
+          { error: current.standard === "GACC"
+            ? "GACC cố định 5 năm, không đổi được thời hạn."
+            : "Thời hạn gia hạn phải từ 1 đến 10 năm." },
+          { status: 400 }
+        );
+      }
       const item = await renewCertificate(id, extraFee, renewalYears);
       return NextResponse.json({ item });
     }
     const standard = body.standard === "GACC" ? "GACC" : "FDA";
-    if (isInvalidValidityInput(body.validity_years)) {
-      return NextResponse.json({ error: "Thời hạn hợp đồng phải từ 1 đến 10 năm." }, { status: 400 });
+    if (isInvalidValidityInput(body.validity_years, standard)) {
+      return NextResponse.json(
+        { error: standard === "GACC"
+          ? "GACC cố định 5 năm, không đổi được thời hạn."
+          : "Thời hạn hợp đồng phải từ 1 đến 10 năm." },
+        { status: 400 }
+      );
     }
     const validity_years = resolveValidityYears(body.validity_years, standard);
     const isGacc = standard === "GACC";
