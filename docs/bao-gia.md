@@ -100,6 +100,9 @@ mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, khô
 - **Chữ ký 2 bên canh theo cột**: cột *ĐẠI DIỆN KHÁCH HÀNG* kết thúc ở mốc cột “Số tài khoản”, còn cột
   *ĐẠI DIỆN VEXIM GLOBAL* (chức danh **GIÁM ĐỐC** + tên **LƯƠNG VĂN HỌC**) bắt đầu đúng mốc cột **NGÂN HÀNG** và
   gạch ký kéo dài ra tận lề ngoài của trang, thẳng hàng với dải thông tin thanh toán phía trên.
+- **Khối chữ ký cách nội dung phía trên đúng 3 dòng** (`SIGNATURE_TOP_GAP = 3 × 13.5pt`) để có chỗ ký và đóng dấu;
+  nếu thêm khoảng cách mà trang cuối không còn đủ chỗ cho dải thanh toán + chữ ký thì dải thanh toán tự ẩn để
+  chữ ký không bị đẩy sang trang mới. Bản xem trước trên màn hình dùng cùng khoảng cách đó (`mt-[4.6rem]`).
 - Màu được khai báo một chỗ trong `lib/quote-pdf.ts` (`NAVY`, `GOLD`, `NAVY_TINT`, `IVORY`, `GOLD_LIGHT`…).
 - PDF dùng font Tinos đã bundle (đủ dấu tiếng Việt), khổ A4, tự ngắt trang và **lặp lại tiêu đề bảng** khi sang trang.
 

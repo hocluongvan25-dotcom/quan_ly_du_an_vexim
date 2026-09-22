@@ -237,8 +237,9 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
       <div className="mt-6 text-right text-xs italic text-navy-900/60">
         {QUOTE_DEFAULTS.city}, ngày {day} tháng {month} năm {year}
       </div>
-      {/* Chữ ký: cột Vexim nằm dưới cột NGÂN HÀNG và trải ra lề ngoài, giống bản PDF */}
-      <div className="mt-4 grid grid-cols-[52fr_20fr_28fr] text-xs">
+      {/* Chữ ký: cột Vexim nằm dưới cột NGÂN HÀNG và trải ra lề ngoài, giống bản PDF.
+          Cách nội dung phía trên 3 dòng (mt-4 = 1rem + ~3 dòng = 3.6rem) cho thoáng chỗ ký/đóng dấu. */}
+      <div className="mt-[4.6rem] grid grid-cols-[52fr_20fr_28fr] text-xs">
         <div className="pr-6">
           <div className="font-extrabold text-navy-900">ĐẠI DIỆN KHÁCH HÀNG</div>
           <div className="mt-0.5 text-[11px] italic text-navy-900/50">(Ký, ghi rõ họ tên, đóng dấu nếu có)</div>

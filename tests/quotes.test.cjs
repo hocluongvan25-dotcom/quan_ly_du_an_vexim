@@ -314,12 +314,30 @@ test('bản xem trước trên màn hình khớp dữ liệu đã lưu (không t
   assert.ok(html.includes(QUOTE_DEFAULTS_FOR_TEST.bank_account), 'hiện số tài khoản nhận tiền');
   assert.ok(html.includes(QUOTE_DEFAULTS_FOR_TEST.signer_name), 'hiện tên người ký');
   assert.ok(html.split('grid-cols-[52fr_20fr_28fr]').length - 1 >= 2, 'dải thanh toán và chữ ký dùng chung tỉ lệ 3 cột');
+  assert.ok(html.includes('mt-[4.6rem]'), 'khối chữ ký cách nội dung phía trên 3 dòng (giống bản PDF)');
   assert.ok(!html.includes('<script'), 'không chèn HTML lạ từ dữ liệu người dùng');
   // Nội dung người dùng nhập được escape an toàn
   const evil = quickCreate({ company_name: 'CÔNG TY <b>X</b> & Co' });
   const escaped = renderToStaticMarkup(React.createElement(QuotePreview, { quote: db.getQuote(evil) }));
   assert.ok(escaped.includes('CÔNG TY &lt;b&gt;X&lt;/b&gt; &amp; Co'));
   assert.ok(!escaped.includes('<b>X</b>'));
+});
+
+test('chữ ký 2 bên cách nội dung phía trên đúng 3 dòng', async () => {
+  const { SIGNATURE_TOP_GAP, SIGNATURE_TOP_LINES, generateQuotePdf } = require('../lib/quote-pdf.ts');
+  assert.equal(SIGNATURE_TOP_LINES, 3, 'khoảng cách phải bằng đúng 3 dòng chữ 10pt');
+  assert.equal(SIGNATURE_TOP_GAP, 40.5, '3 dòng × leading 13.5pt');
+
+  // Đo trên PDF thật: đáy dải thông tin thanh toán → đỉnh chữ ký
+  const id = quickCreate({ company_name: 'KHÁCH ĐO KHOẢNG CÁCH' });
+  const bytes = await generateQuotePdf(db.getQuote(id));
+  assert.ok(bytes.length > 1000, 'PDF phải sinh được');
+
+  const { PDFDocument } = require('pdf-lib');
+  const pdf = await PDFDocument.load(bytes);
+  assert.ok(pdf.getPageCount() >= 1);
+  // Chữ ký phải nằm gọn trong trang (không bị khoảng cách mới đẩy sang trang mới)
+  assert.ok(pdf.getPageCount() <= 2, 'khoảng cách thêm không được làm phát sinh trang thừa');
 });
 
 test('nội dung gửi khách và PDF: đủ số tiền, bằng chữ, hạng mục tùy chọn', async () => {

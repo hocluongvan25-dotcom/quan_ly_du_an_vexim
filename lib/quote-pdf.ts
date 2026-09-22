@@ -85,6 +85,12 @@ type Fonts = { regular: PDFFont; bold: PDFFont; italic: PDFFont };
 const PAYMENT_COL_RATIOS = [0.52, 0.2, 0.28];
 const sumRatios = (ratios: number[]) => ratios.reduce((total, value) => total + value, 0);
 
+/** Chiều cao một dòng chữ 10pt (leading 1.35) — dùng để tính khoảng cách theo "dòng". */
+const LINE_HEIGHT = 13.5;
+/** Khối chữ ký 2 bên cách nội dung phía trên 3 dòng cho thoáng. */
+export const SIGNATURE_TOP_GAP = 3 * LINE_HEIGHT;
+export const SIGNATURE_TOP_LINES = SIGNATURE_TOP_GAP / LINE_HEIGHT;
+
 type TextOptions = {
   x?: number;
   width?: number;
@@ -558,8 +564,9 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
     ["Ngân hàng", QUOTE_DEFAULTS.bank_name, PAYMENT_COL_RATIOS[2]],
   ].filter(([, value]) => Boolean(value)) as Array<[string, string, number]>;
   const bankHeight = 32;
-  // Còn đủ chỗ cho khối thanh toán + khối chữ ký thì mới in, tránh đẩy chữ ký sang trang mới.
-  if (bankRows.length && doc.y - bankHeight - 150 >= doc.bottom) {
+  // Còn đủ chỗ cho khối thanh toán + khối chữ ký (kể cả khoảng cách 3 dòng) thì mới in,
+  // tránh đẩy chữ ký sang trang mới.
+  if (bankRows.length && doc.y - bankHeight - 150 - SIGNATURE_TOP_GAP >= doc.bottom) {
     doc.y -= 6;
     const bankTop = doc.y;
     doc.page.drawRectangle({ x: doc.left, y: bankTop - bankHeight, width: doc.width, height: bankHeight, color: NAVY_TINT });
@@ -582,8 +589,9 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
   }
 
   /* ------------------------------ Chữ ký -------------------------------- */
-  doc.y -= 14;
-  doc.ensure(120);
+  // Cách nội dung phía trên 3 dòng cho thoáng (đủ chỗ ký và đóng dấu).
+  doc.y -= 14 + SIGNATURE_TOP_GAP;
+  doc.ensure(120 + SIGNATURE_TOP_GAP);
   const [issueYear, issueMonth, issueDay] = quote.issue_date.split("-");
   doc.write(
     `${QUOTE_DEFAULTS.city}, ngày ${issueDay} tháng ${issueMonth} năm ${issueYear}`,
