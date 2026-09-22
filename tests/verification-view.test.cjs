@@ -183,3 +183,17 @@ test('English counts use singular and plural without changing the recorded value
   assert.equal(verificationText('en', 'renewals', { count: 1 }), 'Renewed 1 time');
   assert.equal(verificationText('en', 'termValue', { count: 1 }), '1 year per registration term');
 });
+
+test('trang quét QR tuyệt đối không hiển thị User/Pass của khách', () => {
+  const withCreds = { ...cert, portal_user: 'khach-portal', portal_pass: 'MatKhau@123' };
+  const safe = publicCertificate(withCreds);
+  assert.equal('portal_user' in safe, false);
+  assert.equal('portal_pass' in safe, false);
+  for (const locale of ['vi', 'en']) {
+    const html = renderToStaticMarkup(React.createElement(VerifyView, { cert: safe, checkedAt, locale }));
+    assert.equal(html.includes('MatKhau@123'), false, 'không được lộ mật khẩu trên trang QR');
+    assert.equal(html.includes('khach-portal'), false, 'không được lộ user trên trang QR');
+    assert.equal(html.includes('portal_pass'), false);
+    assert.equal(html.includes('portal_user'), false);
+  }
+});

@@ -89,6 +89,8 @@ function migrate(db: DatabaseSync) {
       service_price INTEGER NOT NULL DEFAULT 0,
       company_name TEXT NOT NULL DEFAULT '',
       company_email TEXT NOT NULL DEFAULT '',
+      portal_user TEXT NOT NULL DEFAULT '',
+      portal_pass TEXT NOT NULL DEFAULT '',
       scope TEXT NOT NULL DEFAULT '',
       registered_at TEXT NOT NULL,
       expires_at TEXT NOT NULL,
@@ -417,6 +419,13 @@ function migrate(db: DatabaseSync) {
     }
     if (!has("company_email")) {
       db.exec("ALTER TABLE certificates ADD COLUMN company_email TEXT NOT NULL DEFAULT ''");
+    }
+    // Thông tin đăng nhập của khách (lưu nội bộ, không lên QR)
+    if (!has("portal_user")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN portal_user TEXT NOT NULL DEFAULT ''");
+    }
+    if (!has("portal_pass")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN portal_pass TEXT NOT NULL DEFAULT ''");
     }
     // Remove fda_registration_status if it exists (feature removed)
     if (has("fda_registration_status")) {
@@ -868,6 +877,8 @@ function hydrate(row: Certificate): Certificate {
   if (!next.duns_code) next.duns_code = "";
   if (!next.us_agent) next.us_agent = "";
   if (!next.company_email) next.company_email = "";
+  if (!next.portal_user) next.portal_user = "";
+  if (!next.portal_pass) next.portal_pass = "";
   // GACC does not have DUNS or US Agent - clear if present
   if (next.standard === "GACC") {
     next.duns_code = "";
@@ -924,6 +935,8 @@ export function createCertificate(input: {
   service_price: number;
   company_name: string;
   company_email?: string;
+  portal_user?: string;
+  portal_pass?: string;
   scope: string;
   registered_at: string;
   validity_years?: number;
@@ -941,8 +954,9 @@ export function createCertificate(input: {
     .prepare(
       `INSERT INTO certificates (
         public_code, certificate_no, standard, registration_code, duns_code, us_agent,
-        service_price, company_name, company_email, scope, registered_at, expires_at, validity_years, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        service_price, company_name, company_email, portal_user, portal_pass,
+        scope, registered_at, expires_at, validity_years, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       publicCode,
@@ -954,6 +968,8 @@ export function createCertificate(input: {
       Math.max(0, Math.round(input.service_price || 0)),
       input.company_name.trim(),
       (input.company_email || "").trim(),
+      (input.portal_user || "").trim().slice(0, 200),
+      (input.portal_pass || "").slice(0, 200),
       input.scope.trim(),
       input.registered_at,
       expires,

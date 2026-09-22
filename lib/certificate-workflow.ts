@@ -10,6 +10,8 @@ export type CertificateInput = {
   service_price: number;
   company_name: string;
   company_email?: string;
+  portal_user?: string;
+  portal_pass?: string;
   scope: string;
   registered_at: string;
   validity_years?: number;
@@ -19,7 +21,8 @@ export type CertificateChanges = Required<CertificateInput> & { expires_at: stri
 
 export const certificateFields = [
   "standard", "registration_code", "duns_code", "us_agent", "service_price",
-  "company_name", "company_email", "scope", "registered_at", "validity_years", "expires_at",
+  "company_name", "company_email", "portal_user", "portal_pass", "scope", "registered_at",
+  "validity_years", "expires_at",
 ] as const;
 
 /** Only changing contract dates/standard may recalculate expiry. Never lose a renewal on a metadata edit. */
@@ -35,6 +38,8 @@ export function prepareCertificateChanges(current: Certificate, input: Certifica
     service_price: Math.max(0, Math.round(input.service_price || 0)),
     company_name: input.company_name.trim(),
     company_email: (input.company_email ?? current.company_email).trim(),
+    portal_user: (input.portal_user ?? current.portal_user ?? "").trim().slice(0, 200),
+    portal_pass: (input.portal_pass ?? current.portal_pass ?? "").slice(0, 200),
     scope: input.scope.trim(),
     registered_at: input.registered_at,
     validity_years: validity,
@@ -55,7 +60,14 @@ export function needsCertificateApproval(item: Certificate) {
   return item.status === "draft" || Boolean(item.pending_changes) || !item.validity_confirmed;
 }
 
-/** Explicit public allowlist: never serialize pending edits, prices or contact details into the QR page. */
+/** Mask a stored credential before it is shown in a diff/review list. */
+export function maskCredential(value: string) {
+  const text = (value || "").trim();
+  return text ? "\u2022".repeat(Math.min(text.length, 10)) : "";
+}
+
+/** Explicit public allowlist: never serialize pending edits, prices, contact details or
+ *  customer portal credentials into the QR page. */
 export function publicCertificate(item: Certificate) {
   return {
     public_code: item.public_code, certificate_no: item.certificate_no,

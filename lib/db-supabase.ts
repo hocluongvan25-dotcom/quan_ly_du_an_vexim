@@ -74,6 +74,8 @@ function mapCert(row: Record<string, unknown>): Certificate {
     service_price: Number(row.service_price || 0),
     company_name: String(row.company_name || ""),
     company_email: String(row.company_email || ""),
+    portal_user: String(row.portal_user || ""),
+    portal_pass: String(row.portal_pass || ""),
     scope: String(row.scope || ""),
     registered_at: String(row.registered_at).slice(0, 10),
     expires_at: String(row.expires_at).slice(0, 10),
@@ -115,6 +117,14 @@ function assertNoSupabaseError(error: any, context: string) {
       `SUPABASE_SCHEMA_MISSING: Table '${context}' does not exist or is not exposed in Supabase. ` +
         `Please go to Supabase Dashboard > SQL Editor and run the entire supabase/schema.sql file, ` +
         `then run: NOTIFY pgrst, 'reload schema'; ` +
+        `Original details: ${error.message}`
+    );
+  }
+  if (error.code === "PGRST204" || String(error.message || "").includes("PGRST204")) {
+    throw new Error(
+      `SUPABASE_SCHEMA_MISSING: Column '${context}' is missing in Supabase (schema cache is stale). ` +
+        `Run supabase/migrations/20260922_certificate_portal_credentials.sql in the SQL Editor, ` +
+        `or run the whole supabase/schema.sql, then run: NOTIFY pgrst, 'reload schema'; ` +
         `Original details: ${error.message}`
     );
   }
@@ -382,6 +392,8 @@ export async function createCertificate(input: {
   service_price: number;
   company_name: string;
   company_email?: string;
+  portal_user?: string;
+  portal_pass?: string;
   scope: string;
   registered_at: string;
   validity_years?: number;
@@ -405,6 +417,8 @@ export async function createCertificate(input: {
       service_price: Math.max(0, Math.round(input.service_price || 0)),
       company_name: input.company_name.trim(),
       company_email: (input.company_email || "").trim(),
+      portal_user: (input.portal_user || "").trim().slice(0, 200),
+      portal_pass: (input.portal_pass || "").slice(0, 200),
       scope: input.scope.trim(),
       registered_at: input.registered_at,
       expires_at: expires,

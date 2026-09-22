@@ -50,6 +50,8 @@ export async function POST(req: Request) {
       service_price: Number(body.service_price || 0),
       company_name: String(body.company_name),
       company_email: companyEmail,
+      portal_user: String(body.portal_user || "").slice(0, 200),
+      portal_pass: String(body.portal_pass || "").slice(0, 200),
       scope: String(body.scope || ""),
       registered_at: String(body.registered_at).slice(0, 10),
       validity_years: validity_years || undefined,

@@ -33,6 +33,7 @@ const input = {
   standard: 'FDA', registration_code: 'REG-TEST', duns_code: '123456789', us_agent: 'Agent',
   company_name: 'Original company', company_email: 'original@example.com', scope: 'Original scope',
   service_price: 1000000, registered_at: '2026-01-01', validity_years: 2, created_by: 1,
+  portal_user: 'khach-hang-portal', portal_pass: 'MatKhau@123',
 };
 function create(patch = {}) { return db.createCertificate({ ...input, ...patch }); }
 function ctx(id) { return { params: { id: String(id) } }; }
@@ -61,7 +62,7 @@ test('published edits wait for approval; QR, public data and revenue stay unchan
   const response = await publicApi.GET(new Request('http://test'), { params: { code: original.public_code } });
   const publicItem = (await response.json()).item;
   assert.equal(publicItem.company_name, original.company_name);
-  for (const field of ['pending_changes', 'service_price', 'company_email', 'created_by']) {
+  for (const field of ['pending_changes', 'service_price', 'company_email', 'created_by', 'portal_user', 'portal_pass']) {
     assert.equal(field in publicItem, false);
     assert.equal(field in publicCertificate(pending), false);
   }
@@ -71,6 +72,60 @@ test('published edits wait for approval; QR, public data and revenue stay unchan
   assert.equal(approved.pending_changes, null);
   assert.equal(approved.public_code, original.public_code);
   assert.equal(approved.published_at, original.published_at);
+});
+
+test('thông tin đăng nhập của khách chỉ lưu nội bộ: không lên QR, API công khai hay email', async () => {
+  session = { id: 1, email: 'specialist@veximglobal.com', name: 'Specialist', role: 'specialist' };
+  const id = create();
+  const saved = db.getCertificate(id);
+  assert.equal(saved.portal_user, 'khach-hang-portal');
+  assert.equal(saved.portal_pass, 'MatKhau@123');
+  assert.deepEqual(db.listCertificates().find((c) => c.id === id).portal_pass, 'MatKhau@123');
+
+  const published = db.publishCertificate(id);
+
+  // 1. Allowlist công khai tuyệt đối không chứa 2 trường này
+  const publicPayload = publicCertificate(published);
+  assert.equal('portal_user' in publicPayload, false);
+  assert.equal('portal_pass' in publicPayload, false);
+
+  // 2. JSON thật của API công khai (khách quét QR gọi) không chứa user/pass
+  const res = await publicApi.GET(new Request('http://test'), { params: { code: published.public_code } });
+  const text = await res.text();
+  assert.equal(text.includes('MatKhau@123'), false, 'mật khẩu không được lộ trong API công khai');
+  assert.equal(text.includes('khach-hang-portal'), false, 'user không được lộ trong API công khai');
+  assert.equal('portal_pass' in JSON.parse(text).item, false);
+
+  // 3. Sửa qua API cũng đi theo luồng duyệt: bản công khai giữ nguyên tới khi admin duyệt
+  const body = {
+    standard: published.standard, registration_code: published.registration_code,
+    duns_code: published.duns_code, us_agent: published.us_agent,
+    service_price: published.service_price, company_name: published.company_name,
+    company_email: published.company_email, scope: published.scope,
+    registered_at: published.registered_at, validity_years: published.validity_years,
+    expected_updated_at: published.updated_at,
+    portal_user: 'khach-hang-portal-2', portal_pass: 'MatKhauMoi@456',
+  };
+  const putRes = await put(id, body);
+  assert.equal(putRes.status, 200);
+  const pending = db.getCertificate(id);
+  assert.equal(pending.portal_pass, 'MatKhau@123', 'chưa duyệt thì bản đang lưu không đổi');
+  assert.equal(pending.pending_changes.portal_pass, 'MatKhauMoi@456');
+  assert.equal(pending.public_code, published.public_code);
+
+  const approved = db.publishCertificate(id, pending.updated_at);
+  assert.equal(approved.portal_user, 'khach-hang-portal-2');
+  assert.equal(approved.portal_pass, 'MatKhauMoi@456');
+  assert.deepEqual(approved.public_code, published.public_code);
+});
+
+test('maskCredential chỉ hiện dấu chấm khi đối chiếu bản chờ duyệt', () => {
+  session = null;
+  const { maskCredential } = require('../lib/certificate-workflow.ts');
+  assert.equal(maskCredential('MatKhau@123'), '••••••••••');
+  assert.equal(maskCredential('1234567890123456'), '••••••••••');
+  assert.equal(maskCredential(''), '');
+  assert.equal(maskCredential('   '), '');
 });
 
 test('no-op save/publish and repeated reads do not reset QR, dates or timestamps', () => {

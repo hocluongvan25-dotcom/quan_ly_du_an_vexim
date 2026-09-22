@@ -49,6 +49,9 @@ export async function createCertificate(input: {
   service_price: number;
   company_name: string;
   company_email?: string;
+  /** Customer portal login - internal only, never part of the public/QR payload. */
+  portal_user?: string;
+  portal_pass?: string;
   scope: string;
   registered_at: string;
   validity_years?: number;
@@ -67,6 +70,9 @@ export async function updateCertificate(
     service_price: number;
     company_name: string;
     company_email?: string;
+    /** Customer portal login - internal only, never part of the public/QR payload. */
+    portal_user?: string;
+    portal_pass?: string;
     scope: string;
     registered_at: string;
     validity_years?: number;

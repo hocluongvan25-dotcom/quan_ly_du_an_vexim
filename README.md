@@ -6,6 +6,8 @@ Internal system of **Vexim Global Co., Ltd**: FDA / GACC record management, QR v
 - Renewal follows contract duration
 - Roles: Admin and Specialist
 - QR landing page **does not display service fees**
+- Certificate form keeps the customer's portal **User / Pass** for internal use only — never printed on the QR/verification page,
+  never returned by the public API and never sent in warning emails
 - Data managed on **Supabase** (PostgreSQL)
 - Deploy on **Vercel**
 

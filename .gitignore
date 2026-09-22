@@ -11,3 +11,6 @@ image-search
 .env.local
 .env*.local
 tsconfig.tsbuildinfo
+
+# Ảnh chụp màn hình kiểm tra nội bộ (không commit)
+samples/

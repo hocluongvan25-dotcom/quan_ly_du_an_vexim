@@ -12,6 +12,11 @@
 - Mở lại hồ sơ chỉ đọc dữ liệu mới nhất (`no-store`). QR đã xuất bản tự hiện, không cần xuất bản lại. Nút “Đã xuất bản” bị vô hiệu hóa khi không có gì cần duyệt.
 - Lưu không đổi hoặc xuất bản lại hồ sơ đã duyệt là no-op. Sửa tên/phạm vi/email không tính lại ngày hết hạn đã gia hạn; chỉ thay đổi dữ liệu thời hạn mới tính lại ngày hết hạn.
 - Trang QR và public API không truyền bản sửa chờ duyệt, phí hoặc email doanh nghiệp cho khách hàng.
+- Form có mục **Đăng nhập tài khoản khách (nội bộ)** gồm `User` và `Pass` để nhân viên vào tài khoản của khách xử lý hồ sơ.
+  Hai trường này lưu trong `certificates.portal_user` / `certificates.portal_pass`, **chỉ hiển thị trong hệ thống nội bộ**:
+  không nằm trong allowlist `publicCertificate`, không có trong JSON của `/api/public/certificates/[code]`, không in ra QR/SVG và
+  không gửi trong email cảnh báo hết hạn. Ô mật khẩu mặc định bị che, bấm con mắt để xem; bảng đối chiếu chờ duyệt chỉ hiện dấu `•••`.
+  Sửa User/Pass cũng đi theo luồng duyệt như các trường khác (nháp lưu ngay, hồ sơ đã xuất bản thì chờ admin duyệt).
 
 ## Triển khai
 

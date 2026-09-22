@@ -7,8 +7,8 @@ import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
 import { expiryFromStandard, formatDate, remainingDays, getValidityYears, formatDuns, todayLocalIso, todayUtcIso } from "@/lib/utils";
 import { FDA_FIXED_YEARS, GACC_FIXED_YEARS, type Certificate, type Standard, type Role } from "@/lib/types";
-import { CheckCircle2, Loader2, X, Building2, Mail, EyeOff, Search } from "lucide-react";
-import { needsCertificateApproval, certificateFields } from "@/lib/certificate-workflow";
+import { CheckCircle2, Loader2, X, Building2, Mail, EyeOff, Eye, KeyRound, Lock, Search } from "lucide-react";
+import { needsCertificateApproval, certificateFields, maskCredential } from "@/lib/certificate-workflow";
 import { useI18n } from "@/lib/i18n/context";
 
 type CompanyOption = { id: number; company_name: string; email: string; standards?: string[]; certificate_count?: number; services_label?: string };
@@ -21,6 +21,8 @@ type FormState = {
   service_price: string;
   company_name: string;
   company_email: string;
+  portal_user: string;
+  portal_pass: string;
   scope: string;
   registered_at: string;
   validity_years: number;
@@ -38,6 +40,8 @@ function toForm(item?: Certificate, prefill?: Prefill): FormState {
     service_price: source ? String(source.service_price) : prefill?.price || "",
     company_name: source?.company_name || prefill?.company || "",
     company_email: source?.company_email || prefill?.email || "",
+    portal_user: source?.portal_user || "",
+    portal_pass: source?.portal_pass || "",
     scope: source?.scope || "",
     registered_at: source?.registered_at?.slice(0, 10) || todayLocalIso(),
     validity_years: source?.standard === "GACC" ? GACC_FIXED_YEARS : FDA_FIXED_YEARS,
@@ -68,6 +72,7 @@ export function CertificateForm({ initial, prefill, role }: {
   const [origin, setOrigin] = useState("");
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [companySearchOpen, setCompanySearchOpen] = useState(false);
+  const [showPass, setShowPass] = useState(false);
   const companyWrapRef = useRef<HTMLDivElement>(null);
 
   const [showRenewDialog, setShowRenewDialog] = useState(false);
@@ -189,6 +194,13 @@ export function CertificateForm({ initial, prefill, role }: {
     setForm((s) => ({ ...s, [key]: value }));
   }
 
+  // Diff rows for the admin review list: never print a stored password in clear text.
+  function diffValue(field: string, value: unknown) {
+    const text = String(value ?? "").trim();
+    if (field === "portal_pass") return text ? maskCredential(text) : "—";
+    return text || "—";
+  }
+
   function handleDunsChange(value: string) {
     const digits = value.replace(/\D/g, "").slice(0, 9);
     setForm((s) => ({ ...s, duns_code: digits }));
@@ -214,6 +226,8 @@ export function CertificateForm({ initial, prefill, role }: {
       expected_updated_at: item?.updated_at,
       company_name: form.company_name.trim(),
       company_email: form.company_email.trim(),
+      portal_user: form.portal_user.trim().slice(0, 200),
+      portal_pass: form.portal_pass.slice(0, 200),
       service_price: Number(String(form.service_price).replace(/[^\d]/g, "") || 0),
       validity_years: finalValidity,
       duns_code: isGacc ? "" : form.duns_code.replace(/\D/g, "").slice(0, 9),
@@ -337,7 +351,7 @@ export function CertificateForm({ initial, prefill, role }: {
               <summary className="cursor-pointer font-semibold">{t("form.reviewChanges")}</summary>
               <ul className="mt-2 space-y-2 break-words text-xs">
                 {certificateFields.filter((field) => item.pending_changes![field] !== item[field]).map((field) => (
-                  <li key={field}><b>{t(`form.changeFields.${field}`)}</b>: {String(item[field] || "—")} → <b>{String(item.pending_changes![field] || "—")}</b></li>
+                  <li key={field}><b>{t(`form.changeFields.${field}`)}</b>: {diffValue(field, item[field])} → <b>{diffValue(field, item.pending_changes![field])}</b></li>
                 ))}
               </ul>
             </details>
@@ -549,6 +563,59 @@ export function CertificateForm({ initial, prefill, role }: {
               placeholder={t("form.scopePlaceholder")}
             />
           </Field>
+          <div className="md:col-span-2 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h3 className="inline-flex items-center gap-2 font-display text-sm font-extrabold text-navy-900">
+                <Lock className="h-4 w-4 text-amber-600" />
+                {t("form.portalSection")}
+              </h3>
+              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2.5 py-0.5 text-[10px] font-bold text-amber-700">
+                <EyeOff className="h-3 w-3" /> {t("form.internalOnly")}
+              </span>
+            </div>
+            <p className="mt-1.5 text-[11px] leading-relaxed text-navy-900/55">{t("form.portalHelp")}</p>
+            <div className="mt-3 grid gap-4 md:grid-cols-2">
+              <Field label={t("form.portalUser")}>
+                <div className="relative group">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex w-11 items-center justify-center">
+                    <KeyRound className="h-[18px] w-[18px] text-slate-400 group-focus-within:text-navy-900/70" />
+                  </div>
+                  <div className="pointer-events-none absolute left-11 top-1/2 h-5 w-px -translate-y-1/2 bg-navy-900/10" />
+                  <input
+                    className="input !pl-[52px] !pr-3"
+                    value={form.portal_user}
+                    onChange={(e) => patch("portal_user", e.target.value)}
+                    placeholder={t("form.portalUserPlaceholder")}
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                </div>
+              </Field>
+              <Field label={t("form.portalPass")}>
+                <div className="relative group">
+                  <input
+                    className="input !pr-11"
+                    type={showPass ? "text" : "password"}
+                    value={form.portal_pass}
+                    onChange={(e) => patch("portal_pass", e.target.value)}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    spellCheck={false}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPass((v) => !v)}
+                    aria-label={showPass ? t("form.hidePass") : t("form.showPass")}
+                    title={showPass ? t("form.hidePass") : t("form.showPass")}
+                    className="absolute right-1 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full hover:bg-slate-100"
+                    tabIndex={-1}
+                  >
+                    {showPass ? <EyeOff className="h-4 w-4 text-slate-500" /> : <Eye className="h-4 w-4 text-slate-500" />}
+                  </button>
+                </div>
+              </Field>
+            </div>
+          </div>
           <Field label={t("form.registrationDate")}>
             <input
               type="date"

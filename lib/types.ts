@@ -28,6 +28,8 @@ export type Certificate = {
   service_price: number;
   company_name: string;
   company_email: string; // Company email for expiry warnings, hidden from QR
+  portal_user: string; // Customer login (internal only - staff use it to work in the customer portal)
+  portal_pass: string; // Password for that login (internal only - never rendered on the QR/verify page)
   scope: string;
   registered_at: string;
   expires_at: string;
