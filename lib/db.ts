@@ -4,6 +4,10 @@ import * as sqlite from "./db-sqlite";
 import * as cloud from "./db-supabase";
 import type { Role, Standard } from "./types";
 import type { QuoteDraft, QuoteStatus } from "./quotes";
+import type { CertificateWriteMeta } from "./db-supabase";
+
+/** Cột tùy chọn bị DB bỏ qua khi ghi (xem CertificateWriteMeta). */
+export type { CertificateWriteMeta };
 import { mergeQuoteTemplateRows, type QuoteTemplateDef, type QuoteTemplateKey } from "./quote-templates";
 
 export function usingSupabase() {
@@ -56,8 +60,8 @@ export async function createCertificate(input: {
   registered_at: string;
   validity_years?: number;
   created_by: number;
-}) {
-  return isSupabaseEnabled() ? cloud.createCertificate(input as any) : sqlite.createCertificate(input as any);
+}, meta?: CertificateWriteMeta) {
+  return isSupabaseEnabled() ? cloud.createCertificate(input as any, meta) : sqlite.createCertificate(input as any);
 }
 
 export async function updateCertificate(
@@ -77,17 +81,22 @@ export async function updateCertificate(
     registered_at: string;
     validity_years?: number;
   },
-  expectedUpdatedAt?: string
+  expectedUpdatedAt?: string,
+  meta?: CertificateWriteMeta
 ) {
-  return isSupabaseEnabled() ? cloud.updateCertificate(id, input, expectedUpdatedAt) : sqlite.updateCertificate(id, input, expectedUpdatedAt);
+  return isSupabaseEnabled()
+    ? cloud.updateCertificate(id, input, expectedUpdatedAt, meta)
+    : sqlite.updateCertificate(id, input, expectedUpdatedAt);
 }
 
 export async function confirmValidity(id: number) {
   return isSupabaseEnabled() ? cloud.confirmValidity(id) : sqlite.confirmValidity(id);
 }
 
-export async function publishCertificate(id: number, expectedUpdatedAt?: string) {
-  return isSupabaseEnabled() ? cloud.publishCertificate(id, expectedUpdatedAt) : sqlite.publishCertificate(id, expectedUpdatedAt);
+export async function publishCertificate(id: number, expectedUpdatedAt?: string, meta?: CertificateWriteMeta) {
+  return isSupabaseEnabled()
+    ? cloud.publishCertificate(id, expectedUpdatedAt, meta)
+    : sqlite.publishCertificate(id, expectedUpdatedAt);
 }
 
 export async function renewCertificate(id: number, extraFee = 0, renewalYears?: number) {

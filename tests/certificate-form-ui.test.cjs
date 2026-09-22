@@ -100,8 +100,15 @@ global.fetch = (url, init) => {
     const body = JSON.parse(String(init?.body || '{}'));
     calls.push({ method, url: target, body });
     if (method === 'PUT') {
+      if (body.action === 'publish') {
+        current = { ...current, ...(current.pending_changes || {}), pending_changes: null, status: 'published', validity_confirmed: 1 };
+        const w = global.__PORTAL_WARNING__ ? String(global.__PORTAL_WARNING__) : undefined;
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ item: current, warning: w, dropped_columns: w ? ['portal_user', 'portal_pass'] : [] }) });
+      }
       current = { ...current, ...body, pending_changes: null };
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ item: current }) });
+      // Mô phỏng Supabase chưa chạy migration: API trả cảnh báo 2 cột chưa lưu được
+      const warning = global.__PORTAL_WARNING__ ? String(global.__PORTAL_WARNING__) : undefined;
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ item: current, warning, dropped_columns: warning ? ['portal_user', 'portal_pass'] : [] }) });
     }
     return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 8 }) });
   }
@@ -288,4 +295,48 @@ test('thời hạn hợp đồng là dropdown 1-10 năm, đổi số năm là ng
   assert.equal(fdaSelect.options.length, 10, 'FDA vẫn đủ 1-10 năm');
   assert.equal(fdaSelect.value, '2', 'FDA về mặc định 2 năm');
   assert.equal(inputByLabel(container, 'Ngày hết hạn').value, '2028-01-01');
+});
+
+test('DB chưa có cột User/Pass: form vẫn lưu được và hiện cảnh báo rõ ràng', async () => {
+  global.__PORTAL_WARNING__ = 'Đã lưu hồ sơ, nhưng database chưa có cột portal_user, portal_pass nên User/Pass chưa lưu được. '
+    + "Hãy chạy supabase/migrations/20260922_certificate_portal_credentials.sql rồi NOTIFY pgrst, 'reload schema';";
+  try {
+    const { container } = await renderForm(CERT);
+    await typeInto(inputByLabel(container, 'User'), 'khach-portal-3');
+    const save = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Lưu thay đổi'));
+    await act(async () => { save.click(); });
+    await flush(60);
+    const status = container.querySelector('[role="status"]');
+    assert.ok(status, 'phải hiện thông báo sau khi lưu');
+    assert.match(status.textContent, /database chưa có cột portal_user, portal_pass/, 'phải nói rõ User/Pass chưa lưu được');
+    assert.match(status.textContent, /20260922_certificate_portal_credentials\.sql/, 'phải chỉ đúng file migration cần chạy');
+    assert.match(status.textContent, /Đã lưu hồ sơ/, 'vẫn phải xác nhận hồ sơ đã lưu');
+    // Phần còn lại của hồ sơ vẫn được lưu bình thường (tên công ty gửi lên nguyên vẹn)
+    assert.equal(inputByLabel(container, 'Tên công ty').value, CERT.company_name);
+  } finally {
+    delete global.__PORTAL_WARNING__;
+  }
+});
+
+test('duyệt hồ sơ khi DB thiếu cột: vẫn duyệt được và cảnh báo User/Pass chưa lưu', async () => {
+  global.__PORTAL_WARNING__ = 'Đã duyệt hồ sơ, nhưng database chưa có cột portal_user, portal_pass nên User/Pass chưa lưu được. '
+    + "Hãy chạy supabase/migrations/20260922_certificate_portal_credentials.sql rồi NOTIFY pgrst, 'reload schema';";
+  try {
+    const pending = {
+      ...CERT,
+      validity_confirmed: 0,
+      pending_changes: { ...CERT, validity_confirmed: 0, portal_user: 'khach-portal-9', portal_pass: 'MatKhauMoi@999', expires_at: CERT.expires_at },
+    };
+    const { container } = await renderForm(pending);
+    const approve = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Duyệt'));
+    assert.ok(approve, 'thiếu nút duyệt');
+    await act(async () => { approve.click(); });
+    await flush(60);
+    const status = container.querySelector('[role="status"]');
+    assert.ok(status, 'phải hiện thông báo sau khi duyệt');
+    assert.match(status.textContent, /Đã duyệt hồ sơ/, 'vẫn phải xác nhận đã duyệt');
+    assert.match(status.textContent, /portal_user, portal_pass/, 'phải nói rõ 2 cột chưa lưu được');
+  } finally {
+    delete global.__PORTAL_WARNING__;
+  }
 });

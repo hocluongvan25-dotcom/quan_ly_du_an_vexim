@@ -256,7 +256,8 @@ export function CertificateForm({ initial, prefill, role }: {
       }
       setItem(data.item);
       setForm(toForm(data.item));
-      setMsg(data.item.pending_changes || data.item.status === "draft" ? t("form.savedForApproval") : t("form.noPendingChanges"));
+      // DB thiếu cột (chưa migration) thì API trả cảnh báo để nhân viên biết User/Pass chưa lưu được
+      setMsg(data.warning || (data.item.pending_changes || data.item.status === "draft" ? t("form.savedForApproval") : t("form.noPendingChanges")));
       router.refresh();
     } catch (error) {
       setMsg(error instanceof Error ? error.message : t("form.requestFailed"));
@@ -277,7 +278,7 @@ export function CertificateForm({ initial, prefill, role }: {
       });
       setItem(data.item);
       setForm(toForm(data.item));
-      setMsg(t("form.approvedMsg"));
+      setMsg(data.warning || t("form.approvedMsg"));
       router.refresh();
     } catch (error) {
       setMsg(error instanceof Error ? error.message : t("form.requestFailed"));

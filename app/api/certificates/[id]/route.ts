@@ -6,6 +6,7 @@ import {
   publishCertificate,
   renewCertificate,
   updateCertificate,
+  type CertificateWriteMeta,
 } from "@/lib/db";
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
@@ -45,8 +46,14 @@ export async function PUT(req: Request, ctx: Ctx) {
       if (typeof body.expected_updated_at !== "string" || !body.expected_updated_at) {
         return NextResponse.json({ error: "Vui lòng tải lại hồ sơ trước khi duyệt." }, { status: 400 });
       }
-      const item = await publishCertificate(id, body.expected_updated_at);
-      return NextResponse.json({ item });
+      const publishMeta: CertificateWriteMeta = {};
+      const item = await publishCertificate(id, body.expected_updated_at, publishMeta);
+      const dropped = publishMeta.droppedColumns || [];
+      const warning = dropped.length
+        ? `Đã duyệt hồ sơ, nhưng database chưa có cột ${dropped.join(", ")} nên User/Pass chưa lưu được. ` +
+          `Hãy chạy supabase/migrations/20260922_certificate_portal_credentials.sql rồi NOTIFY pgrst, 'reload schema';`
+        : undefined;
+      return NextResponse.json({ item, warning, dropped_columns: dropped });
     }
     if (action === "renew") {
       const extraFee = Number(body.extra_fee || body.renew_fee || 0);
@@ -89,6 +96,7 @@ export async function PUT(req: Request, ctx: Ctx) {
     if (companyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(companyEmail)) {
       return NextResponse.json({ error: "Email doanh nghiệp không hợp lệ." }, { status: 400 });
     }
+    const meta: CertificateWriteMeta = {};
     await updateCertificate(id, {
       standard: standard as Standard,
       registration_code: String(body.registration_code || ""),
@@ -102,8 +110,14 @@ export async function PUT(req: Request, ctx: Ctx) {
       scope: String(body.scope || ""),
       registered_at: String(body.registered_at || "").slice(0, 10),
       validity_years,
-    }, typeof body.expected_updated_at === "string" ? body.expected_updated_at : undefined);
-    return NextResponse.json({ item: await getCertificate(id) });
+    }, typeof body.expected_updated_at === "string" ? body.expected_updated_at : undefined, meta);
+    const item = await getCertificate(id);
+    const dropped = meta.droppedColumns || [];
+    const warning = dropped.length
+      ? `Đã lưu hồ sơ, nhưng database chưa có cột ${dropped.join(", ")} nên User/Pass chưa lưu được. ` +
+        `Hãy chạy supabase/migrations/20260922_certificate_portal_credentials.sql rồi NOTIFY pgrst, 'reload schema';`
+      : undefined;
+    return NextResponse.json({ item, warning, dropped_columns: dropped });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "ERROR";
     if (msg.includes("SUPABASE_SCHEMA_MISSING") || msg.includes("PGRST205")) {

@@ -376,6 +376,108 @@ test('GACC and expired published certificates keep their QR during review', () =
   assert.equal(db.publishCertificate(id).status, 'expired');
 });
 
+test('DB chưa chạy migration: thiếu cột portal_user/portal_pass vẫn lưu và duyệt được hồ sơ', async () => {
+  const cloud = require('../lib/db-supabase.ts');
+  const supabase = require('../lib/supabase.ts');
+  const originalClient = supabase.supabaseAdmin;
+  const PGRST204 = (column) => ({
+    code: 'PGRST204',
+    message: `Could not find the '${column}' column of 'certificates' in the schema cache`,
+    details: null, hint: null,
+  });
+
+  // DB "cũ": không có 2 cột portal_*, mọi lệnh ghi kèm 2 cột đó đều bị Supabase từ chối như production
+  const row = {
+    ...db.publishCertificate(create()),
+    id: 900,
+    portal_user: '', portal_pass: '',
+  };
+  const writes = [];
+  supabase.supabaseAdmin = () => ({
+    from() {
+      const filters = [];
+      let payload;
+      return {
+        select() { return this; },
+        eq(key, value) { filters.push([key, value]); return this; },
+        update(value) { payload = value; return this; },
+        insert(value) { payload = value; return this; },
+        async single() {
+          // Supabase thật chỉ nêu 1 cột mỗi lần: cột nào còn trong payload thì bị nêu tên
+          if (payload && ('portal_user' in payload || 'portal_pass' in payload)) {
+            return { data: null, error: PGRST204('portal_user' in payload ? 'portal_user' : 'portal_pass') };
+          }
+          if (payload) {
+            writes.push(Object.keys(payload));
+            return { data: { ...row, ...structuredClone(payload), id: row.id }, error: null };
+          }
+          return { data: structuredClone(row), error: null };
+        },
+        async maybeSingle() {
+          if (payload && ('portal_user' in payload || 'portal_pass' in payload)) {
+            return { data: null, error: PGRST204('portal_pass' in payload ? 'portal_pass' : 'portal_user') };
+          }
+          if (!filters.every(([key, value]) => row[key] === value)) return { data: null, error: null };
+          if (payload) { writes.push(Object.keys(payload)); Object.assign(row, structuredClone(payload)); }
+          return { data: structuredClone(row), error: null };
+        },
+      };
+    },
+  });
+
+  try {
+    // 1. Sửa hồ sơ nháp: ghi lại thành công, 2 cột bị bỏ qua và báo lại qua meta
+    row.status = 'draft';
+    const meta = {};
+    await cloud.updateCertificate(row.id, {
+      standard: row.standard, registration_code: row.registration_code, duns_code: row.duns_code,
+      us_agent: row.us_agent, service_price: row.service_price, company_name: 'Tên mới sau migration',
+      company_email: row.company_email, portal_user: 'khach-portal', portal_pass: 'MatKhau@123',
+      scope: row.scope, registered_at: row.registered_at, validity_years: row.validity_years,
+    }, row.updated_at, meta);
+
+    assert.deepEqual(meta.droppedColumns.sort(), ['portal_pass', 'portal_user'], 'phải báo lại 2 cột bị bỏ');
+    const lastDraftWrite = writes[writes.length - 1];
+    assert.equal(lastDraftWrite.includes('portal_user'), false, 'lần ghi cuối không còn portal_user');
+    assert.equal(lastDraftWrite.includes('portal_pass'), false, 'lần ghi cuối không còn portal_pass');
+    assert.equal(row.company_name, 'Tên mới sau migration', 'phần còn lại của hồ sơ vẫn được lưu');
+    assert.equal(row.updated_at, meta.updatedAt || row.updated_at);
+
+    // 2. Duyệt hồ sơ đã xuất bản có bản sửa chứa User/Pass: không được ném lỗi
+    row.status = 'published';
+    row.validity_confirmed = false;
+    const approved = await cloud.publishCertificate(row.id);
+    assert.equal(approved.status, 'published');
+    assert.equal(row.validity_confirmed, true, 'đã duyệt dù thiếu cột');
+    assert.equal(writes[writes.length - 1].includes('portal_pass'), false);
+
+    // 3. Lỗi thiếu cột KHÁC (không phải cột tùy chọn) vẫn phải báo rõ ràng, không bị che
+    supabase.supabaseAdmin = () => ({
+      from() {
+        let payload;
+        return {
+          select() { return this; }, eq() { return this; }, update(v) { payload = v; return this; },
+          insert(v) { payload = v; return this; },
+          async maybeSingle() { return { data: null, error: PGRST204('field_khong_ton_tai') }; },
+          async single() { void payload; return { data: null, error: PGRST204('field_khong_ton_tai') }; },
+        };
+      },
+    });
+    await assert.rejects(
+      () => cloud.updateCertificate(row.id, {
+        standard: row.standard, registration_code: row.registration_code, duns_code: row.duns_code,
+        us_agent: row.us_agent, service_price: row.service_price, company_name: 'X',
+        company_email: row.company_email, scope: row.scope, registered_at: row.registered_at,
+        validity_years: row.validity_years,
+      }),
+      (e) => /field_khong_ton_tai/.test(e.message) && /SUPABASE_SCHEMA_MISSING/.test(e.message),
+      'thiếu cột khác phải báo lỗi rõ ràng'
+    );
+  } finally {
+    supabase.supabaseAdmin = originalClient;
+  }
+});
+
 test('Supabase adapter contract (mocked client): staging, approval, no-op and concurrent-write protection', async () => {
   const cloud = require('../lib/db-supabase.ts');
   const supabase = require('../lib/supabase.ts');

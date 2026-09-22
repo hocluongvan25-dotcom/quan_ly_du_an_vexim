@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { createCertificate, listCertificates } from "@/lib/db";
+import { createCertificate, listCertificates, type CertificateWriteMeta } from "@/lib/db";
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
 import { isInvalidValidityInput, isValidDunsCode, resolveValidityYears } from "@/lib/types";
@@ -50,6 +50,7 @@ export async function POST(req: Request) {
     if (companyEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(companyEmail)) {
       return NextResponse.json({ error: "Email doanh nghiệp không hợp lệ." }, { status: 400 });
     }
+    const meta: CertificateWriteMeta = {};
     const id = await createCertificate({
       standard: standard as Standard,
       registration_code: String(body.registration_code),
@@ -64,8 +65,13 @@ export async function POST(req: Request) {
       registered_at: String(body.registered_at).slice(0, 10),
       validity_years: validity_years || undefined,
       created_by: user.id,
-    });
-    return NextResponse.json({ id });
+    }, meta);
+    const dropped = meta.droppedColumns || [];
+    const warning = dropped.length
+      ? `Đã tạo hồ sơ, nhưng database chưa có cột ${dropped.join(", ")} nên User/Pass chưa lưu được. ` +
+        `Hãy chạy supabase/migrations/20260922_certificate_portal_credentials.sql rồi NOTIFY pgrst, 'reload schema';`
+      : undefined;
+    return NextResponse.json({ id, warning, dropped_columns: dropped });
   } catch (e) {
     return handleApiError(e);
   }

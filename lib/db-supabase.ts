@@ -98,10 +98,75 @@ function mapCert(row: Record<string, unknown>): Certificate {
   return item;
 }
 
+/**
+ * Hai cột này chỉ là thông tin đăng nhập nội bộ của khách. Nếu database chưa chạy migration
+ * thì bỏ qua chúng để hồ sơ vẫn lưu được, thay vì làm hỏng cả thao tác lưu/duyệt.
+ */
+const OPTIONAL_CERTIFICATE_COLUMNS = ["portal_user", "portal_pass"] as const;
+
+/** Supabase báo cột thiếu trong schema cache khi migration chưa chạy: "Could not find the 'x' column of ...". */
+function missingColumnName(error: any): string | null {
+  const match = String(error?.message || "").match(/could not find the '([^']+)' column/i);
+  return match ? match[1] : null;
+}
+
+const warnedColumns = new Set<string>();
+
+function warnOptionalColumnDropped(column: string) {
+  if (warnedColumns.has(column)) return;
+  warnedColumns.add(column);
+  console.warn(
+    `[Supabase] certificates.${column} chưa có trong schema cache — bỏ qua trường này khi lưu. ` +
+      `Chạy supabase/migrations/20260922_certificate_portal_credentials.sql trong SQL Editor, ` +
+      `sau đó: NOTIFY pgrst, 'reload schema';`
+  );
+}
+
+type WriteResult = { data: any; error: any };
+export type CertificateWriteMeta = { droppedColumns?: string[] };
+
+/**
+ * Chạy một lệnh ghi; nếu Supabase báo thiếu cột *tùy chọn* (chưa migration) thì bỏ cột đó và ghi lại.
+ * Cột khác bị thiếu vẫn báo lỗi như thường để không che lỗi thật.
+ */
+async function writeWithOptionalColumnFallback(
+  payload: Record<string, any>,
+  run: (row: Record<string, any>) => Promise<WriteResult>,
+  meta?: CertificateWriteMeta
+): Promise<WriteResult> {
+  // Supabase chỉ nêu MỘT cột mỗi lần trả lỗi, nên bỏ hết cột tùy chọn đang có trong 1 lần rồi ghi lại.
+  const droppable = OPTIONAL_CERTIFICATE_COLUMNS.filter((column) => column in payload);
+  if (droppable.length === 0) return run(payload);
+
+  const result = await run(payload);
+  const column = missingColumnName(result.error);
+  if (!column || !(droppable as readonly string[]).includes(column)) return result;
+
+  const retry = { ...payload };
+  for (const name of droppable) {
+    delete retry[name];
+    warnOptionalColumnDropped(name);
+  }
+  if (meta) meta.droppedColumns = [...(meta.droppedColumns || []), ...droppable];
+  return run(retry);
+}
+
 function assertNoSupabaseError(error: any, context: string) {
   if (!error) return;
+  const missing = missingColumnName(error);
+  if (missing) {
+    console.error(`[Supabase] ${context} - ${error.code || "PGRST204"}: column '${missing}' missing`, error);
+    const e = new Error(
+      `SUPABASE_SCHEMA_MISSING: Column '${missing}' of table '${context}' is missing in Supabase ` +
+        `(schema cache is stale). Run supabase/migrations/20260922_certificate_portal_credentials.sql ` +
+        `in the SQL Editor, or run the whole supabase/schema.sql, then run: NOTIFY pgrst, 'reload schema'; ` +
+        `Original details: ${error.message}`
+    );
+    (e as any).code = error.code || "PGRST204";
+    throw e;
+  }
   if (error.code === "PGRST205" || String(error.message || "").includes("PGRST205") || String(error.message || "").includes("schema cache")) {
-    console.error(`[Supabase] ${context} - PGRST205:`, error);
+    console.error(`[Supabase] ${context} - ${error.code || "PGRST205"}:`, error);
     if (context === "consultation_leads") {
       const e = new Error(
         `SUPABASE_SCHEMA_MISSING: Table '${context}' does not exist or is not exposed in Supabase. ` +
@@ -396,16 +461,14 @@ export async function createCertificate(input: {
   registered_at: string;
   validity_years?: number;
   created_by: number;
-}) {
+}, meta?: CertificateWriteMeta) {
   const validity = normalizeValidityYears(input.validity_years, input.standard);
   const expires = expiryFromStandard(input.registered_at, input.standard, validity);
   const no = await nextCertificateNo(input.standard);
   const isGacc = input.standard === "GACC";
   const duns = isGacc ? "" : (input.duns_code || "").replace(/\D/g, "").slice(0, 9);
   const usAgent = isGacc ? "" : (input.us_agent || "").trim().slice(0, 200);
-  const { data, error } = await supabaseAdmin()
-    .from("certificates")
-    .insert({
+  const { data, error } = await writeWithOptionalColumnFallback({
       public_code: randomCode(12),
       certificate_no: no,
       standard: input.standard,
@@ -422,9 +485,7 @@ export async function createCertificate(input: {
       expires_at: expires,
       validity_years: validity,
       created_by: input.created_by,
-    })
-    .select("id")
-    .single();
+  }, (row) => supabaseAdmin().from("certificates").insert(row).select("id").single() as unknown as Promise<WriteResult>, meta);
   if (error) assertNoSupabaseError(error, "certificates");
   // Sync to companies
   try {
@@ -465,7 +526,7 @@ async function syncCertificateCompany(input: { company_name: string; company_ema
   } catch {}
 }
 
-export async function updateCertificate(id: number, input: CertificateInput, expectedUpdatedAt?: string) {
+export async function updateCertificate(id: number, input: CertificateInput, expectedUpdatedAt?: string, meta?: CertificateWriteMeta) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
   if (expectedUpdatedAt && current.updated_at !== expectedUpdatedAt) throw new Error("CONFLICT");
@@ -474,9 +535,12 @@ export async function updateCertificate(id: number, input: CertificateInput, exp
   const payload = current.status === "draft"
     ? { ...changes, validity_confirmed: false }
     : { pending_changes: sameCertificateFields(changes, current) ? null : changes };
-  const { data, error } = await supabaseAdmin().from("certificates")
-    .update({ ...payload, updated_at: certificateUpdatedAt(current) })
-    .eq("id", id).eq("updated_at", current.updated_at).select("id").maybeSingle();
+  const { data, error } = await writeWithOptionalColumnFallback(
+    { ...payload, updated_at: certificateUpdatedAt(current) },
+    (row) => supabaseAdmin().from("certificates").update(row)
+      .eq("id", id).eq("updated_at", current.updated_at).select("id").maybeSingle() as unknown as Promise<WriteResult>,
+    meta
+  );
   if (error) assertNoSupabaseError(error, "certificates");
   if (!data) throw new Error("CONFLICT");
   if (current.status !== "draft") return;
@@ -487,7 +551,7 @@ export async function confirmValidity(id: number) {
   return publishCertificate(id);
 }
 
-export async function publishCertificate(id: number, expectedUpdatedAt?: string) {
+export async function publishCertificate(id: number, expectedUpdatedAt?: string, meta?: CertificateWriteMeta) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
   if (expectedUpdatedAt && current.updated_at !== expectedUpdatedAt) throw new Error("CONFLICT");
@@ -496,11 +560,14 @@ export async function publishCertificate(id: number, expectedUpdatedAt?: string)
   if (!approved.company_name || !approved.registration_code) throw new Error("INCOMPLETE");
   if (!approved.registered_at || !approved.expires_at) throw new Error("MISSING_DATES");
   const fields = Object.fromEntries(certificateFields.map((f) => [f, approved[f]]));
-  const { data, error } = await supabaseAdmin().from("certificates")
-    .update({ ...fields, pending_changes: null, status: "published", validity_confirmed: true,
+  const { data, error } = await writeWithOptionalColumnFallback(
+    { ...fields, pending_changes: null, status: "published", validity_confirmed: true,
       published_at: current.published_at || new Date().toISOString(), revenue_recorded: true,
-      updated_at: certificateUpdatedAt(current) })
-    .eq("id", id).eq("updated_at", current.updated_at).select("id").maybeSingle();
+      updated_at: certificateUpdatedAt(current) },
+    (row) => supabaseAdmin().from("certificates").update(row)
+      .eq("id", id).eq("updated_at", current.updated_at).select("id").maybeSingle() as unknown as Promise<WriteResult>,
+    meta
+  );
   if (error) assertNoSupabaseError(error, "certificates");
   if (!data) throw new Error("CONFLICT");
   await syncCertificateCompany(approved);

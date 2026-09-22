@@ -29,6 +29,13 @@
 
 ## Triển khai
 
+### Nếu chưa chạy migration
+
+Hai cột `portal_user` / `portal_pass` là **tùy chọn**: nếu Supabase chưa có 2 cột này, hệ thống tự bỏ qua chúng khi ghi
+để việc lưu/duyệt hồ sơ vẫn thành công, ghi cảnh báo vào log và trả `warning` cho form — nhân viên thấy thông báo
+“database chưa có cột … nên User/Pass chưa lưu được”. Mọi cột khác thiếu vẫn báo lỗi rõ ràng như trước
+(`SUPABASE_SCHEMA_MISSING: Column 'x' of table 'certificates' is missing …`), không bị che.
+
 ### Supabase — chạy trước khi deploy mã mới
 
 Chạy `supabase/migrations/20260920_certificate_approval.sql` trong SQL Editor của đúng project:
