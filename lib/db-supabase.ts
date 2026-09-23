@@ -74,6 +74,7 @@ function mapCert(row: Record<string, unknown>): Certificate {
     service_price: Number(row.service_price || 0),
     company_name: String(row.company_name || ""),
     company_email: String(row.company_email || ""),
+    company_address: String(row.company_address || ""),
     portal_user: String(row.portal_user || ""),
     portal_pass: String(row.portal_pass || ""),
     scope: String(row.scope || ""),
@@ -102,7 +103,23 @@ function mapCert(row: Record<string, unknown>): Certificate {
  * Hai cột này chỉ là thông tin đăng nhập nội bộ của khách. Nếu database chưa chạy migration
  * thì bỏ qua chúng để hồ sơ vẫn lưu được, thay vì làm hỏng cả thao tác lưu/duyệt.
  */
-const OPTIONAL_CERTIFICATE_COLUMNS = ["portal_user", "portal_pass"] as const;
+const OPTIONAL_CERTIFICATE_COLUMNS = ["portal_user", "portal_pass", "company_address"] as const;
+
+/** Cột tùy chọn -> nhãn hiển thị + file migration cần chạy khi database chưa có cột. */
+const OPTIONAL_COLUMN_INFO: Record<string, { label: string; migration: string }> = {
+  portal_user: { label: "User", migration: "20260922_certificate_portal_credentials.sql" },
+  portal_pass: { label: "Pass", migration: "20260922_certificate_portal_credentials.sql" },
+  company_address: { label: "Địa chỉ doanh nghiệp", migration: "20260923_certificate_company_address.sql" },
+};
+
+/** Câu cảnh báo chung cho mọi cột tùy chọn bị bỏ khi database chưa migration. */
+export function droppedColumnsWarning(dropped: string[], action: "tạo" | "lưu" | "duyệt" = "lưu") {
+  if (!dropped.length) return undefined;
+  const labels = dropped.map((c) => OPTIONAL_COLUMN_INFO[c]?.label || c).join(", ");
+  const files = Array.from(new Set(dropped.map((c) => OPTIONAL_COLUMN_INFO[c]?.migration).filter(Boolean)));
+  return `Đã ${action} hồ sơ, nhưng database chưa có cột ${dropped.join(", ")} nên ${labels} chưa lưu được. ` +
+    `Hãy chạy supabase/migrations/${files.join(", supabase/migrations/")} rồi NOTIFY pgrst, 'reload schema';`;
+}
 
 /** Supabase báo cột thiếu trong schema cache khi migration chưa chạy: "Could not find the 'x' column of ...". */
 function missingColumnName(error: any): string | null {
@@ -117,7 +134,7 @@ function warnOptionalColumnDropped(column: string) {
   warnedColumns.add(column);
   console.warn(
     `[Supabase] certificates.${column} chưa có trong schema cache — bỏ qua trường này khi lưu. ` +
-      `Chạy supabase/migrations/20260922_certificate_portal_credentials.sql trong SQL Editor, ` +
+      `Chạy supabase/migrations/${OPTIONAL_COLUMN_INFO[column]?.migration || "<migration>"} trong SQL Editor, ` +
       `sau đó: NOTIFY pgrst, 'reload schema';`
   );
 }
@@ -455,6 +472,7 @@ export async function createCertificate(input: {
   service_price: number;
   company_name: string;
   company_email?: string;
+  company_address?: string;
   portal_user?: string;
   portal_pass?: string;
   scope: string;
@@ -478,6 +496,7 @@ export async function createCertificate(input: {
       service_price: Math.max(0, Math.round(input.service_price || 0)),
       company_name: input.company_name.trim(),
       company_email: (input.company_email || "").trim(),
+      company_address: (input.company_address || "").trim().slice(0, 300),
       portal_user: (input.portal_user || "").trim().slice(0, 200),
       portal_pass: (input.portal_pass || "").slice(0, 200),
       scope: input.scope.trim(),
@@ -491,14 +510,14 @@ export async function createCertificate(input: {
   try {
     const existing = await getCompanyByName(input.company_name.trim());
     if (!existing && input.company_name.trim()) {
-      await createCompany({ company_name: input.company_name.trim(), email: (input.company_email || "").trim() });
-    } else if (existing && input.company_email?.trim()) {
+      await createCompany({ company_name: input.company_name.trim(), email: (input.company_email || "").trim(), address: (input.company_address || "").trim() });
+    } else if (existing && (input.company_email?.trim() || input.company_address?.trim())) {
       await updateCompany(existing.id, {
         company_name: existing.company_name,
-        email: input.company_email.trim() || existing.email,
+        email: (input.company_email || "").trim() || existing.email,
         phone: existing.phone,
         tax_code: existing.tax_code,
-        address: existing.address,
+        address: input.company_address?.trim() ? (existing.address || input.company_address.trim()) : existing.address,
         contact_person: existing.contact_person,
         notes: existing.notes,
       });
@@ -507,18 +526,18 @@ export async function createCertificate(input: {
   return Number((data as any)?.id ?? 0);
 }
 
-async function syncCertificateCompany(input: { company_name: string; company_email: string }) {
+async function syncCertificateCompany(input: { company_name: string; company_email: string; company_address?: string }) {
   try {
     const existing = await getCompanyByName(input.company_name.trim());
     if (!existing && input.company_name.trim()) {
-      await createCompany({ company_name: input.company_name.trim(), email: input.company_email });
-    } else if (existing && input.company_email) {
+      await createCompany({ company_name: input.company_name.trim(), email: input.company_email, address: input.company_address || "" });
+    } else if (existing && (input.company_email || input.company_address?.trim())) {
       await updateCompany(existing.id, {
         company_name: existing.company_name,
         email: input.company_email || existing.email,
         phone: existing.phone,
         tax_code: existing.tax_code,
-        address: existing.address,
+        address: input.company_address?.trim() ? (existing.address || input.company_address.trim()) : existing.address,
         contact_person: existing.contact_person,
         notes: existing.notes,
       });

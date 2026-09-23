@@ -53,6 +53,8 @@ export async function createCertificate(input: {
   service_price: number;
   company_name: string;
   company_email?: string;
+  /** Customer address, shown publicly in section 01 of the QR verification page. */
+  company_address?: string;
   /** Customer portal login - internal only, never part of the public/QR payload. */
   portal_user?: string;
   portal_pass?: string;
@@ -74,6 +76,8 @@ export async function updateCertificate(
     service_price: number;
     company_name: string;
     company_email?: string;
+    /** Customer address, shown publicly in section 01 of the QR verification page. */
+    company_address?: string;
     /** Customer portal login - internal only, never part of the public/QR payload. */
     portal_user?: string;
     portal_pass?: string;

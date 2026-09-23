@@ -28,6 +28,16 @@
 - Chữ dưới vòng tròn đổi theo trạng thái: *“Còn … ngày”* khi còn hạn, *“Đã hết hạn”* khi quá hạn; hồ sơ quá hạn không vẽ cung tiến độ
   (tránh chấm tròn lạ ở đỉnh vòng) và vành vòng chuyển sang màu cảnh báo.
 
+## Địa chỉ doanh nghiệp (hiện trên trang quét QR)
+
+- Mỗi hồ sơ có trường **Địa chỉ doanh nghiệp** (`certificates.company_address`), nhập trong form hồ sơ, **ngay dưới Tên công ty**.
+- Địa chỉ này **công khai**: in ở mục **01 “Thông tin doanh nghiệp”**, ngay dưới dòng “Doanh nghiệp” khi khách quét mã QR
+  (khác với Email doanh nghiệp và User/Pass — vẫn ẩn hoàn toàn).
+- Chọn doanh nghiệp từ danh bạ thì địa chỉ của danh bạ được điền sẵn; khi lưu, địa chỉ được ghi lại vào danh bạ
+  **chỉ khi danh bạ còn trống** (không ghi đè địa chỉ đã có sẵn).
+- Hồ sơ trống địa chỉ vẫn hợp lệ, trang QR ghi “Chưa có thông tin địa chỉ.” / “No address on record.”
+- Sửa địa chỉ trên hồ sơ đã xuất bản vẫn theo luồng duyệt: khách tiếp tục thấy địa chỉ cũ tới khi admin duyệt.
+
 ## Thời hạn hợp đồng (FDA 1-10 năm · GACC cố định 5 năm)
 
 - **FDA**: ô **Thời hạn hợp đồng (năm)** là dropdown chọn 1-10 năm, mặc định 2 năm (ghi rõ `(mặc định)` trong danh sách).
@@ -42,14 +52,33 @@
 
 ### Nếu chưa chạy migration
 
-Hai cột `portal_user` / `portal_pass` là **tùy chọn**: nếu Supabase chưa có 2 cột này, hệ thống tự bỏ qua chúng khi ghi
-để việc lưu/duyệt hồ sơ vẫn thành công, ghi cảnh báo vào log và trả `warning` cho form — nhân viên thấy thông báo
-“database chưa có cột … nên User/Pass chưa lưu được”. Mọi cột khác thiếu vẫn báo lỗi rõ ràng như trước
+Ba cột `portal_user` / `portal_pass` / `company_address` là **tùy chọn**: nếu Supabase chưa có các cột này, hệ thống tự bỏ qua
+khi ghi để việc lưu/duyệt hồ sơ vẫn thành công, ghi cảnh báo vào log và trả `warning` cho form — nhân viên thấy thông báo
+“database chưa có cột … nên User/Pass/Địa chỉ doanh nghiệp chưa lưu được” kèm **đúng tên file migration cần chạy**
+(`20260922_certificate_portal_credentials.sql` cho User/Pass, `20260923_certificate_company_address.sql` cho địa chỉ).
+Mọi cột khác thiếu vẫn báo lỗi rõ ràng như trước
 (`SUPABASE_SCHEMA_MISSING: Column 'x' of table 'certificates' is missing …`), không bị che.
 
 ### Supabase — chạy trước khi deploy mã mới
 
-Chạy `supabase/migrations/20260920_certificate_approval.sql` trong SQL Editor của đúng project:
+Chạy lần lượt trong SQL Editor của đúng project (mỗi file đều có `notify pgrst, 'reload schema';` ở cuối):
+
+- `supabase/migrations/20260923_certificate_company_address.sql` — cột địa chỉ doanh nghiệp:
+
+```sql
+alter table public.certificates add column if not exists company_address text not null default '';
+notify pgrst, 'reload schema';
+```
+
+- `supabase/migrations/20260922_certificate_portal_credentials.sql` — 2 cột User/Pass nội bộ (nếu chưa chạy).
+- `supabase/migrations/20260920_certificate_approval.sql` — cột `pending_changes`:
+
+```sql
+alter table public.certificates
+  add column if not exists pending_changes jsonb;
+notify pgrst, 'reload schema';
+```
+
 
 ```sql
 alter table public.certificates

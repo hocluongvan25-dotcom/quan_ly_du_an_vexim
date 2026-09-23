@@ -28,6 +28,7 @@ export type Certificate = {
   service_price: number;
   company_name: string;
   company_email: string; // Company email for expiry warnings, hidden from QR
+  company_address: string; // Customer address, printed on the public QR verification page
   portal_user: string; // Customer login (internal only - staff use it to work in the customer portal)
   portal_pass: string; // Password for that login (internal only - never rendered on the QR/verify page)
   scope: string;
@@ -55,6 +56,7 @@ export type PublicCertificate = {
   duns_code: string;
   us_agent: string;
   company_name: string;
+  company_address: string;
   scope: string;
   registered_at: string;
   expires_at: string;

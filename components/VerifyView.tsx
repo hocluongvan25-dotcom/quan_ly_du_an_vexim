@@ -193,6 +193,11 @@ export function VerifyView({ cert, checkedAt, locale }: Props) {
               <table className={styles.table} aria-labelledby="company-details">
                 <tbody>
                   <DetailRow label={t("company")}><strong className={styles.companyName}>{cert.company_name}</strong></DetailRow>
+                  <DetailRow label={t("companyAddress")}>
+                    {cert.company_address
+                      ? <span className={styles.preserveLines}>{cert.company_address}</span>
+                      : <span className={styles.muted}>{t("noAddress")}</span>}
+                  </DetailRow>
                   <DetailRow label={t("certificateType")}><span className={styles.standardTag}>{cert.standard}</span><span>{t("registrationType", { standard: cert.standard })}</span></DetailRow>
                   <DetailRow label={t("authority")}>{authority}</DetailRow>
                   <DetailRow label={t("registrationCountry")}><span className={styles.countryCode}>VN</span> {t("country")}</DetailRow>

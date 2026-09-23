@@ -7,11 +7,11 @@ import { QrArtwork } from "./QrArtwork";
 import { ValiditySeal } from "./ValiditySeal";
 import { expiryFromStandard, formatDate, remainingDays, getValidityYears, formatDuns, todayLocalIso, todayUtcIso } from "@/lib/utils";
 import { GACC_FIXED_YEARS, VALIDITY_YEARS_OPTIONS, canChooseValidityYears, getDefaultValidity, getValidityOptionsForStandard, type Certificate, type Standard, type Role } from "@/lib/types";
-import { CheckCircle2, Loader2, X, Building2, Mail, EyeOff, Eye, KeyRound, Lock, Search } from "lucide-react";
+import { CheckCircle2, Loader2, X, Building2, Mail, EyeOff, Eye, KeyRound, Lock, Search, MapPin } from "lucide-react";
 import { needsCertificateApproval, certificateFields, maskCredential } from "@/lib/certificate-workflow";
 import { useI18n } from "@/lib/i18n/context";
 
-type CompanyOption = { id: number; company_name: string; email: string; standards?: string[]; certificate_count?: number; services_label?: string };
+type CompanyOption = { id: number; company_name: string; email: string; address?: string; standards?: string[]; certificate_count?: number; services_label?: string };
 
 type FormState = {
   standard: Standard;
@@ -21,6 +21,7 @@ type FormState = {
   service_price: string;
   company_name: string;
   company_email: string;
+  company_address: string;
   portal_user: string;
   portal_pass: string;
   scope: string;
@@ -41,6 +42,7 @@ function toForm(item?: Certificate, prefill?: Prefill): FormState {
     service_price: source ? String(source.service_price) : prefill?.price || "",
     company_name: source?.company_name || prefill?.company || "",
     company_email: source?.company_email || prefill?.email || "",
+    company_address: source?.company_address || "",
     portal_user: source?.portal_user || "",
     portal_pass: source?.portal_pass || "",
     scope: source?.scope || "",
@@ -95,6 +97,7 @@ export function CertificateForm({ initial, prefill, role }: {
               id: c.id,
               company_name: c.company_name,
               email: c.email || "",
+              address: c.address || "",
               standards: c.standards || [],
               certificate_count: c.certificate_count || 0,
               services_label: c.services_label || (c.standards || []).join(", "),
@@ -189,6 +192,7 @@ export function CertificateForm({ initial, prefill, role }: {
       ...s,
       company_name: c.company_name,
       company_email: c.email || s.company_email,
+      company_address: c.address || s.company_address,
     }));
     setCompanySearchOpen(false);
   }
@@ -231,6 +235,7 @@ export function CertificateForm({ initial, prefill, role }: {
       expected_updated_at: item?.updated_at,
       company_name: form.company_name.trim(),
       company_email: form.company_email.trim(),
+      company_address: form.company_address.trim().slice(0, 300),
       portal_user: form.portal_user.trim().slice(0, 200),
       portal_pass: form.portal_pass.slice(0, 200),
       service_price: Number(String(form.service_price).replace(/[^\d]/g, "") || 0),
@@ -576,6 +581,27 @@ export function CertificateForm({ initial, prefill, role }: {
                     )}
                   </div>
                 )}
+              </div>
+            </Field>
+          </div>
+          <div className="md:col-span-2">
+            <Field label={t("form.companyAddress") as any}>
+              <div className="relative group">
+                <div className="pointer-events-none absolute inset-y-0 left-0 flex w-11 items-center justify-center">
+                  <MapPin className="h-[18px] w-[18px] text-slate-400 group-focus-within:text-navy-900/70" />
+                </div>
+                <div className="pointer-events-none absolute left-11 top-1/2 h-5 w-px -translate-y-1/2 bg-navy-900/10" />
+                <input
+                  className="input !pl-[52px] !pr-3"
+                  value={form.company_address}
+                  onChange={(e) => patch("company_address", e.target.value)}
+                  placeholder="Số nhà, đường, phường/xã, quận/huyện, tỉnh/thành phố"
+                  maxLength={300}
+                  autoComplete="off"
+                />
+              </div>
+              <div className="mt-1 text-[11px] text-navy-900/50">
+                Địa chỉ của khách hàng, hiển thị công khai ở mục 01 “Thông tin doanh nghiệp” khi khách quét mã QR.
               </div>
             </Field>
           </div>

@@ -89,6 +89,7 @@ function migrate(db: DatabaseSync) {
       service_price INTEGER NOT NULL DEFAULT 0,
       company_name TEXT NOT NULL DEFAULT '',
       company_email TEXT NOT NULL DEFAULT '',
+      company_address TEXT NOT NULL DEFAULT '',
       portal_user TEXT NOT NULL DEFAULT '',
       portal_pass TEXT NOT NULL DEFAULT '',
       scope TEXT NOT NULL DEFAULT '',
@@ -419,6 +420,10 @@ function migrate(db: DatabaseSync) {
     }
     if (!has("company_email")) {
       db.exec("ALTER TABLE certificates ADD COLUMN company_email TEXT NOT NULL DEFAULT ''");
+    }
+    // Địa chỉ doanh nghiệp - hiển thị công khai ở section 01 trang quét QR
+    if (!has("company_address")) {
+      db.exec("ALTER TABLE certificates ADD COLUMN company_address TEXT NOT NULL DEFAULT ''");
     }
     // Thông tin đăng nhập của khách (lưu nội bộ, không lên QR)
     if (!has("portal_user")) {
@@ -877,6 +882,7 @@ function hydrate(row: Certificate): Certificate {
   if (!next.duns_code) next.duns_code = "";
   if (!next.us_agent) next.us_agent = "";
   if (!next.company_email) next.company_email = "";
+  if (!next.company_address) next.company_address = "";
   if (!next.portal_user) next.portal_user = "";
   if (!next.portal_pass) next.portal_pass = "";
   // GACC does not have DUNS or US Agent - clear if present
@@ -933,6 +939,7 @@ export function createCertificate(input: {
   service_price: number;
   company_name: string;
   company_email?: string;
+  company_address?: string;
   portal_user?: string;
   portal_pass?: string;
   scope: string;
@@ -952,9 +959,9 @@ export function createCertificate(input: {
     .prepare(
       `INSERT INTO certificates (
         public_code, certificate_no, standard, registration_code, duns_code, us_agent,
-        service_price, company_name, company_email, portal_user, portal_pass,
+        service_price, company_name, company_email, company_address, portal_user, portal_pass,
         scope, registered_at, expires_at, validity_years, created_by
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       publicCode,
@@ -966,6 +973,7 @@ export function createCertificate(input: {
       Math.max(0, Math.round(input.service_price || 0)),
       input.company_name.trim(),
       (input.company_email || "").trim(),
+      (input.company_address || "").trim().slice(0, 300),
       (input.portal_user || "").trim().slice(0, 200),
       (input.portal_pass || "").slice(0, 200),
       input.scope.trim(),
@@ -982,16 +990,18 @@ export function createCertificate(input: {
       createCompany({
         company_name: input.company_name.trim(),
         email: (input.company_email || "").trim(),
+        address: (input.company_address || "").trim(),
       });
-    } else if (existing && input.company_email?.trim()) {
-      // Update email if provided and different
-      if (!existing.email || existing.email !== input.company_email.trim()) {
+    } else if (existing && (input.company_email?.trim() || input.company_address?.trim())) {
+      // Cập nhật email/địa chỉ khi khác; danh bạ chỉ nhận địa chỉ khi còn trống
+      const nextAddress = input.company_address?.trim() ? (existing.address || input.company_address.trim()) : existing.address;
+      if (!existing.email || existing.email !== (input.company_email || "").trim() || nextAddress !== existing.address) {
         updateCompany(existing.id, {
           company_name: existing.company_name,
-          email: input.company_email.trim() || existing.email,
+          email: (input.company_email || "").trim() || existing.email,
           phone: existing.phone,
           tax_code: existing.tax_code,
-          address: existing.address,
+          address: nextAddress,
           contact_person: existing.contact_person,
           notes: existing.notes,
         });
@@ -1002,7 +1012,7 @@ export function createCertificate(input: {
   return Number(info.lastInsertRowid);
 }
 
-function syncCertificateCompany(input: { company_name: string; company_email: string }) {
+function syncCertificateCompany(input: { company_name: string; company_email: string; company_address?: string }) {
   try {
     const existing = getCompanyByName(input.company_name.trim());
     if (!existing && input.company_name.trim()) {

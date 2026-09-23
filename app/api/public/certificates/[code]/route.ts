@@ -22,6 +22,7 @@ export async function GET(_: Request, ctx: { params: { code: string } }) {
         duns_code: isFda ? item.duns_code || "" : "",
         us_agent: isFda ? (item as any).us_agent || "" : "",
         company_name: item.company_name,
+        company_address: item.company_address || "",
         scope: item.scope,
         registered_at: item.registered_at,
         expires_at: item.expires_at,

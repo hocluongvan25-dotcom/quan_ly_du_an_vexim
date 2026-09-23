@@ -10,6 +10,7 @@ export type CertificateInput = {
   service_price: number;
   company_name: string;
   company_email?: string;
+  company_address?: string;
   portal_user?: string;
   portal_pass?: string;
   scope: string;
@@ -21,7 +22,7 @@ export type CertificateChanges = Required<CertificateInput> & { expires_at: stri
 
 export const certificateFields = [
   "standard", "registration_code", "duns_code", "us_agent", "service_price",
-  "company_name", "company_email", "portal_user", "portal_pass", "scope", "registered_at",
+  "company_name", "company_email", "company_address", "portal_user", "portal_pass", "scope", "registered_at",
   "validity_years", "expires_at",
 ] as const;
 
@@ -38,6 +39,7 @@ export function prepareCertificateChanges(current: Certificate, input: Certifica
     service_price: Math.max(0, Math.round(input.service_price || 0)),
     company_name: input.company_name.trim(),
     company_email: (input.company_email ?? current.company_email).trim(),
+    company_address: (input.company_address ?? current.company_address ?? "").trim().slice(0, 300),
     portal_user: (input.portal_user ?? current.portal_user ?? "").trim().slice(0, 200),
     portal_pass: (input.portal_pass ?? current.portal_pass ?? "").slice(0, 200),
     scope: input.scope.trim(),
@@ -73,6 +75,7 @@ export function publicCertificate(item: Certificate) {
     public_code: item.public_code, certificate_no: item.certificate_no,
     standard: item.standard, registration_code: item.registration_code,
     duns_code: item.duns_code, us_agent: item.us_agent, company_name: item.company_name,
+    company_address: item.company_address || "",
     scope: item.scope, registered_at: item.registered_at, expires_at: item.expires_at,
     validity_years: item.validity_years, validity_confirmed: item.validity_confirmed,
     status: item.status, renewal_count: item.renewal_count, last_renewed_at: item.last_renewed_at,

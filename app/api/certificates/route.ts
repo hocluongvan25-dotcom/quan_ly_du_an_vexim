@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { createCertificate, listCertificates, type CertificateWriteMeta } from "@/lib/db";
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
+import { droppedColumnsWarning } from "@/lib/db-supabase";
 import { isInvalidValidityInput, isValidDunsCode, resolveValidityYears } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -59,6 +60,7 @@ export async function POST(req: Request) {
       service_price: Number(body.service_price || 0),
       company_name: String(body.company_name),
       company_email: companyEmail,
+      company_address: String(body.company_address || "").trim().slice(0, 300),
       portal_user: String(body.portal_user || "").slice(0, 200),
       portal_pass: String(body.portal_pass || "").slice(0, 200),
       scope: String(body.scope || ""),
@@ -67,10 +69,7 @@ export async function POST(req: Request) {
       created_by: user.id,
     }, meta);
     const dropped = meta.droppedColumns || [];
-    const warning = dropped.length
-      ? `Đã tạo hồ sơ, nhưng database chưa có cột ${dropped.join(", ")} nên User/Pass chưa lưu được. ` +
-        `Hãy chạy supabase/migrations/20260922_certificate_portal_credentials.sql rồi NOTIFY pgrst, 'reload schema';`
-      : undefined;
+    const warning = droppedColumnsWarning(dropped, "tạo");
     return NextResponse.json({ id, warning, dropped_columns: dropped });
   } catch (e) {
     return handleApiError(e);

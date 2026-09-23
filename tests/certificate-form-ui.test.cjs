@@ -68,6 +68,7 @@ const CERT = {
   service_price: 18500000,
   company_name: 'CÔNG TY TNHH THỰC PHẨM ABC',
   company_email: 'xuatkhau@abc-food.vn',
+  company_address: 'Số 25 Nguyễn Trãi, Thanh Xuân, Hà Nội',
   portal_user: 'khach-portal',
   portal_pass: 'MatKhau@123',
   scope: 'Đăng ký cơ sở sản xuất FDA',
@@ -93,7 +94,9 @@ global.fetch = (url, init) => {
   const target = String(url);
   const method = String(init?.method || 'GET');
   if (target.includes('/api/companies')) {
-    return Promise.resolve({ ok: true, json: () => Promise.resolve({ companies: [], items: [] }) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({
+      companies: global.__DIRECTORY__ || [], items: global.__DIRECTORY__ || [],
+    }) });
   }
   if (target.includes('/api/certificates')) {
     if (method === 'GET') return Promise.resolve({ ok: true, json: () => Promise.resolve({ item: current }) });
@@ -206,6 +209,48 @@ test('form hồ sơ có 2 trường User/Pass nội bộ, mặc định che mậ
   assert.equal(put.body.portal_user, 'khach-portal-2');
   assert.equal(put.body.portal_pass, 'MatKhauMoi@456');
   assert.equal(put.body.company_name, CERT.company_name);
+});
+
+test('form có ô Địa chỉ doanh nghiệp ngay dưới Tên công ty, tự điền từ danh bạ và gửi lên API', async () => {
+  calls.length = 0;
+  global.__DIRECTORY__ = [{
+    id: 5, company_name: 'CÔNG TY TNHH THỰC PHẨM ABC', email: 'xuatkhau@abc-food.vn',
+    address: 'Địa chỉ trong danh bạ, Hà Nội', standards: ['FDA'], certificate_count: 1,
+  }];
+  const { container } = await renderForm(CERT);
+  await flush(20);
+
+  const address = inputByLabel(container, 'Địa chỉ doanh nghiệp');
+  assert.ok(address, 'thiếu ô Địa chỉ doanh nghiệp');
+  assert.equal(address.value, CERT.company_address, 'phải hiện địa chỉ đã lưu');
+  assert.match(container.textContent, /hiển thị công khai ở mục 01/, 'phải ghi rõ địa chỉ hiện trên trang QR');
+
+  // Địa chỉ nằm ngay dưới Tên công ty trong DOM (nhãn Tên công ty có kèm huy hiệu "Tìm kiếm")
+  const labels = [...container.querySelectorAll('label')].map((l) => l.textContent.trim());
+  const at = (text) => labels.findIndex((l) => l.startsWith(text));
+  assert.ok(at('Tên công ty') >= 0 && at('Địa chỉ doanh nghiệp') >= 0, 'phải có cả 2 nhãn');
+  assert.equal(at('Địa chỉ doanh nghiệp'), at('Tên công ty') + 1, 'địa chỉ phải ở ngay dưới Tên công ty');
+
+  // Chọn doanh nghiệp từ danh bạ → tự điền địa chỉ của danh bạ
+  const nameInput = inputByLabel(container, 'Tên công ty');
+  await act(async () => { nameInput.focus(); });
+  await flush(20);
+  const option = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Địa chỉ trong danh bạ, Hà Nội')
+    || (b.textContent.includes(CERT.company_name) && b.closest('.absolute')));
+  assert.ok(option, 'thiếu kết quả danh bạ để chọn');
+  await act(async () => { option.click(); });
+  await flush(20);
+  assert.equal(inputByLabel(container, 'Địa chỉ doanh nghiệp').value, 'Địa chỉ trong danh bạ, Hà Nội', 'chọn doanh nghiệp phải tự điền địa chỉ');
+
+  // Sửa rồi lưu → payload gửi lên API có company_address
+  await typeInto(inputByLabel(container, 'Địa chỉ doanh nghiệp'), 'Số 9 Lý Thái Tổ, Hoàn Kiếm, Hà Nội');
+  const save = [...container.querySelectorAll('button')].find((b) => b.textContent.includes('Lưu thay đổi'));
+  await act(async () => { save.click(); });
+  await flush(60);
+  const put = calls.find((c) => c.method === 'PUT');
+  assert.ok(put, 'form phải gọi PUT /api/certificates/8');
+  assert.equal(put.body.company_address, 'Số 9 Lý Thái Tổ, Hoàn Kiếm, Hà Nội');
+  global.__DIRECTORY__ = [];
 });
 
 test('bảng đối chiếu chờ admin duyệt che mật khẩu, không in chữ rõ', async () => {

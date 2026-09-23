@@ -79,6 +79,48 @@ test('published edits wait for approval; QR, public data and revenue stay unchan
   assert.equal(approved.published_at, original.published_at);
 });
 
+test('địa chỉ doanh nghiệp lưu được, lên trang quét QR và không lộ thông tin nội bộ', async () => {
+  session = { id: 1, email: 'admin@veximglobal.com', name: 'Administrator', role: 'admin' };
+  const address = 'Số 12 Lê Lợi, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh';
+  const id = create({ company_address: address });
+
+  // 1. Nháp giữ địa chỉ; lên trang QR công khai
+  const draft = db.getCertificate(id);
+  assert.equal(draft.company_address, address, 'địa chỉ phải được lưu cùng hồ sơ');
+  const payload = publicCertificate(draft);
+  assert.equal(payload.company_address, address, 'trang quét QR phải nhận được địa chỉ');
+  assert.equal('company_email' in payload, false);
+  assert.equal('portal_pass' in payload, false);
+  assert.equal('service_price' in payload, false);
+
+  // 2. API công khai trả địa chỉ cho khách quét mã
+  const published = db.publishCertificate(id);
+  const res = await publicApi.GET(new Request('http://test'), { params: { code: published.public_code } });
+  assert.equal((await res.json()).item.company_address, address);
+
+  // 3. Sửa địa chỉ trên hồ sơ đã xuất bản: khách vẫn thấy địa chỉ cũ tới khi admin duyệt
+  db.updateCertificate(id, { ...published, company_address: 'Địa chỉ mới chờ duyệt' });
+  const pending = db.getCertificate(id);
+  assert.equal(pending.company_address, address, 'bản công khai giữ địa chỉ cũ');
+  assert.equal(pending.pending_changes.company_address, 'Địa chỉ mới chờ duyệt');
+  const approved = db.publishCertificate(id, pending.updated_at);
+  assert.equal(approved.company_address, 'Địa chỉ mới chờ duyệt');
+  assert.equal(publicCertificate(approved).company_address, 'Địa chỉ mới chờ duyệt');
+});
+
+test('đồng bộ địa chỉ sang danh bạ doanh nghiệp, không ghi đè địa chỉ đã có', async () => {
+  session = { id: 1, email: 'admin@veximglobal.com', name: 'Administrator', role: 'admin' };
+  const name = `Công ty Địa chỉ ${Date.now()}`;
+  const id = create({ company_name: name, company_address: 'Số 1 Trần Hưng Đạo, Hà Nội' });
+  assert.equal(db.getCompanyByName(name).address, 'Số 1 Trần Hưng Đạo, Hà Nội', 'danh bạ nhận địa chỉ khi còn trống');
+
+  const published = db.publishCertificate(id);
+  db.updateCertificate(id, { ...published, company_address: 'Số 2 Nguyễn Huệ, Hà Nội' });
+  const pending = db.getCertificate(id);
+  db.publishCertificate(id, pending.updated_at);
+  assert.equal(db.getCompanyByName(name).address, 'Số 1 Trần Hưng Đạo, Hà Nội', 'không ghi đè địa chỉ danh bạ đã có');
+});
+
 test('thông tin đăng nhập của khách chỉ lưu nội bộ: không lên QR, API công khai hay email', async () => {
   session = { id: 1, email: 'specialist@veximglobal.com', name: 'Specialist', role: 'specialist' };
   const id = create();
@@ -386,11 +428,13 @@ test('DB chưa chạy migration: thiếu cột portal_user/portal_pass vẫn lư
     details: null, hint: null,
   });
 
-  // DB "cũ": không có 2 cột portal_*, mọi lệnh ghi kèm 2 cột đó đều bị Supabase từ chối như production
+  // DB "cũ": chưa có 3 cột tùy chọn (User/Pass + Địa chỉ), mọi lệnh ghi kèm chúng đều bị Supabase từ chối như production
+  const MISSING_OPTIONAL = ['portal_user', 'portal_pass', 'company_address'];
+  const rejectedColumn = (payload) => (payload ? MISSING_OPTIONAL.find((c) => c in payload) : undefined);
   const row = {
     ...db.publishCertificate(create()),
     id: 900,
-    portal_user: '', portal_pass: '',
+    portal_user: '', portal_pass: '', company_address: '',
   };
   const writes = [];
   supabase.supabaseAdmin = () => ({
@@ -404,8 +448,9 @@ test('DB chưa chạy migration: thiếu cột portal_user/portal_pass vẫn lư
         insert(value) { payload = value; return this; },
         async single() {
           // Supabase thật chỉ nêu 1 cột mỗi lần: cột nào còn trong payload thì bị nêu tên
-          if (payload && ('portal_user' in payload || 'portal_pass' in payload)) {
-            return { data: null, error: PGRST204('portal_user' in payload ? 'portal_user' : 'portal_pass') };
+          const missing = rejectedColumn(payload);
+          if (missing) {
+            return { data: null, error: PGRST204(missing) };
           }
           if (payload) {
             writes.push(Object.keys(payload));
@@ -414,8 +459,9 @@ test('DB chưa chạy migration: thiếu cột portal_user/portal_pass vẫn lư
           return { data: structuredClone(row), error: null };
         },
         async maybeSingle() {
-          if (payload && ('portal_user' in payload || 'portal_pass' in payload)) {
-            return { data: null, error: PGRST204('portal_pass' in payload ? 'portal_pass' : 'portal_user') };
+          const missing = rejectedColumn(payload);
+          if (missing) {
+            return { data: null, error: PGRST204(missing) };
           }
           if (!filters.every(([key, value]) => row[key] === value)) return { data: null, error: null };
           if (payload) { writes.push(Object.keys(payload)); Object.assign(row, structuredClone(payload)); }
@@ -432,14 +478,20 @@ test('DB chưa chạy migration: thiếu cột portal_user/portal_pass vẫn lư
     await cloud.updateCertificate(row.id, {
       standard: row.standard, registration_code: row.registration_code, duns_code: row.duns_code,
       us_agent: row.us_agent, service_price: row.service_price, company_name: 'Tên mới sau migration',
-      company_email: row.company_email, portal_user: 'khach-portal', portal_pass: 'MatKhau@123',
+      company_email: row.company_email, company_address: '12 Lê Lợi, Hà Nội',
+      portal_user: 'khach-portal', portal_pass: 'MatKhau@123',
       scope: row.scope, registered_at: row.registered_at, validity_years: row.validity_years,
     }, row.updated_at, meta);
 
-    assert.deepEqual(meta.droppedColumns.sort(), ['portal_pass', 'portal_user'], 'phải báo lại 2 cột bị bỏ');
+    assert.deepEqual(
+      meta.droppedColumns.sort(),
+      ['company_address', 'portal_pass', 'portal_user'],
+      'phải báo lại cả 3 cột tùy chọn bị bỏ (User, Pass, Địa chỉ)'
+    );
     const lastDraftWrite = writes[writes.length - 1];
     assert.equal(lastDraftWrite.includes('portal_user'), false, 'lần ghi cuối không còn portal_user');
     assert.equal(lastDraftWrite.includes('portal_pass'), false, 'lần ghi cuối không còn portal_pass');
+    assert.equal(lastDraftWrite.includes('company_address'), false, 'lần ghi cuối không còn company_address');
     assert.equal(row.company_name, 'Tên mới sau migration', 'phần còn lại của hồ sơ vẫn được lưu');
     assert.equal(row.updated_at, meta.updatedAt || row.updated_at);
 

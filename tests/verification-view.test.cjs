@@ -33,6 +33,7 @@ const cert = {
   company_name: 'Example Foods', registration_code: 'VN-REG-00158', certificate_no: 'VXM-GACC-2026-0158',
   public_code: 'DEMOQR123456', scope: 'Frozen fruit\nPackaged agricultural products',
   duns_code: '', us_agent: '', renewal_count: 0, last_renewed_at: null,
+  company_address: 'Số 12 Lê Lợi, Phường Bến Nghé, Quận 1, TP. Hồ Chí Minh',
 };
 const render = (patch = {}, locale = "vi") => renderToStaticMarkup(React.createElement(VerifyView, { cert: { ...cert, ...patch }, checkedAt, locale }));
 
@@ -182,6 +183,28 @@ test('English counts use singular and plural without changing the recorded value
   assert.equal(verificationText('en', 'daysLeft', { count: 2 }), '2 days remaining');
   assert.equal(verificationText('en', 'renewals', { count: 1 }), 'Renewed 1 time');
   assert.equal(verificationText('en', 'termValue', { count: 1 }), '1 year per registration term');
+});
+
+test('địa chỉ khách hàng nằm ngay dưới dòng Doanh nghiệp ở mục 01', () => {
+  for (const locale of ['vi', 'en']) {
+    const html = renderToStaticMarkup(React.createElement(VerifyView, { cert, checkedAt, locale }));
+    const label = verificationText(locale, 'companyAddress');
+    assert.ok(html.includes(label), `phải có nhãn "${label}"`);
+    assert.ok(html.includes(cert.company_address), 'phải in địa chỉ của khách');
+    // Thứ tự: Doanh nghiệp -> Địa chỉ -> Loại chứng nhận
+    const at = (needle) => html.indexOf(needle);
+    assert.ok(
+      at(cert.company_name) < at(label) && at(label) < at(verificationText(locale, 'certificateType')),
+      'địa chỉ phải nằm ngay dưới trường Doanh nghiệp, trên Loại chứng nhận'
+    );
+  }
+  const blank = render({ company_address: '' }, 'vi');
+  assert.ok(blank.includes(verificationText('vi', 'noAddress')), 'hồ sơ trống địa chỉ phải ghi rõ chưa có thông tin');
+  assert.ok(blank.includes(verificationText('vi', 'companyAddress')), 'hồ sơ trống vẫn phải có nhãn Địa chỉ');
+  const blankEn = render({ company_address: '' }, 'en');
+  assert.ok(blankEn.includes(verificationText('en', 'noAddress')));
+  assert.ok(!blankEn.includes(verificationText('vi', 'noAddress')));
+  assert.ok(!blank.includes('undefined'), 'không được in undefined');
 });
 
 test('trang quét QR tuyệt đối không hiển thị User/Pass của khách', () => {
