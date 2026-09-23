@@ -50,10 +50,7 @@ export async function PUT(req: Request, ctx: Ctx) {
       const publishMeta: CertificateWriteMeta = {};
       const item = await publishCertificate(id, body.expected_updated_at, publishMeta);
       const dropped = publishMeta.droppedColumns || [];
-      const warning = dropped.length
-        ? `Đã duyệt hồ sơ, nhưng database chưa có cột ${dropped.join(", ")} nên User/Pass chưa lưu được. ` +
-          `Hãy chạy supabase/migrations/20260922_certificate_portal_credentials.sql rồi NOTIFY pgrst, 'reload schema';`
-        : undefined;
+      const warning = droppedColumnsWarning(dropped, "duyệt");
       return NextResponse.json({ item, warning, dropped_columns: dropped });
     }
     if (action === "renew") {

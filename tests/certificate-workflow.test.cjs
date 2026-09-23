@@ -428,8 +428,9 @@ test('DB chưa chạy migration: thiếu cột portal_user/portal_pass vẫn lư
     details: null, hint: null,
   });
 
-  // DB "cũ": chưa có 3 cột tùy chọn (User/Pass + Địa chỉ), mọi lệnh ghi kèm chúng đều bị Supabase từ chối như production
-  const MISSING_OPTIONAL = ['portal_user', 'portal_pass', 'company_address'];
+  // DB "cũ": thiếu cột tùy chọn thì lệnh ghi kèm cột đó bị Supabase từ chối như production.
+  // Mặc định thiếu cả 3 cột (User/Pass + Địa chỉ) — đổi được để mô phỏng chạy migration một phần.
+  let MISSING_OPTIONAL = ['portal_user', 'portal_pass', 'company_address'];
   const rejectedColumn = (payload) => (payload ? MISSING_OPTIONAL.find((c) => c in payload) : undefined);
   const row = {
     ...db.publishCertificate(create()),
@@ -502,6 +503,30 @@ test('DB chưa chạy migration: thiếu cột portal_user/portal_pass vẫn lư
     assert.equal(approved.status, 'published');
     assert.equal(row.validity_confirmed, true, 'đã duyệt dù thiếu cột');
     assert.equal(writes[writes.length - 1].includes('portal_pass'), false);
+
+    // 2b. ĐÃ CHẠY migration 0923 (có cột địa chỉ) nhưng CHƯA chạy 0922 (thiếu User/Pass):
+    //     địa chỉ phải được lưu, chỉ User/Pass bị bỏ — không được kéo địa chỉ xuống theo
+    MISSING_OPTIONAL = ['portal_user', 'portal_pass'];
+    row.company_address = '';
+    row.pending_changes = null;
+    row.status = 'published';
+    row.validity_confirmed = false;
+    const addressMeta = {};
+    await cloud.updateCertificate(row.id, {
+      ...row, company_address: 'Số 7 Nguyễn Huệ, Quận 1', scope: 'Địa chỉ đã có cột',
+      expires_at: undefined,
+    }, row.updated_at, addressMeta);
+    const published = await cloud.publishCertificate(row.id);
+    assert.equal(
+      row.company_address, 'Số 7 Nguyễn Huệ, Quận 1',
+      'cột địa chỉ đã tồn tại thì địa chỉ phải được lưu dù User/Pass còn thiếu'
+    );
+    assert.equal(
+      (published.pending_changes || null), null,
+      'duyệt xong không còn thay đổi chờ'
+    );
+    assert.equal(writes[writes.length - 1].includes('company_address'), true, 'lệnh ghi cuối vẫn có địa chỉ');
+    assert.equal(writes[writes.length - 1].includes('portal_user'), false, 'chỉ User/Pass bị bỏ');
 
     // 3. Lỗi thiếu cột KHÁC (không phải cột tùy chọn) vẫn phải báo rõ ràng, không bị che
     supabase.supabaseAdmin = () => ({

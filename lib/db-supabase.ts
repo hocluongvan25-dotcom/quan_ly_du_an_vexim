@@ -151,21 +151,26 @@ async function writeWithOptionalColumnFallback(
   run: (row: Record<string, any>) => Promise<WriteResult>,
   meta?: CertificateWriteMeta
 ): Promise<WriteResult> {
-  // Supabase chỉ nêu MỘT cột mỗi lần trả lỗi, nên bỏ hết cột tùy chọn đang có trong 1 lần rồi ghi lại.
+  // Supabase chỉ nêu MỘT cột mỗi lần trả lỗi, nên mỗi vòng chỉ bỏ ĐÚNG cột vừa bị nêu tên rồi ghi lại.
+  // Không bỏ hết một lượt: nếu chỉ thiếu User/Pass mà đã có cột địa chỉ thì địa chỉ phải được giữ nguyên.
   const droppable = OPTIONAL_CERTIFICATE_COLUMNS.filter((column) => column in payload);
   if (droppable.length === 0) return run(payload);
 
-  const result = await run(payload);
-  const column = missingColumnName(result.error);
-  if (!column || !(droppable as readonly string[]).includes(column)) return result;
-
-  const retry = { ...payload };
-  for (const name of droppable) {
-    delete retry[name];
-    warnOptionalColumnDropped(name);
+  const dropped: string[] = [];
+  let row = payload;
+  for (let attempt = 0; attempt <= OPTIONAL_CERTIFICATE_COLUMNS.length; attempt++) {
+    const result = await run(row);
+    const column = missingColumnName(result.error);
+    if (!column || !(droppable as readonly string[]).includes(column) || dropped.includes(column)) {
+      if (dropped.length && meta) meta.droppedColumns = [...(meta.droppedColumns || []), ...dropped];
+      return result;
+    }
+    dropped.push(column);
+    warnOptionalColumnDropped(column);
+    row = { ...row };
+    delete row[column];
   }
-  if (meta) meta.droppedColumns = [...(meta.droppedColumns || []), ...droppable];
-  return run(retry);
+  return run(row);
 }
 
 function assertNoSupabaseError(error: any, context: string) {
