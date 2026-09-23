@@ -555,6 +555,86 @@ test('DB chưa chạy migration: thiếu cột portal_user/portal_pass vẫn lư
   }
 });
 
+test('tạo mới hồ sơ có địa chỉ trên Supabase: ghi đủ cột và giữ địa chỉ khi cột khác thiếu', async () => {
+  const cloud = require('../lib/db-supabase.ts');
+  const supabase = require('../lib/supabase.ts');
+  const originalClient = supabase.supabaseAdmin;
+  const PGRST204 = (column) => ({
+    code: 'PGRST204',
+    message: `Could not find the '${column}' column of 'certificates' in the schema cache`,
+    details: null, hint: null,
+  });
+
+  // 1. Database đầy đủ: lệnh tạo mới phải mang theo địa chỉ
+  let inserts = [];
+  const chain = (onInsert) => {
+    let payload;
+    const builder = {
+      select() { return builder; }, eq() { return builder; }, like() { return builder; },
+      order() { return builder; }, limit() { return builder; }, gte() { return builder; }, lte() { return builder; },
+      insert(value) { payload = value; return builder; },
+      update(value) { payload = value; return builder; },
+      async single() { return onInsert(payload); },
+      async maybeSingle() { return onInsert(payload); },
+      then(resolve) { return Promise.resolve({ data: [], error: null }).then(resolve); },
+    };
+    return builder;
+  };
+  supabase.supabaseAdmin = () => ({
+    from(table) {
+      if (table !== 'certificates') throw new Error('Company sync excluded from mock');
+      return chain((payload) => {
+        if (payload) inserts.push(payload);
+        return { data: { id: 4242 }, error: null };
+      });
+    },
+  });
+  try {
+    const meta = {};
+    await cloud.createCertificate({
+      standard: 'FDA', registration_code: 'REG-ADDR-1', duns_code: '', us_agent: '',
+      service_price: 0, company_name: 'Công ty Địa chỉ Supabase',
+      company_email: 'x@y.vn', company_address: 'Số 8 Đinh Tiên Hoàng, Hà Nội',
+      portal_user: 'u', portal_pass: 'p', scope: '', registered_at: '2026-09-22',
+      validity_years: 2, created_by: 1,
+    }, meta);
+    const created = inserts.find((p) => p && 'company_address' in p);
+    assert.ok(created, 'lệnh tạo hồ sơ phải có company_address');
+    assert.equal(created.company_address, 'Số 8 Đinh Tiên Hoàng, Hà Nội');
+    assert.deepEqual(meta.droppedColumns || [], [], 'DB đầy đủ thì không bỏ cột nào');
+
+    // 2. Database còn thiếu User/Pass: địa chỉ vẫn phải được ghi, chỉ 2 cột kia bị bỏ
+    inserts = [];
+    supabase.supabaseAdmin = () => ({
+      from(table) {
+        if (table !== 'certificates') throw new Error('Company sync excluded from mock');
+        const write = (payload) => {
+          const missing = payload && ['portal_user', 'portal_pass'].find((c) => c in payload);
+          if (missing) return { data: null, error: PGRST204(missing) };
+          if (payload) inserts.push(payload);
+          return { data: { id: 4243 }, error: null };
+        };
+        return chain(write);
+      },
+    });
+    const meta2 = {};
+    await cloud.createCertificate({
+      standard: 'FDA', registration_code: 'REG-ADDR-2', duns_code: '', us_agent: '',
+      service_price: 0, company_name: 'Công ty Địa chỉ Supabase 2',
+      company_email: 'x@y.vn', company_address: 'Số 9 Hàng Bài, Hà Nội',
+      portal_user: 'u', portal_pass: 'p', scope: '', registered_at: '2026-09-22',
+      validity_years: 2, created_by: 1,
+    }, meta2);
+    const lastInsert = inserts[inserts.length - 1];
+    assert.equal(lastInsert.company_address, 'Số 9 Hàng Bài, Hà Nội', 'địa chỉ phải còn trong lệnh ghi cuối');
+    assert.equal('portal_user' in lastInsert, false, 'chỉ bỏ cột bị Supabase nêu tên');
+    assert.equal('portal_pass' in lastInsert, false);
+    assert.deepEqual((meta2.droppedColumns || []).sort(), ['portal_pass', 'portal_user']);
+  } finally {
+    supabase.supabaseAdmin = originalClient;
+  }
+});
+
 test('Supabase adapter contract (mocked client): staging, approval, no-op and concurrent-write protection', async () => {
   const cloud = require('../lib/db-supabase.ts');
   const supabase = require('../lib/supabase.ts');

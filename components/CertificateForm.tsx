@@ -602,6 +602,13 @@ export function CertificateForm({ initial, prefill, role }: {
               </div>
               <div className="mt-1 text-[11px] text-navy-900/50">
                 Địa chỉ của khách hàng, hiển thị công khai ở mục 01 “Thông tin doanh nghiệp” khi khách quét mã QR.
+                {item && item.status !== "draft" && (
+                  <span className="text-amber-700">
+                    {" "}
+                    Hồ sơ đã xuất bản: bấm <b>Lưu thay đổi</b> rồi <b>Duyệt và xuất bản</b> thì địa chỉ mới lên trang QR
+                    (nếu chưa có, khách sẽ thấy “Chưa có thông tin địa chỉ”).
+                  </span>
+                )}
               </div>
             </Field>
           </div>
