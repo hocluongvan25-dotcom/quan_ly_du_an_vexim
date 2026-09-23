@@ -19,6 +19,13 @@ export function supabaseAdmin() {
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
   cached = createClient(url, key, {
     auth: { persistSession: false, autoRefreshToken: false },
+    // Next.js 14 cache fetch() mặc định khi render phía server (Data Cache). Truy vấn Supabase
+    // phải luôn đọc database thật, nếu không dashboard và trang quét QR sẽ mãi hiển thị bản cũ
+    // sau khi hồ sơ được sửa/duyệt (ví dụ địa chỉ vừa lưu vẫn hiện "chưa có thông tin").
+    global: {
+      fetch: (input: RequestInfo | URL, init?: RequestInit) =>
+        fetch(input, { ...init, cache: "no-store" }),
+    },
   });
   return cached;
 }

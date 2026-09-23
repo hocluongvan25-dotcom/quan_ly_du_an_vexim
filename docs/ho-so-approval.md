@@ -92,6 +92,21 @@ SQLite tự bổ sung cột khi mở database. Không cần thao tác dữ liệ
 
 Không tự động sửa thời hạn lịch sử đã bị tính lại trước đây: cần đối chiếu hồ sơ thật và bản sao lưu nếu phát hiện sai.
 
+## Không được cache dữ liệu hồ sơ
+
+Next.js 14 cache `fetch()` khi render phía server và cache luôn GET route handler, nên nếu không khai báo gì thì
+**sửa/duyệt hồ sơ xong mà trang quét QR vẫn hiện bản cũ** (ví dụ địa chỉ vừa lưu vẫn ghi "Chưa có thông tin địa chỉ").
+Vì vậy:
+
+- `lib/supabase.ts` tạo client với `global.fetch` luôn `cache: "no-store"` — mọi truy vấn Supabase đọc database thật.
+- `app/api/public/certificates/[code]/route.ts`: `dynamic = "force-dynamic"`, `revalidate = 0`, `fetchCache = "force-no-store"`
+  và trả header `Cache-Control: no-store`.
+- `app/verify/[code]/page.tsx`: `force-dynamic` + `revalidate = 0` + `fetchCache = "force-no-store"`.
+- Test `tests/cache-freshness.test.cjs` khoá lại các khai báo này (chạy trong `npm run test:all`).
+
+Lưu ý: mỗi lần Vercel deploy là một cache mới, nhưng nếu deploy lại bản cũ (không có các khai báo trên) thì
+route handler công khai sẽ bị đóng băng ở response đầu tiên.
+
 ## Kiểm thử
 
 Node 22+:

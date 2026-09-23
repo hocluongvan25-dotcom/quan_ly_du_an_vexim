@@ -4,6 +4,10 @@ import { daysBetween, remainingDays, remainingMs, getValidityYears, todayUtcIso 
 import { handleApiError } from "@/lib/api-helpers";
 
 export const runtime = "nodejs";
+// Khách quét lại mã phải thấy dữ liệu mới nhất: không cache route handler (Next 14 cache GET mặc định).
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const fetchCache = "force-no-store";
 
 export async function GET(_: Request, ctx: { params: { code: string } }) {
   try {
@@ -35,7 +39,7 @@ export async function GET(_: Request, ctx: { params: { code: string } }) {
         elapsed_days: daysBetween(item.registered_at, todayUtcIso()),
         is_valid: valid,
       },
-    });
+    }, { headers: { "Cache-Control": "no-store, max-age=0, must-revalidate" } });
   } catch (e) {
     return handleApiError(e);
   }
