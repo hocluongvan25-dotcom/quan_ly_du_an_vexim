@@ -233,94 +233,165 @@ export type ExpiryWarningData = {
 
 export type NotificationType = "90_days" | "60_days" | "30_days" | "14_days" | "7_days" | "3_days" | "1_day" | "expired" | "renewal_reminder";
 
+/**
+ * Nhãn trạng thái dùng trong email và danh sách thông báo.
+ * Văn phong trung tính, không thúc ép ("cần gia hạn gấp", "khẩn cấp") — đây là
+ * thông báo tự động của hệ thống quản lý hồ sơ, không phải email bán hàng.
+ */
 export function getNotificationLabel(type: NotificationType): { vi: string; en: string; urgency: "low" | "medium" | "high" | "critical" } {
   switch (type) {
     case "90_days": return { vi: "Còn 90 ngày", en: "90 days remaining", urgency: "low" };
     case "60_days": return { vi: "Còn 60 ngày", en: "60 days remaining", urgency: "low" };
     case "30_days": return { vi: "Còn 30 ngày", en: "30 days remaining", urgency: "medium" };
     case "14_days": return { vi: "Còn 14 ngày", en: "14 days remaining", urgency: "medium" };
-    case "7_days": return { vi: "Còn 7 ngày - Cần gia hạn gấp", en: "7 days - Urgent renewal", urgency: "high" };
-    case "3_days": return { vi: "Còn 3 ngày - Khẩn cấp", en: "3 days - Critical", urgency: "critical" };
-    case "1_day": return { vi: "Còn 1 ngày - Hết hạn hôm nay", en: "Expires today", urgency: "critical" };
-    case "expired": return { vi: "Đã hết hạn", en: "Expired", urgency: "critical" };
+    case "7_days": return { vi: "Còn 7 ngày", en: "7 days remaining", urgency: "high" };
+    case "3_days": return { vi: "Còn 3 ngày", en: "3 days remaining", urgency: "high" };
+    case "1_day": return { vi: "Còn 1 ngày", en: "1 day remaining", urgency: "high" };
+    case "expired": return { vi: "Đã hết hạn", en: "Expired", urgency: "high" };
     case "renewal_reminder": return { vi: "Nhắc gia hạn", en: "Renewal reminder", urgency: "medium" };
-    default: return { vi: "Cảnh báo hết hạn", en: "Expiry warning", urgency: "medium" };
+    default: return { vi: "Thông báo tình trạng hồ sơ", en: "Registration status notice", urgency: "medium" };
   }
 }
 
+/** "Đăng ký FDA" / "Đăng ký GACC" — FDA facility registration không phải "chứng nhận". */
+export function registrationSubject(standard: "FDA" | "GACC") {
+  return standard === "FDA" ? "Đăng ký FDA" : "Đăng ký GACC";
+}
+
+/** Tên trường số đăng ký theo đúng thuật ngữ của từng cơ quan. */
+export function registrationNoLabel(standard: "FDA" | "GACC") {
+  return standard === "FDA" ? "FDA Registration No." : "GACC Registration No.";
+}
+
+function formatEmailDate(iso: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ""));
+  return match ? `${match[3]}/${match[2]}/${match[1]}` : (iso || "—");
+}
+
+/** Dòng trạng thái duy nhất, dùng chung cho tiêu đề, chip và bảng thông tin. */
+export function registrationStatusLine(data: ExpiryWarningData, isExpired: boolean) {
+  const remaining = Math.max(0, Math.round(data.remaining_days || 0));
+  if (isExpired) return "Đã hết hiệu lực";
+  if (remaining <= 0) return "Hết hiệu lực hôm nay";
+  return `Còn ${remaining} ngày đến ngày hết hạn`;
+}
+
 export function buildExpiryWarningEmail(data: ExpiryWarningData, type: NotificationType): { subject: string; html: string; text: string } {
-  const label = getNotificationLabel(type);
   const isExpired = type === "expired" || data.remaining_days < 0;
-  const isCritical = label.urgency === "critical";
-  const isHigh = label.urgency === "high";
-
-  const standardLabel = data.standard === "FDA" ? "FDA Hoa Kỳ" : "GACC Trung Quốc";
+  const remaining = Math.max(0, Math.round(data.remaining_days || 0));
+  const onExpiryDay = !isExpired && remaining <= 0;
+  const noun = registrationSubject(data.standard);
+  const statusLine = registrationStatusLine(data, isExpired);
+  const registryName = data.standard === "FDA"
+    ? "U.S. Food and Drug Administration (FDA)"
+    : "General Administration of Customs of China (GACC)";
   const verifyUrl = `https://verify.vexim.vn/verify/${data.public_code}`;
+  const expiryDate = formatEmailDate(data.expires_at);
 
+  // Tiêu đề ngắn, factual: [Còn 7 ngày] Đăng ký FDA của <công ty> sắp hết hạn
   const subject = isExpired
-    ? `[KHẨN CẤP] Chứng nhận ${data.standard} ${data.certificate_no} của ${data.company_name} ĐÃ HẾT HẠN`
-    : `[Cảnh báo ${label.vi}] Chứng nhận ${data.standard} ${data.certificate_no} - ${data.company_name} ${label.vi.toLowerCase()}`;
+    ? `[Đã hết hạn] ${noun} của ${data.company_name} đã hết hiệu lực ngày ${expiryDate}`
+    : onExpiryDay
+      ? `[Hết hạn hôm nay] ${noun} của ${data.company_name} hết hiệu lực hôm nay`
+      : `[Còn ${remaining} ngày] ${noun} của ${data.company_name} sắp hết hạn`;
 
-  const urgencyColor = isExpired ? "#dc2626" : isCritical ? "#ea580c" : isHigh ? "#d97706" : "#059669";
-  const urgencyBg = isExpired ? "#fef2f2" : isCritical ? "#fff7ed" : isHigh ? "#fffbeb" : "#f0fdf4";
-  const urgencyBorder = isExpired ? "#fecaca" : isCritical ? "#fed7aa" : isHigh ? "#fde68a" : "#bbf7d0";
+  const summary = isExpired
+    ? `${noun} của ${data.company_name} đã hết hiệu lực vào ngày ${expiryDate}. Nếu doanh nghiệp tiếp tục xuất khẩu sản phẩm thuộc phạm vi đăng ký, vui lòng liên hệ Vexim để kiểm tra hồ sơ và thủ tục gia hạn.`
+    : onExpiryDay
+      ? `${noun} của ${data.company_name} hết hiệu lực trong hôm nay (${expiryDate}). Nếu doanh nghiệp tiếp tục xuất khẩu sản phẩm thuộc phạm vi đăng ký, vui lòng liên hệ Vexim để kiểm tra thủ tục gia hạn trước khi hết ngày.`
+      : `${noun} của ${data.company_name} dự kiến hết hạn vào ngày ${expiryDate}. Nếu doanh nghiệp tiếp tục xuất khẩu sản phẩm thuộc phạm vi đăng ký, vui lòng chuẩn bị và kiểm tra thủ tục gia hạn trước ngày hết hạn.`;
+
+  const accent = isExpired ? "#B91C1C" : "#0B1837";
+  const statusBg = isExpired ? "#FEF2F2" : "#F8F4EC";
+  const statusBorder = isExpired ? "#F3D4D4" : "#E7D4A6";
+
+  const row = (label: string, value: string, mono = false) => `
+        <tr>
+          <td style="padding:9px 0; color:#64748b; width:210px; vertical-align:top; border-bottom:1px solid #eef2f7">${label}</td>
+          <td style="padding:9px 0; color:#0f172a; font-weight:600; border-bottom:1px solid #eef2f7${mono ? "; font-family:'SFMono-Regular',Consolas,monospace" : ""}">${value}</td>
+        </tr>`;
 
   const html = `
-  <div style="font-family:Inter,Arial,sans-serif; max-width:640px; margin:0 auto; background:#fff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden">
-    <div style="background:${isExpired ? 'linear-gradient(135deg,#dc2626,#991b1b)' : isCritical ? 'linear-gradient(135deg,#ea580c,#9a3412)' : 'linear-gradient(135deg,#059669,#0f766e,#0f172a)'}; padding:20px 24px; color:#fff">
-      <div style="font-size:11px; letter-spacing:0.15em; text-transform:uppercase; opacity:0.9">VEXIM GLOBAL - CẢNH BÁO HẾT HẠN</div>
-      <div style="margin-top:8px; font-size:20px; font-weight:800">${isExpired ? '⛔ Chứng nhận đã hết hạn' : `⚠️ ${label.vi}`}</div>
-      <div style="margin-top:4px; font-size:13px; opacity:0.9">${data.company_name} · ${data.certificate_no} · ${standardLabel}</div>
+  <div style="font-family:Inter,Arial,sans-serif; max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden">
+    <div style="background:${accent}; padding:20px 24px; color:#ffffff">
+      <div style="font-size:11px; letter-spacing:0.15em; text-transform:uppercase; opacity:0.85">VEXIM GLOBAL · HỆ THỐNG QUẢN LÝ HỒ SƠ FDA/GACC</div>
+      <div style="margin-top:10px; font-size:20px; font-weight:800">Thông báo tình trạng đăng ký</div>
+      <div style="margin-top:4px; font-size:13px; opacity:0.9">${data.company_name} · ${noun} · ${data.certificate_no}</div>
     </div>
+
     <div style="padding:24px">
-      <div style="background:${urgencyBg}; border:1px solid ${urgencyBorder}; border-radius:12px; padding:16px; margin-bottom:20px">
-        <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:${urgencyColor}">${isExpired ? 'Đã hết hạn' : `Còn ${data.remaining_days} ngày`}</div>
-        <div style="margin-top:6px; font-size:14px; color:#334155; line-height:1.5">
-          ${isExpired
-            ? `Chứng nhận <b>${data.certificate_no}</b> (${standardLabel}) của <b>${data.company_name}</b> đã hết hạn vào ngày <b>${data.expires_at}</b>. Vui lòng gia hạn ngay để tránh gián đoạn xuất khẩu.`
-            : `Chứng nhận <b>${data.certificate_no}</b> (${standardLabel}) của <b>${data.company_name}</b> sẽ hết hạn vào ngày <b>${data.expires_at}</b> (còn <b>${data.remaining_days} ngày</b>). Vui lòng chuẩn bị gia hạn.`}
-        </div>
+      <div style="background:${statusBg}; border:1px solid ${statusBorder}; border-radius:12px; padding:14px 16px; margin-bottom:20px">
+        <div style="font-size:12px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:${accent}">${statusLine}</div>
       </div>
 
+      <p style="margin:0 0 22px; font-size:14px; line-height:1.65; color:#334155">${summary}</p>
+
+      <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:6px">Thông tin hồ sơ</div>
       <table style="width:100%; border-collapse:collapse; font-size:14px">
-        <tr><td style="padding:8px 0; color:#64748b; width:160px">Công ty</td><td style="padding:8px 0; font-weight:700">${data.company_name}</td></tr>
-        <tr><td style="padding:8px 0; color:#64748b">Số chứng nhận</td><td style="padding:8px 0; font-family:monospace; font-weight:600">${data.certificate_no}</td></tr>
-        <tr><td style="padding:8px 0; color:#64748b">Tiêu chuẩn</td><td style="padding:8px 0"><span style="background:${data.standard === 'FDA' ? '#dbeafe' : '#dcfce7'}; color:${data.standard === 'FDA' ? '#1e40af' : '#166534'}; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700">${data.standard}</span> ${standardLabel}</td></tr>
-        <tr><td style="padding:8px 0; color:#64748b">Mã đăng ký</td><td style="padding:8px 0; font-family:monospace">${data.registration_code}</td></tr>
-        ${data.duns_code ? `<tr><td style="padding:8px 0; color:#64748b">DUNS</td><td style="padding:8px 0; font-family:monospace">${data.duns_code}</td></tr>` : ""}
-        ${data.us_agent ? `<tr><td style="padding:8px 0; color:#64748b">US Agent</td><td style="padding:8px 0">${data.us_agent}</td></tr>` : ""}
-        <tr><td style="padding:8px 0; color:#64748b">Ngày đăng ký</td><td style="padding:8px 0">${data.registered_at}</td></tr>
-        <tr><td style="padding:8px 0; color:#64748b">Ngày hết hạn</td><td style="padding:8px 0; font-weight:700; color:${urgencyColor}">${data.expires_at}</td></tr>
-        <tr><td style="padding:8px 0; color:#64748b">Kỳ hạn</td><td style="padding:8px 0">${data.validity_years} năm</td></tr>
-        <tr><td style="padding:8px 0; color:#64748b">Còn lại</td><td style="padding:8px 0; font-weight:700">${data.remaining_days < 0 ? 0 : data.remaining_days} ngày</td></tr>
-        <tr><td style="padding:8px 0; color:#64748b">Xác thực</td><td style="padding:8px 0"><a href="${verifyUrl}" style="color:#0f766e; word-break:break-all">${verifyUrl}</a></td></tr>
+        <tbody>
+          ${row("Doanh nghiệp", data.company_name)}
+          ${row("Mã hồ sơ Vexim", data.certificate_no, true)}
+          ${row(registrationNoLabel(data.standard), data.registration_code || "—", true)}
+          ${data.duns_code ? row("D-U-N-S", data.duns_code) : ""}
+          ${data.us_agent ? row("U.S. Agent", data.us_agent) : ""}
+          ${row("Ngày đăng ký", formatEmailDate(data.registered_at))}
+          ${row("Ngày hết hạn", expiryDate)}
+          ${row("Kỳ hạn đăng ký", `${data.validity_years} năm`)}
+          ${row("Số ngày còn lại", `${remaining} ngày`)}
+          ${row("Cơ quan đăng ký", registryName)}
+          ${row("Kiểm tra thông tin hồ sơ", `<a href="${verifyUrl}" style="color:#0f766e; word-break:break-all">${verifyUrl}</a>`)}
+        </tbody>
       </table>
 
-      <div style="margin-top:24px; padding:16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px">
-        <div style="font-size:13px; font-weight:700; color:#0f172a">Hành động cần thiết:</div>
-        <ul style="margin:8px 0 0 18px; padding:0; font-size:13px; line-height:1.6; color:#334155">
-          ${isExpired
-            ? `<li>Liên hệ Vexim ngay để gia hạn khẩn cấp, tránh bị FDA/GACC thu hồi mã</li><li>Chuẩn bị hồ sơ cập nhật nếu có thay đổi về công ty, sản phẩm</li><li>Không xuất khẩu lô hàng mới cho đến khi gia hạn xong</li>`
-            : `<li>Liên hệ Vexim để được tư vấn gia hạn ${data.standard} (hiệu lực FDA 1-10 năm theo hợp đồng (thường 2 năm), GACC cố định 5 năm)</li><li>Chuẩn bị phí gia hạn và hồ sơ liên quan</li><li>Gia hạn sớm để được giá ưu đãi và tránh phí gấp</li>`}
-        </ul>
+      <div style="margin-top:22px; padding:16px; background:#F8FAFC; border:1px solid #e2e8f0; border-radius:12px">
+        <div style="font-size:13px; font-weight:700; color:#0f172a">Nếu cần gia hạn</div>
+        <p style="margin:8px 0 0; font-size:13px; line-height:1.6; color:#334155">
+          Vui lòng liên hệ Vexim để kiểm tra hồ sơ hiện tại, xác nhận thông tin đăng ký và báo phí gia hạn.
+        </p>
+        <p style="margin:10px 0 0; font-size:13px; color:#334155">
+          Hotline: <a href="tel:0373685634" style="color:#0f172a; font-weight:700; text-decoration:none">0373 685 634</a>
+          · Email: <a href="mailto:${FROM_EMAIL}" style="color:#0f172a; font-weight:700; text-decoration:none">${FROM_EMAIL}</a>
+        </p>
       </div>
 
-      <div style="margin-top:20px; display:flex; gap:8px; flex-wrap:wrap">
-        <a href="tel:0373685634" style="display:inline-block; background:#0f172a; color:#fff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">📞 Gọi Vexim: 0373 685 634</a>
-        <a href="${verifyUrl}" style="display:inline-block; background:#fff; color:#0f172a; border:1px solid #e2e8f0; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">🔍 Xác thực chứng nhận</a>
+      <div style="margin-top:20px">
+        <a href="${verifyUrl}" style="display:inline-block; background:#0B1837; color:#ffffff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">Kiểm tra thông tin hồ sơ</a>
       </div>
 
-      <div style="margin-top:20px; padding-top:16px; border-top:1px solid #e2e8f0; font-size:11px; color:#94a3b8">
-        Email tự động từ hệ thống quản lý FDA/GACC Vexim Global<br/>
-        Gửi lúc ${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })} · Mã: ${data.public_code}<br/>
+      <div style="margin-top:22px; padding-top:16px; border-top:1px solid #e2e8f0; font-size:11px; line-height:1.7; color:#94a3b8">
+        Email được gửi tự động từ hệ thống quản lý hồ sơ FDA/GACC của Vexim Global.<br/>
+        Thời gian gửi: ${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}<br/>
+        Mã hồ sơ: ${data.certificate_no} · Mã tra cứu: ${data.public_code}<br/>
         VEXIM GLOBAL CO., LTD · No. 25/6/51 Ngoa Long, Tay Tuu, Bac Tu Liem, Hanoi<br/>
-        Hotline: 0373 685 634 · Email: contact@veximglobal.com · Website: www.veximglobal.com
+        Hotline: 0373 685 634 · Email: ${FROM_EMAIL} · Website: www.veximglobal.com
       </div>
     </div>
   </div>
   `;
 
-  const text = `${isExpired ? 'HET HAN' : label.vi} - ${data.certificate_no} - ${data.company_name}\nStandard: ${data.standard}\nRegistration: ${data.registration_code}\nRegistered: ${data.registered_at}\nExpires: ${data.expires_at}\nRemaining: ${data.remaining_days} days\nVerify: ${verifyUrl}\n`;
+  const text = `${subject}
+
+${summary}
+
+THÔNG TIN HỒ SƠ
+Doanh nghiệp: ${data.company_name}
+Mã hồ sơ Vexim: ${data.certificate_no}
+${registrationNoLabel(data.standard)}: ${data.registration_code || "—"}
+${data.duns_code ? `D-U-N-S: ${data.duns_code}\n` : ""}${data.us_agent ? `U.S. Agent: ${data.us_agent}\n` : ""}Ngày đăng ký: ${formatEmailDate(data.registered_at)}
+Ngày hết hạn: ${expiryDate}
+Kỳ hạn đăng ký: ${data.validity_years} năm
+Số ngày còn lại: ${remaining} ngày
+Cơ quan đăng ký: ${registryName}
+Kiểm tra thông tin hồ sơ: ${verifyUrl}
+
+NẾU CẦN GIA HẠN
+Vui lòng liên hệ Vexim để kiểm tra hồ sơ hiện tại, xác nhận thông tin đăng ký và báo phí gia hạn.
+Hotline: 0373 685 634 · Email: ${FROM_EMAIL}
+
+Email được gửi tự động từ hệ thống quản lý hồ sơ FDA/GACC của Vexim Global.
+Mã hồ sơ: ${data.certificate_no} · Mã tra cứu: ${data.public_code}
+VEXIM GLOBAL CO., LTD · Hotline: 0373 685 634 · ${FROM_EMAIL} · www.veximglobal.com
+`;
 
   return { subject, html, text };
 }

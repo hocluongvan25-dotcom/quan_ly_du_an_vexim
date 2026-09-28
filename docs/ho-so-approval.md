@@ -92,6 +92,27 @@ SQLite tự bổ sung cột khi mở database. Không cần thao tác dữ liệ
 
 Không tự động sửa thời hạn lịch sử đã bị tính lại trước đây: cần đối chiếu hồ sơ thật và bản sao lưu nếu phát hiện sai.
 
+## Email cảnh báo hết hạn (văn phong thông báo tự động)
+
+Email do **hệ thống quản lý hồ sơ** gửi, không phải email bán hàng:
+
+- **Thuật ngữ**: dùng *“Đăng ký FDA”*, *“FDA Registration No.”* — FDA facility registration **không** gọi là “chứng nhận”.
+  GACC tương ứng *“Đăng ký GACC”* / *“GACC Registration No.”*. Trong toàn bộ email không dùng chữ “chứng nhận”.
+- **Tiêu đề ngắn, factual**: `[Còn 7 ngày] Đăng ký FDA của <công ty> sắp hết hạn`;
+  ngày hết hạn: `[Hết hạn hôm nay] …`; quá hạn: `[Đã hết hạn] … đã hết hiệu lực ngày dd/mm/yyyy`.
+  Không lặp “còn N ngày” hai lần, không có “cần gia hạn gấp”, không “KHẨN CẤP”, không emoji ⚠️/⛔.
+- **Thân email**: dòng trạng thái *“Còn N ngày đến ngày hết hạn”* + một đoạn nêu ngày hết hạn và hướng dẫn
+  chuẩn bị/kiểm tra thủ tục gia hạn. Không thúc ép, không “hành động cần thiết”, không “phí gấp”, không giá ưu đãi.
+- **Bảng thông tin hồ sơ** (giữ nguyên vì thể hiện tính hệ thống): Doanh nghiệp · **Mã hồ sơ Vexim** ·
+  **FDA Registration No.** / **GACC Registration No.** · D-U-N-S · U.S. Agent · Ngày đăng ký · Ngày hết hạn ·
+  Kỳ hạn đăng ký · Số ngày còn lại · Cơ quan đăng ký · **Kiểm tra thông tin hồ sơ** (link verify.vexim.vn).
+- **Khối “Nếu cần gia hạn”**: chỉ hướng dẫn liên hệ — *“Vui lòng liên hệ Vexim để kiểm tra hồ sơ hiện tại,
+  xác nhận thông tin đăng ký và báo phí gia hạn.”* Không kèm thông tin bán hàng (hiệu lực 1-10 năm, “chuẩn bị phí gia hạn”).
+- **Footer**: *“Email được gửi tự động từ hệ thống quản lý hồ sơ FDA/GACC của Vexim Global.”* + thời gian gửi,
+  mã hồ sơ, mã tra cứu, pháp nhân, hotline/email/website.
+- Nhãn mốc trong `getNotificationLabel()` cũng đã bỏ chữ “gấp/khẩn cấp” để dashboard và email nói cùng một giọng.
+- `tests/expiry-email.test.cjs` khoá toàn bộ các quy tắc trên (tiêu đề, thuật ngữ, nhãn bảng, danh sách từ bị cấm, footer).
+
 ## Không được cache dữ liệu hồ sơ
 
 Next.js 14 cache `fetch()` khi render phía server và cache luôn GET route handler, nên nếu không khai báo gì thì
