@@ -314,11 +314,16 @@ export function CertificateForm({ initial, prefill, role }: {
       setItem(data.item);
       setForm(toForm(data.item));
       setShowRenewDialog(false);
-      setMsg(t("form.renewedMsg", {
+      const renewedMsg = t("form.renewedMsg", {
         years: getValidityYears(data.item),
         yearLabel: getValidityYears(data.item) === 1 ? t("common.year") : t("common.years"),
         date: formatDate(data.item.expires_at), count: data.item.renewal_count,
-      }));
+      });
+      // Nói rõ email xác nhận đã tới tay ai (hoặc vì sao chưa gửi được)
+      const emailNote = data.email_sent
+        ? t("form.renewEmailSent", { recipients: (data.email_recipients || []).join(", ") })
+        : t("form.renewEmailFailed", { error: data.email_warning || t("form.requestFailed") });
+      setMsg(`${renewedMsg} ${emailNote}`);
       router.refresh();
     } catch (error) {
       setMsg(error instanceof Error ? error.message : t("form.requestFailed"));

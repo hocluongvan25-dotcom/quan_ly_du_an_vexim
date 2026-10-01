@@ -2,7 +2,7 @@ import { preparePaymentRequest, savedPaymentRequest, type PaymentRequest } from 
 import { certificateUpdatedAt, prepareCertificateChanges, sameCertificateFields, needsCertificateApproval, certificateFields, type CertificateInput } from "./certificate-workflow";
 import { hashPassword } from "./auth";
 import { supabaseAdmin } from "./supabase";
-import { expiryFromStandard, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
+import { expiryFromStandard, normalizeTimestamp, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
 import { DEFAULT_VALIDITY, isValidValidityYears, isValidValidityYearsForStandard, resolveValidityYears } from "./types";
 import {
@@ -1037,17 +1037,21 @@ export async function getExpiryNotificationsForCertificate(certId: number): Prom
   }
 }
 
-export async function hasNotificationBeenSent(certId: number, type: string): Promise<boolean> {
+export async function hasNotificationBeenSent(certId: number, type: string, sinceIso?: string): Promise<boolean> {
   try {
     const { data, error } = await supabaseAdmin()
       .from("expiry_notifications")
-      .select("id")
+      .select("sent_at")
       .eq("certificate_id", certId)
       .eq("notification_type", type)
-      .limit(1)
-      .maybeSingle();
-    if (error) return false;
-    return !!data;
+      .limit(20);
+    if (error || !data) return false;
+    const rows = data as Array<{ sent_at: string }>;
+    // Không truyền mốc kỳ hạn thì giữ cách kiểm tra cũ (đã gửi là chặn).
+    if (!sinceIso) return rows.length > 0;
+    // Chỉ tính là đã gửi nếu thông báo được gửi TRONG kỳ hạn hiện tại.
+    const since = normalizeTimestamp(sinceIso);
+    return rows.some((row) => normalizeTimestamp(row.sent_at) >= since);
   } catch {
     return false;
   }
@@ -1068,6 +1072,7 @@ export async function createExpiryNotification(input: {
       notification_type: input.notification_type,
       recipient_email: input.recipient_email,
       status: input.status || "sent",
+      sent_at: new Date().toISOString(),
     })
     .select("id")
     .single();

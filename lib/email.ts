@@ -229,6 +229,7 @@ export type ExpiryWarningData = {
   recipient_name?: string;
   duns_code?: string;
   us_agent?: string;
+  renewal_count?: number;
 };
 
 export type NotificationType = "90_days" | "60_days" | "30_days" | "14_days" | "7_days" | "3_days" | "1_day" | "expired" | "renewal_reminder";
@@ -394,6 +395,128 @@ VEXIM GLOBAL CO., LTD · Hotline: 0373 685 634 · ${FROM_EMAIL} · www.veximglob
 `;
 
   return { subject, html, text };
+}
+
+
+/** Email xác nhận gia hạn — cùng văn phong thông báo tự động với email cảnh báo hết hạn. */
+export function buildRenewalConfirmationEmail(data: ExpiryWarningData): { subject: string; html: string; text: string } {
+  const noun = registrationSubject(data.standard);
+  const registryName = data.standard === "FDA"
+    ? "U.S. Food and Drug Administration (FDA)"
+    : "General Administration of Customs of China (GACC)";
+  const verifyUrl = `https://verify.vexim.vn/verify/${data.public_code}`;
+  const expiryDate = formatEmailDate(data.expires_at);
+  const renewals = Math.max(1, Math.round(data.renewal_count || 1));
+  const subject = `[Đã gia hạn] ${noun} của ${data.company_name} có hiệu lực đến ${expiryDate}`;
+
+  const row = (label: string, value: string, mono = false) => `
+        <tr>
+          <td style="padding:9px 0; color:#64748b; width:210px; vertical-align:top; border-bottom:1px solid #eef2f7">${label}</td>
+          <td style="padding:9px 0; color:#0f172a; font-weight:600; border-bottom:1px solid #eef2f7${mono ? "; font-family:'SFMono-Regular',Consolas,monospace" : ""}">${value}</td>
+        </tr>`;
+
+  const html = `
+  <div style="font-family:Inter,Arial,sans-serif; max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden">
+    <div style="background:#0B1837; padding:20px 24px; color:#ffffff">
+      <div style="font-size:11px; letter-spacing:0.15em; text-transform:uppercase; opacity:0.85">VEXIM GLOBAL · HỆ THỐNG QUẢN LÝ HỒ SƠ FDA/GACC</div>
+      <div style="margin-top:10px; font-size:20px; font-weight:800">Xác nhận gia hạn đăng ký</div>
+      <div style="margin-top:4px; font-size:13px; opacity:0.9">${data.company_name} · ${noun} · ${data.certificate_no}</div>
+    </div>
+
+    <div style="padding:24px">
+      <div style="background:#F8F4EC; border:1px solid #E7D4A6; border-radius:12px; padding:14px 16px; margin-bottom:20px">
+        <div style="font-size:12px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:#0B1837">Đã gia hạn · Hiệu lực đến ${expiryDate}</div>
+      </div>
+
+      <p style="margin:0 0 22px; font-size:14px; line-height:1.65; color:#334155">
+        ${noun} của ${data.company_name} đã được gia hạn và ghi nhận trong hệ thống quản lý hồ sơ của Vexim.
+        Kỳ hạn mới có hiệu lực đến ngày ${expiryDate}. Thông tin dưới đây là bản ghi mới nhất của hồ sơ.
+      </p>
+
+      <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:6px">Thông tin hồ sơ</div>
+      <table style="width:100%; border-collapse:collapse; font-size:14px">
+        <tbody>
+          ${row("Doanh nghiệp", data.company_name)}
+          ${row("Mã hồ sơ Vexim", data.certificate_no, true)}
+          ${row(registrationNoLabel(data.standard), data.registration_code || "—", true)}
+          ${data.duns_code ? row("D-U-N-S", data.duns_code) : ""}
+          ${data.us_agent ? row("U.S. Agent", data.us_agent) : ""}
+          ${row("Ngày đăng ký", formatEmailDate(data.registered_at))}
+          ${row("Ngày hết hạn (mới)", expiryDate)}
+          ${row("Kỳ hạn đăng ký", `${data.validity_years} năm`)}
+          ${row("Số lần gia hạn", `${renewals} lần`)}
+          ${row("Cơ quan đăng ký", registryName)}
+          ${row("Kiểm tra thông tin hồ sơ", `<a href="${verifyUrl}" style="color:#0f766e; word-break:break-all">${verifyUrl}</a>`)}
+        </tbody>
+      </table>
+
+      <div style="margin-top:22px; padding:16px; background:#F8FAFC; border:1px solid #e2e8f0; border-radius:12px">
+        <div style="font-size:13px; font-weight:700; color:#0f172a">Nếu cần hỗ trợ</div>
+        <p style="margin:8px 0 0; font-size:13px; line-height:1.6; color:#334155">
+          Vui lòng liên hệ Vexim nếu cần kiểm tra hoặc cập nhật thông tin đăng ký của doanh nghiệp.
+        </p>
+        <p style="margin:10px 0 0; font-size:13px; color:#334155">
+          Hotline: <a href="tel:0373685634" style="color:#0f172a; font-weight:700; text-decoration:none">0373 685 634</a>
+          · Email: <a href="mailto:${FROM_EMAIL}" style="color:#0f172a; font-weight:700; text-decoration:none">${FROM_EMAIL}</a>
+        </p>
+      </div>
+
+      <div style="margin-top:20px">
+        <a href="${verifyUrl}" style="display:inline-block; background:#0B1837; color:#ffffff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">Kiểm tra thông tin hồ sơ</a>
+      </div>
+
+      <div style="margin-top:22px; padding-top:16px; border-top:1px solid #e2e8f0; font-size:11px; line-height:1.7; color:#94a3b8">
+        Email được gửi tự động từ hệ thống quản lý hồ sơ FDA/GACC của Vexim Global.<br/>
+        Thời gian gửi: ${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}<br/>
+        Mã hồ sơ: ${data.certificate_no} · Mã tra cứu: ${data.public_code}<br/>
+        VEXIM GLOBAL CO., LTD · No. 25/6/51 Ngoa Long, Tay Tuu, Bac Tu Liem, Hanoi<br/>
+        Hotline: 0373 685 634 · Email: ${FROM_EMAIL} · Website: www.veximglobal.com
+      </div>
+    </div>
+  </div>
+  `;
+
+  const text = `${subject}
+
+${noun} của ${data.company_name} đã được gia hạn và ghi nhận trong hệ thống quản lý hồ sơ của Vexim.
+Kỳ hạn mới có hiệu lực đến ngày ${expiryDate}.
+
+THÔNG TIN HỒ SƠ
+Doanh nghiệp: ${data.company_name}
+Mã hồ sơ Vexim: ${data.certificate_no}
+${registrationNoLabel(data.standard)}: ${data.registration_code || "—"}
+${data.duns_code ? `D-U-N-S: ${data.duns_code}\n` : ""}${data.us_agent ? `U.S. Agent: ${data.us_agent}\n` : ""}Ngày đăng ký: ${formatEmailDate(data.registered_at)}
+Ngày hết hạn (mới): ${expiryDate}
+Kỳ hạn đăng ký: ${data.validity_years} năm
+Số lần gia hạn: ${renewals} lần
+Cơ quan đăng ký: ${registryName}
+Kiểm tra thông tin hồ sơ: ${verifyUrl}
+
+NẾU CẦN HỖ TRỢ
+Vui lòng liên hệ Vexim nếu cần kiểm tra hoặc cập nhật thông tin đăng ký của doanh nghiệp.
+Hotline: 0373 685 634 · Email: ${FROM_EMAIL}
+
+Email được gửi tự động từ hệ thống quản lý hồ sơ FDA/GACC của Vexim Global.
+Mã hồ sơ: ${data.certificate_no} · Mã tra cứu: ${data.public_code}
+VEXIM GLOBAL CO., LTD · Hotline: 0373 685 634 · ${FROM_EMAIL} · www.veximglobal.com
+`;
+
+  return { subject, html, text };
+}
+
+export async function sendRenewalConfirmationEmail(data: ExpiryWarningData, recipientEmails: string[]) {
+  const emailContent = buildRenewalConfirmationEmail(data);
+  const validEmails = recipientEmails.filter((e) => e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e));
+  if (validEmails.length === 0) {
+    console.warn("[Email] No valid recipient for renewal confirmation", data.certificate_no);
+    return { success: false, error: "No valid recipients" };
+  }
+  return sendEmail({
+    to: validEmails,
+    subject: emailContent.subject,
+    html: emailContent.html,
+    text: emailContent.text,
+  });
 }
 
 export async function sendExpiryWarningEmail(data: ExpiryWarningData, type: NotificationType, recipientEmails: string[]) {

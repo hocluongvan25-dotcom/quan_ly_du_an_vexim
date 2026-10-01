@@ -207,8 +207,10 @@ export async function getExpiryNotificationsForCertificate(certId: number) {
   return isSupabaseEnabled() ? cloud.getExpiryNotificationsForCertificate(certId) : sqlite.getExpiryNotificationsForCertificate(certId);
 }
 
-export async function hasNotificationBeenSent(certId: number, type: string) {
-  return isSupabaseEnabled() ? cloud.hasNotificationBeenSent(certId, type) : sqlite.hasNotificationBeenSent(certId, type);
+export async function hasNotificationBeenSent(certId: number, type: string, sinceIso?: string) {
+  return isSupabaseEnabled()
+    ? cloud.hasNotificationBeenSent(certId, type, sinceIso)
+    : sqlite.hasNotificationBeenSent(certId, type, sinceIso);
 }
 
 export async function createExpiryNotification(input: {

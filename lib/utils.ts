@@ -175,6 +175,17 @@ export function isValidNow(expiresAt: string, registeredAt: string, now = new Da
   return today.getTime() >= start.getTime() && today.getTime() <= exp.getTime();
 }
 
+/**
+ * Chuẩn hoá mốc thời gian về "YYYY-MM-DD HH:MM:SS" (UTC) để so sánh được với nhau:
+ * SQLite trả "2026-10-01 03:09:04", Supabase trả "2026-10-01T03:09:04.123+00:00".
+ * Dùng để biết một thông báo đã gửi thuộc kỳ hạn hiện tại hay kỳ hạn cũ.
+ */
+export function normalizeTimestamp(value: unknown) {
+  // Giữ tới mili-giây: gia hạn và lần gửi trước đó có thể rơi vào cùng một giây,
+  // chỉ so tới giây thì không phân biệt được kỳ hạn cũ với kỳ hạn mới.
+  return String(value || "").replace("T", " ").slice(0, 23);
+}
+
 export function randomCode(len = 10) {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let out = "";

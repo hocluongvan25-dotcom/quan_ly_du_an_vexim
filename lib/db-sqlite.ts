@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
 import { hashPassword } from "./auth";
-import { expiryFromStandard, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
+import { expiryFromStandard, normalizeTimestamp, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
 import { isValidValidityYearsForStandard, resolveValidityYears } from "./types";
 import {
@@ -1095,7 +1095,7 @@ export function renewCertificate(id: number, extraFee = 0, renewalYears?: number
         expires_at = ?,
         validity_years = ?,
         renewal_count = renewal_count + 1,
-        last_renewed_at = datetime('now'),
+        last_renewed_at = strftime('%Y-%m-%d %H:%M:%f', 'now'),
         service_price = service_price + ?,
         status = 'published',
         validity_confirmed = 1,
@@ -1355,11 +1355,16 @@ export function getExpiryNotificationsForCertificate(certId: number): ExpiryNoti
   ) as ExpiryNotification[];
 }
 
-export function hasNotificationBeenSent(certId: number, type: string): boolean {
-  const row = db()
-    .prepare(`SELECT id FROM expiry_notifications WHERE certificate_id = ? AND notification_type = ? LIMIT 1`)
-    .get(certId, type) as { id: number } | undefined;
-  return !!row;
+export function hasNotificationBeenSent(certId: number, type: string, sinceIso?: string): boolean {
+  const rows = db()
+    .prepare(`SELECT sent_at FROM expiry_notifications WHERE certificate_id = ? AND notification_type = ?`)
+    .all(certId, type) as Array<{ sent_at: string }>;
+  // Không truyền mốc kỳ hạn thì giữ cách kiểm tra cũ (đã gửi là chặn).
+  if (!sinceIso) return rows.length > 0;
+  // Chỉ tính là đã gửi nếu thông báo được gửi TRONG kỳ hạn hiện tại:
+  // gia hạn xong, các thông báo của kỳ hạn cũ không được chặn kỳ hạn mới.
+  const since = normalizeTimestamp(sinceIso);
+  return rows.some((row) => normalizeTimestamp(row.sent_at) >= since);
 }
 
 export function createExpiryNotification(input: {
@@ -1371,8 +1376,8 @@ export function createExpiryNotification(input: {
 }) {
   const info = db()
     .prepare(
-      `INSERT INTO expiry_notifications (certificate_id, company_name, notification_type, recipient_email, status)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO expiry_notifications (certificate_id, company_name, notification_type, recipient_email, status, sent_at)
+       VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%d %H:%M:%f', 'now'))`
     )
     .run(
       input.certificate_id,

@@ -113,6 +113,23 @@ Email do **hệ thống quản lý hồ sơ** gửi, không phải email bán h�
 - Nhãn mốc trong `getNotificationLabel()` cũng đã bỏ chữ “gấp/khẩn cấp” để dashboard và email nói cùng một giọng.
 - `tests/expiry-email.test.cjs` khoá toàn bộ các quy tắc trên (tiêu đề, thuật ngữ, nhãn bảng, danh sách từ bị cấm, footer).
 
+## Nhắc hạn & gia hạn (vòng đời hồ sơ)
+
+- **Chống gửi trùng theo KỲ HẠN**: mỗi thông báo chỉ được tính là "đã gửi" trong **kỳ hạn hiện tại**.
+  Kỳ hạn hiện tại bắt đầu từ `last_renewed_at` (lần gia hạn gần nhất) hoặc `registered_at` (chưa gia hạn).
+  Nhờ vậy sau khi gia hạn, khách nhận lại đủ các mốc 90/60/30/14/7/3/1 ngày và cả email "đã hết hạn" của kỳ hạn mới,
+  trong khi lịch sử đã gửi của kỳ hạn cũ vẫn còn nguyên trong dashboard.
+  (Trước đây bản ghi cũ chặn vĩnh viễn mọi cảnh báo về sau — lỗi đã sửa.)
+- Mốc thời gian lưu theo **mili-giây** (`strftime('%Y-%m-%d %H:%M:%f')` ở SQLite, ISO ở Supabase) để phân biệt
+  lần gửi trước và lần gia hạn kể cả khi cùng một giây.
+- **Email xác nhận gia hạn**: ngay khi admin/nhân viên gia hạn (API `action: renew`), hệ thống gửi cho khách
+  email *"[Đã gia hạn] Đăng ký FDA của <công ty> có hiệu lực đến dd/mm/yyyy"* — cùng văn phong thông báo tự động:
+  trạng thái, bảng thông tin hồ sơ (gồm **Ngày hết hạn (mới)** và **Số lần gia hạn**), nút *Kiểm tra thông tin hồ sơ*,
+  footer hệ thống. Ghi vào lịch sử là `renewal_reminder` nên hiện ở trang Cảnh báo.
+- Lỗi gửi email **không làm hỏng việc gia hạn**: API trả `email_sent`, `email_recipients`, `email_warning`
+  và form báo rõ *"Đã gửi email xác nhận tới …"* hoặc *"Chưa gửi được email xác nhận (…)"*.
+- `tests/renewal-notice.test.cjs` khoá cả hai hành vi trên.
+
 ## Không được cache dữ liệu hồ sơ
 
 Next.js 14 cache `fetch()` khi render phía server và cache luôn GET route handler, nên nếu không khai báo gì thì

@@ -11,6 +11,7 @@ import {
 import type { Standard } from "@/lib/types";
 import { handleApiError } from "@/lib/api-helpers";
 import { droppedColumnsWarning } from "@/lib/db-supabase";
+import { notifyCertificateRenewed } from "@/lib/expiry-checker";
 import { isInvalidValidityInput, isValidDunsCode, resolveValidityYears } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -69,7 +70,19 @@ export async function PUT(req: Request, ctx: Ctx) {
         );
       }
       const item = await renewCertificate(id, extraFee, renewalYears);
-      return NextResponse.json({ item });
+      // Gia hạn xong phải có email xác nhận cho khách (lỗi email không làm hỏng việc gia hạn)
+      let renewalEmail: { sent: boolean; recipients: string[]; error?: string } = { sent: false, recipients: [] };
+      try {
+        renewalEmail = await notifyCertificateRenewed(item);
+      } catch (e: any) {
+        renewalEmail = { sent: false, recipients: [], error: e?.message || "EMAIL_FAILED" };
+      }
+      return NextResponse.json({
+        item,
+        email_sent: renewalEmail.sent,
+        email_recipients: renewalEmail.recipients,
+        email_warning: renewalEmail.sent ? undefined : renewalEmail.error,
+      });
     }
     const standard = body.standard === "GACC" ? "GACC" : "FDA";
     if (isInvalidValidityInput(body.validity_years, standard)) {

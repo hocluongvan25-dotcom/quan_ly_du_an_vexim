@@ -1,6 +1,7 @@
 import { listCertificates, listCompanies, getCompanyByName, hasNotificationBeenSent, createExpiryNotification } from "./db";
 import { remainingDays, getValidityYears } from "./utils";
-import { sendExpiryWarningEmail, type ExpiryWarningData, type NotificationType } from "./email";
+import type { Certificate } from "./types";
+import { sendExpiryWarningEmail, sendRenewalConfirmationEmail, type ExpiryWarningData, type NotificationType } from "./email";
 
 export type ExpiryCheckResult = {
   totalScanned: number;
@@ -39,6 +40,85 @@ function getNotificationTypeForRemaining(remaining: number): NotificationType | 
   // Also if remaining is between thresholds, we don't send unless it's exactly threshold
   // But for safety, if remaining is 0, we already handled
   return null;
+}
+
+/**
+ * Kỳ hạn hiện tại bắt đầu từ lúc nào: lần gia hạn gần nhất, hoặc ngày đăng ký đầu tiên.
+ * Thông báo gửi TRƯỚC mốc này thuộc kỳ hạn cũ và không được chặn kỳ hạn mới.
+ */
+export function currentTermStart(cert: Certificate) {
+  return cert.renewal_count > 0 && cert.last_renewed_at ? cert.last_renewed_at : cert.registered_at;
+}
+
+type ExpiryWarningFields = Pick<Certificate,
+  "certificate_no" | "company_name" | "standard" | "registration_code" | "registered_at" |
+  "expires_at" | "public_code" | "duns_code" | "us_agent"> & { validity_years?: number };
+
+/** Dữ liệu cho email, dùng chung cho cảnh báo hết hạn và xác nhận gia hạn. */
+export function warningDataFor(cert: ExpiryWarningFields, remaining: number, renewalCount = 0): ExpiryWarningData {
+  return {
+    certificate_no: cert.certificate_no,
+    company_name: cert.company_name,
+    standard: cert.standard,
+    registration_code: cert.registration_code,
+    registered_at: cert.registered_at,
+    expires_at: cert.expires_at,
+    validity_years: getValidityYears(cert as any),
+    remaining_days: remaining,
+    public_code: cert.public_code,
+    duns_code: cert.duns_code,
+    us_agent: cert.us_agent,
+    renewal_count: renewalCount,
+  };
+}
+
+/**
+ * Người nhận email của một hồ sơ: email khách trên hồ sơ → danh bạ doanh nghiệp →
+ * luôn thêm email admin để Vexim nắm được.
+ */
+export async function certificateRecipients(
+  cert: Pick<Certificate, "company_name" | "company_email">,
+  companyMap?: Map<string, { email: string; phone: string }>
+) {
+  const recipients: string[] = [];
+  const certEmail = (cert.company_email || "").trim();
+  if (certEmail) recipients.push(certEmail);
+  if (recipients.length === 0 && companyMap) {
+    const info = companyMap.get(cert.company_name.toLowerCase());
+    if (info?.email) recipients.push(info.email);
+  }
+  if (recipients.length === 0) {
+    try {
+      const comp = await getCompanyByName(cert.company_name);
+      if (comp?.email) recipients.push(comp.email);
+    } catch {}
+  }
+  const adminEmail = process.env.ZOHO_TO_EMAIL || process.env.ZOHO_FROM_EMAIL || "contact@veximglobal.com";
+  if (adminEmail && !recipients.includes(adminEmail)) recipients.push(adminEmail);
+  return recipients;
+}
+
+/**
+ * Sau khi gia hạn: gửi email xác nhận cho khách và ghi lại vào lịch sử thông báo.
+ * Email lỗi không được làm hỏng việc gia hạn — chỉ trả về lý do.
+ */
+export async function notifyCertificateRenewed(cert: Certificate): Promise<{ sent: boolean; recipients: string[]; error?: string }> {
+  const recipients = await certificateRecipients(cert);
+  if (recipients.length === 0) return { sent: false, recipients, error: "No recipient email" };
+  const remaining = remainingDays(cert.expires_at);
+  const result = await sendRenewalConfirmationEmail(warningDataFor(cert, remaining, cert.renewal_count), recipients);
+  try {
+    await createExpiryNotification({
+      certificate_id: cert.id,
+      company_name: cert.company_name,
+      notification_type: "renewal_reminder",
+      recipient_email: recipients.join(", "),
+      status: result.success ? "sent" : "failed",
+    });
+  } catch (e: any) {
+    console.warn(`[ExpiryChecker] Failed to record renewal confirmation for ${cert.certificate_no}:`, e.message);
+  }
+  return { sent: result.success, recipients, error: result.success ? undefined : result.error };
 }
 
 /**
@@ -86,7 +166,7 @@ export async function scanAndNotifyExpiry(): Promise<ExpiryCheckResult> {
 
     // Check if already sent
     try {
-      const alreadySent = await hasNotificationBeenSent(cert.id, type);
+      const alreadySent = await hasNotificationBeenSent(cert.id, type, currentTermStart(cert));
       if (alreadySent) {
         result.details.push({
           certificate_no: cert.certificate_no,
@@ -104,29 +184,8 @@ export async function scanAndNotifyExpiry(): Promise<ExpiryCheckResult> {
       console.warn(`[ExpiryChecker] hasNotification check failed for ${cert.certificate_no}:`, e.message);
     }
 
-    // Gather recipient emails - prefer certificate.company_email, then companies table
-    const recipients: string[] = [];
-    const certEmail = (cert as any).company_email?.trim();
-    if (certEmail) recipients.push(certEmail);
-
-    if (recipients.length === 0) {
-      const companyInfo = companyMap.get(cert.company_name.toLowerCase());
-      if (companyInfo?.email) recipients.push(companyInfo.email);
-    }
-
-    // Also try to get company by name from DB for email
-    if (recipients.length === 0) {
-      try {
-        const comp = await getCompanyByName(cert.company_name);
-        if (comp?.email) recipients.push(comp.email);
-      } catch {}
-    }
-
-    // Always include admin notification email from env or default
-    const adminEmail = process.env.ZOHO_TO_EMAIL || process.env.ZOHO_FROM_EMAIL || "contact@veximglobal.com";
-    if (adminEmail && !recipients.includes(adminEmail)) {
-      recipients.push(adminEmail);
-    }
+    // Người nhận: email khách trên hồ sơ → danh bạ doanh nghiệp → email admin
+    const recipients = await certificateRecipients(cert, companyMap);
 
     // If still no recipient, skip but log
     if (recipients.length === 0) {
@@ -143,19 +202,7 @@ export async function scanAndNotifyExpiry(): Promise<ExpiryCheckResult> {
       continue;
     }
 
-    const warningData: ExpiryWarningData = {
-      certificate_no: cert.certificate_no,
-      company_name: cert.company_name,
-      standard: cert.standard,
-      registration_code: cert.registration_code,
-      registered_at: cert.registered_at,
-      expires_at: cert.expires_at,
-      validity_years: getValidityYears(cert as any),
-      remaining_days: remaining,
-      public_code: cert.public_code,
-      duns_code: cert.duns_code,
-      us_agent: cert.us_agent,
-    };
+    const warningData = warningDataFor(cert, remaining, cert.renewal_count);
 
     try {
       const sendResult = await sendExpiryWarningEmail(warningData, type, recipients);
