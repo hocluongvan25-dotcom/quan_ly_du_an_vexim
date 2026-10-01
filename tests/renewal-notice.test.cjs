@@ -30,6 +30,7 @@ for (const ext of ['.ts', '.tsx']) {
 const db = require('../lib/db-sqlite.ts');
 const { scanAndNotifyExpiry, notifyCertificateRenewed, currentTermStart, certificateRecipients } = require('../lib/expiry-checker.ts');
 const { buildRenewalConfirmationEmail } = require('../lib/email.ts');
+const { siteBaseUrl } = require('../lib/site-url.ts');
 after(() => { process.chdir(cwd); fs.rmSync(temp, { recursive: true, force: true }); });
 
 const iso = (days) => {
@@ -176,7 +177,7 @@ test('nội dung email xác nhận gia hạn: đúng hồ sơ, đúng kỳ hạn
     'Kỳ hạn đăng ký', '2 năm',
     'Số lần gia hạn', '1 lần',
     'Kiểm tra thông tin hồ sơ',
-    `https://verify.vexim.vn/verify/${renewed.public_code}`,
+    `${siteBaseUrl()}/verify/${renewed.public_code}`,
     'Email được gửi tự động từ hệ thống quản lý hồ sơ FDA/GACC của Vexim Global.',
   ]) assert.ok(all.includes(needle), `thiếu "${needle}"`);
 

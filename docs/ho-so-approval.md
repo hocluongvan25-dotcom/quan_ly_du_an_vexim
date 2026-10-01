@@ -105,7 +105,7 @@ Email do **hệ thống quản lý hồ sơ** gửi, không phải email bán h�
   chuẩn bị/kiểm tra thủ tục gia hạn. Không thúc ép, không “hành động cần thiết”, không “phí gấp”, không giá ưu đãi.
 - **Bảng thông tin hồ sơ** (giữ nguyên vì thể hiện tính hệ thống): Doanh nghiệp · **Mã hồ sơ Vexim** ·
   **FDA Registration No.** / **GACC Registration No.** · D-U-N-S · U.S. Agent · Ngày đăng ký · Ngày hết hạn ·
-  Kỳ hạn đăng ký · Số ngày còn lại · Cơ quan đăng ký · **Kiểm tra thông tin hồ sơ** (link verify.vexim.vn).
+  Kỳ hạn đăng ký · Số ngày còn lại · Cơ quan đăng ký · **Kiểm tra thông tin hồ sơ** (link xác minh, xem bên dưới).
 - **Khối “Nếu cần gia hạn”**: chỉ hướng dẫn liên hệ — *“Vui lòng liên hệ Vexim để kiểm tra hồ sơ hiện tại,
   xác nhận thông tin đăng ký và báo phí gia hạn.”* Không kèm thông tin bán hàng (hiệu lực 1-10 năm, “chuẩn bị phí gia hạn”).
 - **Footer**: *“Email được gửi tự động từ hệ thống quản lý hồ sơ FDA/GACC của Vexim Global.”* + thời gian gửi,
@@ -129,6 +129,20 @@ Email do **hệ thống quản lý hồ sơ** gửi, không phải email bán h�
 - Lỗi gửi email **không làm hỏng việc gia hạn**: API trả `email_sent`, `email_recipients`, `email_warning`
   và form báo rõ *"Đã gửi email xác nhận tới …"* hoặc *"Chưa gửi được email xác nhận (…)"*.
 - `tests/renewal-notice.test.cjs` khoá cả hai hành vi trên.
+
+## Link xác minh trong email
+
+Nút **Kiểm tra thông tin hồ sơ** trong cả hai email (cảnh báo hết hạn và xác nhận gia hạn) phải trỏ tới
+**đúng trang mà mã QR mở ra**: `<địa chỉ hệ thống>/verify/<mã tra cứu>`.
+
+- `lib/site-url.ts` quyết định địa chỉ: `NEXT_PUBLIC_SITE_URL` (hoặc `SITE_URL`) → tên miền Vercel
+  (`VERCEL_PROJECT_PRODUCTION_URL` / `VERCEL_URL`) → mặc định `https://vanhanh.veximglobal.com`.
+- **Không hardcode tên miền trong email.** Trước đây hai email dùng `https://verify.vexim.vn/…`, một tên miền
+  không tồn tại, nên khách bấm vào chỉ thấy trang không mở được; mã QR thì vẫn đúng vì nó lấy từ trình duyệt.
+- Đổi tên miền (ví dụ sang `verify.veximglobal.com`): thêm biến `NEXT_PUBLIC_SITE_URL` trong Vercel, không cần sửa code.
+- Trang `/verify/[code]` tự chọn ngôn ngữ theo `?lang=` → cookie → `Accept-Language`, nên không cần gắn `?lang=vi` vào link.
+- `tests/expiry-email.test.cjs` khoá lại: link phải cùng địa chỉ hệ thống, không chứa `verify.vexim.vn`,
+  và đổi được theo `NEXT_PUBLIC_SITE_URL`.
 
 ## Không được cache dữ liệu hồ sơ
 

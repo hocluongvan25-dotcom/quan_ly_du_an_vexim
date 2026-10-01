@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { verifyUrlFor } from "./site-url";
 
 // Zoho Mail SMTP configuration for contact@veximglobal.com
 // Required env vars:
@@ -286,7 +287,7 @@ export function buildExpiryWarningEmail(data: ExpiryWarningData, type: Notificat
   const registryName = data.standard === "FDA"
     ? "U.S. Food and Drug Administration (FDA)"
     : "General Administration of Customs of China (GACC)";
-  const verifyUrl = `https://verify.vexim.vn/verify/${data.public_code}`;
+  const verifyUrl = verifyUrlFor(data.public_code);
   const expiryDate = formatEmailDate(data.expires_at);
 
   // Tiêu đề ngắn, factual: [Còn 7 ngày] Đăng ký FDA của <công ty> sắp hết hạn
@@ -404,7 +405,7 @@ export function buildRenewalConfirmationEmail(data: ExpiryWarningData): { subjec
   const registryName = data.standard === "FDA"
     ? "U.S. Food and Drug Administration (FDA)"
     : "General Administration of Customs of China (GACC)";
-  const verifyUrl = `https://verify.vexim.vn/verify/${data.public_code}`;
+  const verifyUrl = verifyUrlFor(data.public_code);
   const expiryDate = formatEmailDate(data.expires_at);
   const renewals = Math.max(1, Math.round(data.renewal_count || 1));
   const subject = `[Đã gia hạn] ${noun} của ${data.company_name} có hiệu lực đến ${expiryDate}`;

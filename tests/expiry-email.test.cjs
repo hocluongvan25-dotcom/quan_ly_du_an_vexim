@@ -20,6 +20,7 @@ for (const ext of ['.ts', '.tsx']) {
 }
 
 const { buildExpiryWarningEmail, getNotificationLabel } = require('../lib/email.ts');
+const { siteBaseUrl, DEFAULT_SITE_URL } = require('../lib/site-url.ts');
 
 const FDA = {
   certificate_no: 'VXM-FDA-2026-0015',
@@ -134,12 +135,37 @@ test('giữ bảng thông tin hồ sơ với nhãn chuẩn', () => {
 
 test('giữ link xác minh làm trust element, có CTA rõ ràng', () => {
   const email = buildExpiryWarningEmail(FDA, '60_days');
-  const url = 'https://verify.vexim.vn/verify/QRCODE123456';
+  const url = `${siteBaseUrl()}/verify/QRCODE123456`;
   assert.ok(email.html.includes(url), 'phải còn link xác minh');
   assert.ok(email.text.includes(url));
   assert.ok(email.html.includes('<a href="tel:0373685634"'), 'phải có hotline liên hệ');
-  const cta = email.html.match(/<a href="https:\/\/verify\.vexim\.vn[^>]*>([^<]+)<\/a>/g) || [];
+  const links = email.html.match(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g) || [];
+  const cta = links.filter((a) => a.includes(url));
+  assert.ok(cta.length >= 2, 'email phải có cả dòng link và nút CTA tới trang xác minh');
   assert.ok(cta.some((a) => a.includes('Kiểm tra thông tin hồ sơ')), 'nút CTA phải là "Kiểm tra thông tin hồ sơ"');
+});
+
+test('link trong email trỏ đúng trang mà mã QR mở ra, không dùng tên miền chết', () => {
+  // Trang QR mã hoá `${origin}/verify/<mã>` với origin là địa chỉ thật đang chạy.
+  // Email từng hardcode "verify.vexim.vn" — tên miền không tồn tại, khách bấm vào không mở được.
+  const mail = allText(FDA, '30_days');
+  assert.equal(mail.includes('verify.vexim.vn'), false, 'không được dùng tên miền verify.vexim.vn');
+  assert.match(mail, /https:\/\/vanhanh\.veximglobal\.com\/verify\/QRCODE123456/, 'phải trỏ tới đúng địa chỉ hệ thống đang chạy');
+  assert.equal(mail.split(`${DEFAULT_SITE_URL}/verify/`).length - 1 >= 2, true, 'dòng thông tin và nút CTA dùng cùng một link');
+});
+
+test('địa chỉ trong link đổi được bằng NEXT_PUBLIC_SITE_URL (khi đổi tên miền)', () => {
+  const previous = process.env.NEXT_PUBLIC_SITE_URL;
+  try {
+    process.env.NEXT_PUBLIC_SITE_URL = 'https://verify.veximglobal.com/';
+    assert.equal(siteBaseUrl(), 'https://verify.veximglobal.com', 'bỏ dấu / ở cuối');
+    const mail = allText(FDA, '30_days');
+    assert.ok(mail.includes('https://verify.veximglobal.com/verify/QRCODE123456'), 'link phải theo cấu hình');
+  } finally {
+    if (previous === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
+    else process.env.NEXT_PUBLIC_SITE_URL = previous;
+  }
+  assert.equal(siteBaseUrl(), DEFAULT_SITE_URL, 'không cấu hình thì quay về tên miền mặc định');
 });
 
 test('footer giữ tính hệ thống: gửi tự động, thời gian, mã tra cứu, pháp nhân, liên hệ', () => {
