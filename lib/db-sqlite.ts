@@ -32,6 +32,11 @@ import {
   type InvoicePayment,
   type ServiceContract,
   type ServiceType,
+  planPaymentAllocation,
+  priorDebtsOf,
+  withPriorDebts,
+  type PaymentResult,
+  type PriorDebt,
 } from "./accounting";
 import {
   assertQuoteEditable,
@@ -2388,7 +2393,9 @@ export function getInvoice(id: number): (InvoiceView & { payments: InvoicePaymen
        LEFT JOIN users u ON u.id = p.created_by WHERE p.invoice_id = ? ORDER BY p.paid_at ASC, p.id ASC`
     )
     .all(id) as any[];
-  return { ...inv, payments: plain(pays).map(mapPayment) };
+  // Nợ của các đợt trước trong cùng hợp đồng/hồ sơ (ví dụ VAT đợt 1 khách chưa trả)
+  const siblings = listInvoices({ ref_type: inv.ref_type, ref_id: inv.ref_id });
+  return { ...withPriorDebts(inv, siblings), payments: plain(pays).map(mapPayment) };
 }
 
 export function nextInstallmentNo(ref_type: string, ref_id: number): number {
@@ -2525,30 +2532,47 @@ export function listPayments(invoice_id: number): InvoicePayment[] {
 
 export function createPayment(
   invoice_id: number,
-  input: { amount: number; paid_at?: string; method?: string; reference?: string; note?: string },
+  input: { amount: number; paid_at?: string; method?: string; reference?: string; note?: string; allocate_prior?: boolean },
   createdBy: number
-): number {
+): PaymentResult {
   const row = db().prepare("SELECT * FROM invoices WHERE id = ?").get(invoice_id) as any;
   if (!row) throw new Error("NOT_FOUND");
   if (row.status === "cancelled") throw new Error("CANCELLED");
   const amt = Math.max(0, Math.round(input.amount || 0));
   if (amt <= 0) throw new Error("AMOUNT_REQUIRED");
-  const info = db()
-    .prepare(
-      "INSERT INTO invoice_payments (invoice_id, amount, paid_at, method, reference, note, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-    .run(
-      invoice_id,
-      amt,
-      (input.paid_at || todayUtcIso()).slice(0, 10),
-      (input.method || "").trim(),
-      (input.reference || "").trim(),
-      (input.note || "").trim(),
-      createdBy,
-      nowSql()
-    );
-  db().prepare("UPDATE invoices SET updated_at=? WHERE id=?").run(nowSql(), invoice_id);
-  return Number(info.lastInsertRowid);
+
+  // Số tiền khách vừa trả được chia cho các khoản còn nợ, cũ nhất trước.
+  // Khách trả hết ở đợt 2 kèm 720.000 VAT còn lại của đợt 1 → đợt 1 được gạch nợ,
+  // không treo "còn phải thu" mãi ở đợt cũ.
+  const current = mapInvoice(plain(row));
+  const siblings = listInvoices({ ref_type: current.ref_type, ref_id: current.ref_id });
+  const debts = input.allocate_prior ? priorDebtsOf(current, siblings) : [];
+  const plan = planPaymentAllocation(amt, {
+    invoice_id: current.id, invoice_no: current.invoice_no,
+    installment_no: current.installment_no, remaining: current.remaining,
+  }, debts);
+
+  const paidAt = (input.paid_at || todayUtcIso()).slice(0, 10);
+  const method = (input.method || "").trim();
+  const reference = (input.reference || "").trim();
+  const note = (input.note || "").trim();
+  const insert = db().prepare(
+    "INSERT INTO invoice_payments (invoice_id, amount, paid_at, method, reference, note, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+  );
+  let primaryId = 0;
+  const touched: number[] = [];
+  for (const part of plan) {
+    const rowNote = part.invoice_id === current.id
+      ? note
+      : `Phân bổ trả nợ đợt ${part.installment_no} (thu ở đợt ${current.installment_no}${note ? `: ${note}` : ""})`;
+    const info = insert.run(part.invoice_id, part.amount, paidAt, method, reference, rowNote, createdBy, nowSql());
+    touched.push(part.invoice_id);
+    if (part.invoice_id === current.id) primaryId = Number(info.lastInsertRowid);
+  }
+  for (const id of touched) {
+    db().prepare("UPDATE invoices SET updated_at=? WHERE id=?").run(nowSql(), id);
+  }
+  return { id: primaryId, allocations: plan };
 }
 
 export function deletePayment(id: number) {

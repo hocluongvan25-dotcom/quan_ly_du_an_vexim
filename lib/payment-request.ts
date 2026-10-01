@@ -1,4 +1,4 @@
-import type { InvoiceView } from "./accounting";
+import { totalCollectible, type InvoiceView, type PriorDebt } from "./accounting";
 
 /** Baseline spacing reserved for the handwritten signature and company seal. */
 export const PAYMENT_REQUEST_SIGNATURE_GAP_MM = 35;
@@ -112,11 +112,36 @@ export function requestDate(iso: string) {
 }
 export function requestMoney(value: number) { return new Intl.NumberFormat("vi-VN").format(value) + " đồng"; }
 
+/**
+ * Thông tin nợ đợt trước gắn vào hóa đơn khi đọc từ DB (xem `withPriorDebts`).
+ * Hóa đơn cũ hoặc dữ liệu dựng tay có thể không có trường này.
+ */
+export type InvoiceWithDebts = InvoiceView & { prior_debts?: PriorDebt[]; carried_over?: number };
+
+/** Một dòng trong văn bản đề nghị thanh toán (dùng cho cả bản xem trước và PDF). */
+export type PaymentRequestBlock = { text: string; bold?: boolean; italic?: boolean; center?: boolean };
+
+/** Văn bản nêu rõ phần còn nợ của các đợt trước — đề nghị thanh toán phải ghi rõ khoản này. */
+export function carriedOverLines(inv: InvoiceWithDebts): PaymentRequestBlock[] {
+  const debts = inv.prior_debts || [];
+  const carried = inv.carried_over ?? debts.reduce((sum, d) => sum + d.remaining, 0);
+  if (carried <= 0) return [];
+  return [
+    { text: "- Cộng số tiền còn lại của các đợt trước chưa thanh toán:", bold: true },
+    ...debts.map((d) => ({
+      text: `+ Đợt ${d.installment_no} (hóa đơn ${d.invoice_no}): còn lại ${requestMoney(d.remaining)} trên tổng ${requestMoney(d.total)}.`,
+    })),
+    { text: `Tổng số tiền còn nợ của các đợt trước: ${requestMoney(carried)}.`, bold: true },
+  ];
+}
+
 /** Shared by the on-screen preview and PDF; values are plain text, not HTML. */
-export function paymentRequestParagraphs(inv: InvoiceView) {
+export function paymentRequestParagraphs(inv: InvoiceWithDebts): PaymentRequestBlock[] {
   const p = inv.payment_request;
   if (!p) throw new Error("Hóa đơn chưa có thông tin đề nghị thanh toán. Hãy bổ sung tại form sửa hóa đơn.");
   const amount = Math.max(0, inv.remaining);
+  const carried = Math.max(0, inv.carried_over ?? (inv.prior_debts || []).reduce((sum, d) => sum + d.remaining, 0));
+  const total = totalCollectible(inv);
   return [
     { text: `Kính gửi: Ban lãnh đạo ${p.recipient_name}`, bold: true, center: true },
     { text: `- Căn cứ hợp đồng số ${inv.contract_no} ngày ${requestDate(p.contract_date)} đã ký giữa ${p.recipient_name} với ${p.issuer_name} về việc ${p.service_description}.` },
@@ -125,7 +150,13 @@ export function paymentRequestParagraphs(inv: InvoiceView) {
     { text: `+ Thuế VAT ${inv.vat_rate}%: ${requestMoney(inv.vat_amount)}.` },
     { text: `Tổng giá trị thanh toán đợt ${inv.installment_no} bao gồm VAT: ${requestMoney(inv.total)}.`, bold: true },
     ...(inv.paid_amount > 0 ? [{ text: `Đã thanh toán: ${requestMoney(inv.paid_amount)}. Còn phải thanh toán: ${requestMoney(amount)}.`, bold: true }] : []),
-    { text: `Tổng số tiền đề nghị thanh toán${inv.paid_amount > 0 ? " còn lại" : ` lần ${inv.installment_no}`}: ${requestMoney(amount)}.`, bold: true },
+    ...carriedOverLines(inv),
+    {
+      text: carried > 0
+        ? `Tổng số tiền đề nghị thanh toán đợt này: ${requestMoney(total)} (bao gồm ${requestMoney(amount)} của đợt ${inv.installment_no} và ${requestMoney(carried)} còn lại của các đợt trước).`
+        : `Tổng số tiền đề nghị thanh toán${inv.paid_amount > 0 ? " còn lại" : ` lần ${inv.installment_no}`}: ${requestMoney(total)}.`,
+      bold: true,
+    },
     ...(inv.due_date ? [{ text: `Hạn thanh toán: ${requestDate(inv.due_date)}.` }] : []),
     { text: "Hình thức thanh toán: Chuyển khoản" },
     { text: `+ Số tài khoản: ${p.bank_account}` },
@@ -137,9 +168,10 @@ export function paymentRequestParagraphs(inv: InvoiceView) {
   ];
 }
 
-export function assertPaymentRequestExportable(inv: InvoiceView) {
+export function assertPaymentRequestExportable(inv: InvoiceWithDebts) {
   if (inv.status === "cancelled") throw new Error("Hóa đơn đã hủy, không thể lập đề nghị thanh toán.");
-  if (!Number.isFinite(inv.remaining) || inv.remaining <= 0) throw new Error("Hóa đơn đã thu đủ tiền, không còn số tiền để đề nghị thanh toán.");
+  // Đợt này có thể đã thu đủ nhưng đợt trước còn nợ — vẫn phải đề nghị thu khoản còn nợ đó.
+  if (totalCollectible(inv) <= 0) throw new Error("Hóa đơn đã thu đủ tiền, không còn số tiền để đề nghị thanh toán.");
   if (!inv.payment_request) throw new Error("Hóa đơn chưa có thông tin đề nghị thanh toán. Hãy bổ sung tại form sửa hóa đơn.");
   const prepared = preparePaymentRequest(inv.payment_request, inv);
   if (prepared.subtotal !== inv.subtotal || inv.vat_amount !== Math.round(inv.subtotal * inv.vat_rate / 100) || inv.total !== inv.subtotal + inv.vat_amount) {

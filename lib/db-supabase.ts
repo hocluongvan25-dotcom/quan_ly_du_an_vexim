@@ -30,6 +30,11 @@ import {
   type InvoicePayment,
   type ServiceContract,
   type ServiceType,
+  planPaymentAllocation,
+  priorDebtsOf,
+  withPriorDebts,
+  type PaymentResult,
+  type PriorDebt,
 } from "./accounting";
 import {
   assertQuoteEditable,
@@ -2151,7 +2156,7 @@ export async function listInvoices(
   return out;
 }
 
-export async function getInvoice(id: number): Promise<(InvoiceView & { payments: InvoicePayment[] }) | undefined> {
+export async function getInvoice(id: number): Promise<(InvoiceView & { payments: InvoicePayment[]; prior_debts: PriorDebt[]; carried_over: number }) | undefined> {
   const { data, error } = await supabaseAdmin().from("invoices").select("*").eq("id", id).maybeSingle();
   if (error) assertNoSupabaseError(error, "invoices");
   if (!data) return undefined;
@@ -2171,8 +2176,10 @@ export async function getInvoice(id: number): Promise<(InvoiceView & { payments:
     .order("paid_at", { ascending: true })
     .order("id", { ascending: true });
   if (pErr) assertNoSupabaseError(pErr, "invoice_payments");
+  // Nợ của các đợt trước trong cùng hợp đồng/hồ sơ (ví dụ VAT đợt 1 khách chưa trả)
+  const siblings = await listInvoices({ ref_type: inv.ref_type, ref_id: inv.ref_id });
   return {
-    ...inv,
+    ...withPriorDebts(inv, siblings),
     payments: (pays || []).map((r: any) =>
       mapPaymentCloud(r, r.created_by ? names.get(Number(r.created_by)) : undefined)
     ),
@@ -2305,32 +2312,54 @@ export async function listPayments(invoice_id: number): Promise<InvoicePayment[]
 
 export async function createPayment(
   invoice_id: number,
-  input: { amount: number; paid_at?: string; method?: string; reference?: string; note?: string },
+  input: { amount: number; paid_at?: string; method?: string; reference?: string; note?: string; allocate_prior?: boolean },
   createdBy: number
-): Promise<number> {
+): Promise<PaymentResult> {
   const sb = supabaseAdmin();
-  const { data: row, error: gErr } = await sb.from("invoices").select("id,status").eq("id", invoice_id).maybeSingle();
-  if (gErr) assertNoSupabaseError(gErr, "invoices");
-  if (!row) throw new Error("NOT_FOUND");
-  if ((row as any).status === "cancelled") throw new Error("CANCELLED");
+  const current = await getInvoice(invoice_id);
+  if (!current) throw new Error("NOT_FOUND");
+  if (current.status === "cancelled") throw new Error("CANCELLED");
   const amt = Math.max(0, Math.round(input.amount || 0));
   if (amt <= 0) throw new Error("AMOUNT_REQUIRED");
-  const { data, error } = await sb
-    .from("invoice_payments")
-    .insert({
-      invoice_id,
-      amount: amt,
-      paid_at: (input.paid_at || todayUtcIso()).slice(0, 10),
-      method: (input.method || "").trim(),
-      reference: (input.reference || "").trim(),
-      note: (input.note || "").trim(),
-      created_by: createdBy,
-    })
-    .select("id")
-    .single();
-  if (error) assertNoSupabaseError(error, "invoice_payments");
-  await sb.from("invoices").update({ updated_at: new Date().toISOString() }).eq("id", invoice_id);
-  return Number((data as any)?.id ?? 0);
+
+  // Chia số tiền khách vừa trả cho các khoản còn nợ, cũ nhất trước (giống SQLite).
+  const debts = input.allocate_prior ? (current.prior_debts || []) : [];
+  const plan = planPaymentAllocation(amt, {
+    invoice_id: current.id, invoice_no: current.invoice_no,
+    installment_no: current.installment_no, remaining: current.remaining,
+  }, debts);
+
+  const paidAt = (input.paid_at || todayUtcIso()).slice(0, 10);
+  const method = (input.method || "").trim();
+  const reference = (input.reference || "").trim();
+  const note = (input.note || "").trim();
+  let primaryId = 0;
+  const touched: number[] = [];
+  for (const part of plan) {
+    const rowNote = part.invoice_id === current.id
+      ? note
+      : `Phân bổ trả nợ đợt ${part.installment_no} (thu ở đợt ${current.installment_no}${note ? `: ${note}` : ""})`;
+    const { data, error } = await sb
+      .from("invoice_payments")
+      .insert({
+        invoice_id: part.invoice_id,
+        amount: part.amount,
+        paid_at: paidAt,
+        method,
+        reference,
+        note: rowNote,
+        created_by: createdBy,
+      })
+      .select("id")
+      .single();
+    if (error) assertNoSupabaseError(error, "invoice_payments");
+    if (!touched.includes(part.invoice_id)) touched.push(part.invoice_id);
+    if (part.invoice_id === current.id) primaryId = Number((data as any)?.id ?? 0);
+  }
+  for (const id of touched) {
+    await sb.from("invoices").update({ updated_at: new Date().toISOString() }).eq("id", id);
+  }
+  return { id: primaryId, allocations: plan };
 }
 
 export async function deletePayment(id: number) {

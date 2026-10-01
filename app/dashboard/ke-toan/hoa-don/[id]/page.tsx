@@ -4,7 +4,7 @@ import PaymentRequestDownload from "@/components/accounting/PaymentRequestDownlo
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { formatMoney } from "@/lib/accounting";
+import { formatMoney, totalCollectible } from "@/lib/accounting";
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -69,7 +69,24 @@ export default function InvoiceDetailPage() {
           <div className="flex justify-between"><span className="text-slate-400">VAT {inv.vat_rate}%</span><b>{formatMoney(inv.vat_amount)}</b></div>
           <div className="flex justify-between border-t border-slate-200 pt-2 text-base"><span className="font-bold">Tổng cộng</span><b className="text-navy-900">{formatMoney(inv.total)}</b></div>
           <div className="flex justify-between"><span className="text-slate-400">Đã thu</span><b className="text-emerald-600">{formatMoney(inv.paid_amount)}</b></div>
-          <div className="flex justify-between"><span className="text-slate-400">Còn lại</span><b className="text-amber-600">{formatMoney(inv.remaining)}</b></div>
+          <div className="flex justify-between"><span className="text-slate-400">Còn lại (đợt này)</span><b className="text-amber-600">{formatMoney(inv.remaining)}</b></div>
+          {(inv.prior_debts?.length || 0) > 0 && (
+            <>
+              <div className="flex justify-between">
+                <span className="text-slate-400">Nợ đợt trước</span>
+                <b className="text-red-500">
+                  {formatMoney(inv.carried_over || 0)}
+                  <span className="ml-1 text-xs font-normal text-slate-400">
+                    ({(inv.prior_debts || []).map((d: { installment_no: number; remaining: number }) => `đợt ${d.installment_no}: ${formatMoney(d.remaining)}`).join(" · ")})
+                  </span>
+                </b>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 pt-2 text-base">
+                <span className="font-bold">Tổng cần thu đợt này</span>
+                <b className="text-navy-900">{formatMoney(totalCollectible(inv))}</b>
+              </div>
+            </>
+          )}
           <div className="flex justify-between"><span className="text-slate-400">Ngày xuất</span><b>{inv.issue_date}</b></div>
           <div className="flex justify-between"><span className="text-slate-400">Hạn thanh toán</span><b>{inv.due_date || "—"}</b></div>
           {inv.notes && <div className="text-xs text-slate-500">Ghi chú: {inv.notes}</div>}
@@ -77,7 +94,7 @@ export default function InvoiceDetailPage() {
 
         <section className="mt-5 rounded-2xl border border-navy-900/10 p-4">
           <h2 className="font-bold">Giấy đề nghị thanh toán</h2>
-          {inv.status === "cancelled" || inv.remaining <= 0 ? <p className="mt-2 text-sm text-slate-500">Hóa đơn đã hủy hoặc đã thu đủ tiền, không xuất đề nghị thanh toán.</p>
+          {inv.status === "cancelled" || totalCollectible(inv) <= 0 ? <p className="mt-2 text-sm text-slate-500">Hóa đơn đã hủy hoặc đã thu đủ tiền, không xuất đề nghị thanh toán.</p>
             : inv.payment_request ? <div className="mt-3 flex flex-wrap items-center gap-3">
               <PaymentRequestDownload id={inv.id} />
               <Link className="text-sm font-bold text-teal-700" href={`/dashboard/ke-toan/hoa-don/${inv.id}/de-nghi-thanh-toan`}>Xem nội dung đề nghị →</Link>

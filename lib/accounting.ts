@@ -36,6 +36,121 @@ export function normalizeCycleMonths(v: unknown, fallback = 6): number {
 export type ServiceType = "SALE_EXPORT" | "AMAZON_OPS";
 export type ServiceStatus = "draft" | "active" | "expired" | "terminated";
 export type InvoiceRefType = "certificate" | "service_contract";
+/* ---------------------- Nợ của các đợt trước ----------------------------- */
+
+/** Một đợt trước còn nợ, thuộc cùng hợp đồng/hồ sơ. */
+export type PriorDebt = {
+  invoice_id: number;
+  invoice_no: string;
+  installment_no: number;
+  subtotal: number;
+  vat_amount: number;
+  total: number;
+  paid_amount: number;
+  remaining: number;
+};
+
+export type PaymentAllocation = {
+  invoice_id: number;
+  invoice_no: string;
+  installment_no: number;
+  amount: number;
+};
+
+/** Kết quả ghi nhận một lần thu tiền (có thể chia cho nhiều hóa đơn). */
+export type PaymentResult = { id: number; allocations: PaymentAllocation[] };
+
+/** Dữ liệu tối thiểu để tính nợ — chấp nhận cả `Invoice` (số tiền có thể chưa có). */
+export type PriorDebtSource = {
+  id: number;
+  invoice_no?: string;
+  contract_no?: string;
+  installment_no?: number;
+  status?: string;
+  subtotal?: number;
+  vat_amount?: number;
+  total?: number;
+  paid_amount?: number;
+  remaining?: number;
+};
+
+/**
+ * Nợ còn lại của các đợt TRƯỚC trong cùng hợp đồng/hồ sơ, cũ nhất trước.
+ * Không tính hóa đơn đã hủy và không tính chính đợt đang xét.
+ *
+ * Trường hợp thật: khách chưa trả VAT đợt 1 (chỉ tạm ứng 9.000.000 trên hóa đơn
+ * 9.720.000) → đợt 1 còn 720.000; số này tự động thành nợ và phải được cộng vào
+ * đề nghị thanh toán của đợt 2.
+ */
+export function priorDebtsOf(
+  current: { id: number; installment_no: number; contract_no?: string },
+  siblings: PriorDebtSource[]
+): PriorDebt[] {
+  // Hóa đơn có số hợp đồng thì chỉ gom nợ TRONG CÙNG hợp đồng đó — cùng một hồ sơ
+  // có thể có nhiều hợp đồng (gia hạn, dịch vụ khác) và không được cấn trừ lẫn nhau.
+  const contractNo = String(current.contract_no || "").trim();
+  return siblings
+    .filter((i) => i.status !== "cancelled" && i.id !== current.id)
+    .filter((i) => !contractNo || String(i.contract_no || "").trim() === contractNo)
+    .filter((i) => Number(i.installment_no || 0) < current.installment_no)
+    .map((i) => ({
+      invoice_id: i.id,
+      invoice_no: String(i.invoice_no || ""),
+      installment_no: Number(i.installment_no || 0),
+      subtotal: Math.round(Number(i.subtotal || 0)),
+      vat_amount: Math.round(Number(i.vat_amount || 0)),
+      total: Math.round(Number(i.total || 0)),
+      paid_amount: Math.round(Number(i.paid_amount || 0)),
+      remaining: Math.round(Number(i.remaining || 0)),
+    }))
+    .filter((d) => d.remaining > 0)
+    .sort((a, b) => a.installment_no - b.installment_no);
+}
+
+export function carriedOverTotal(debts: PriorDebt[]) {
+  return debts.reduce((sum, d) => sum + d.remaining, 0);
+}
+
+/** Gắn nợ đợt trước vào một hóa đơn (dùng ở cả SQLite và Supabase). */
+export function withPriorDebts<T extends { id: number; installment_no: number; contract_no?: string }>(
+  invoice: T,
+  siblings: PriorDebtSource[]
+) {
+  const prior_debts = priorDebtsOf(invoice, siblings);
+  return { ...invoice, prior_debts, carried_over: carriedOverTotal(prior_debts) };
+}
+
+/** Tổng phải thu của một đợt = còn lại của đợt này + nợ các đợt trước. */
+export function totalCollectible(inv: { remaining: number; carried_over?: number }) {
+  return Math.max(0, Math.round(inv.remaining || 0)) + Math.max(0, Math.round(inv.carried_over || 0));
+}
+
+/**
+ * Chia số tiền khách vừa trả cho các khoản còn nợ, **cũ nhất trước**, phần còn lại
+ * trả cho đợt hiện tại. Nhờ vậy khi khách trả hết ở đợt 2, 720.000 VAT của đợt 1
+ * được gạch nợ đúng chỗ thay vì để đợt 1 treo nợ mãi.
+ */
+export function planPaymentAllocation(
+  amount: number,
+  current: { invoice_id: number; invoice_no: string; installment_no: number; remaining: number },
+  debts: PriorDebt[]
+): PaymentAllocation[] {
+  let left = Math.max(0, Math.round(amount || 0));
+  const allocations: PaymentAllocation[] = [];
+  // Luôn trả đợt cũ nhất trước, kể cả khi nơi gọi đưa danh sách chưa sắp xếp
+  for (const debt of [...debts].sort((a, b) => a.installment_no - b.installment_no)) {
+    if (left <= 0) break;
+    const pay = Math.min(left, debt.remaining);
+    if (pay <= 0) continue;
+    allocations.push({ invoice_id: debt.invoice_id, invoice_no: debt.invoice_no, installment_no: debt.installment_no, amount: pay });
+    left -= pay;
+  }
+  if (left > 0) {
+    allocations.push({ invoice_id: current.invoice_id, invoice_no: current.invoice_no, installment_no: current.installment_no, amount: left });
+  }
+  return allocations;
+}
+
 export type InvoiceState = "paid" | "partial" | "overdue" | "due_soon" | "issued" | "cancelled";
 
 export const SERVICE_NAMES: Record<ServiceType, string> = {
@@ -123,6 +238,9 @@ export type InvoiceView = Invoice & {
   remaining: number;
   state: InvoiceState;
   days_overdue: number;
+  /** Nợ còn lại của các đợt trước trong cùng hợp đồng/hồ sơ (gắn khi đọc hóa đơn từ DB). */
+  prior_debts?: PriorDebt[];
+  carried_over?: number;
 };
 
 export type RefSummary = {
@@ -178,6 +296,7 @@ export function overdueDays(dueDate: string | null | undefined, today = todayUtc
   const left = remainingDays(String(dueDate).slice(0, 10));
   return left < 0 ? Math.abs(left) : 0;
 }
+
 
 export function formatMoney(n: number): string {
   return new Intl.NumberFormat("vi-VN").format(Math.round(n || 0));

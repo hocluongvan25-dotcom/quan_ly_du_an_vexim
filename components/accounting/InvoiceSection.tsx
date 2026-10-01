@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { formatMoney, DEFAULT_VAT_RATE, MAX_INVOICE_CONTRACT_NO_LENGTH, type InvoiceView } from "@/lib/accounting";
+import { formatMoney, DEFAULT_VAT_RATE, MAX_INVOICE_CONTRACT_NO_LENGTH, totalCollectible, type InvoiceView, type PriorDebt, type PaymentAllocation } from "@/lib/accounting";
 import PaymentRequestFields from "./PaymentRequestFields";
 import PaymentRequestDownload from "./PaymentRequestDownload";
 import { PAYMENT_REQUEST_DEFAULTS, type PaymentRequest } from "@/lib/payment-request";
@@ -69,6 +69,8 @@ export default function InvoiceSection({
   const [payMethod, setPayMethod] = useState("Chuyển khoản");
   const [payRef, setPayRef] = useState("");
   const [payNote, setPayNote] = useState("");
+  const [allocatePrior, setAllocatePrior] = useState(true);
+  const [lastAllocations, setLastAllocations] = useState<PaymentAllocation[]>([]);
 
   const load = async () => {
     setLoading(true);
@@ -141,13 +143,19 @@ export default function InvoiceSection({
     };
   }, [items]);
 
+  /** Các đợt trước còn nợ trong cùng hợp đồng — hiện ngay trên thẻ hóa đơn. */
+  const priorDebts = useMemo(() => (items.find((i) => i.id === openId)?.prior_debts || [] as PriorDebt[]), [items, openId]);
+
   const loadPayments = async (inv: InvoiceView) => {
     if (openId === inv.id) {
       setOpenId(null);
       return;
     }
     setOpenId(inv.id);
-    setPayAmt(inv.remaining > 0 ? String(inv.remaining) : "");
+    // Mặc định thu cả phần còn nợ của các đợt trước (ví dụ VAT đợt 1 khách chưa trả)
+    setPayAmt(String(totalCollectible(inv) || ""));
+    setAllocatePrior(true);
+    setLastAllocations([]);
     setPayDate(todayUtcIso());
     setPayMethod("Chuyển khoản");
     setPayRef("");
@@ -219,11 +227,13 @@ export default function InvoiceSection({
           method: payMethod,
           reference: payRef,
           note: payNote,
+          allocate_prior: allocatePrior && (inv.prior_debts?.length || 0) > 0,
         }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Ghi nhận thất bại");
       await refreshOne(inv.id);
+      setLastAllocations(Array.isArray(d.allocations) ? d.allocations : []);
       setPayAmt("");
       setPayRef("");
       setPayNote("");
@@ -489,6 +499,11 @@ export default function InvoiceSection({
                       còn lại {formatMoney(inv.remaining)}
                     </div>
                   )}
+                  {(inv.carried_over || 0) > 0 && inv.status !== "cancelled" && (
+                    <div className="text-[11px] font-bold text-red-500">
+                      + nợ đợt trước {formatMoney(inv.carried_over || 0)}
+                    </div>
+                  )}
                 </div>
               </button>
               {inv.payment_request && inv.status !== "cancelled" && inv.remaining > 0 && <div className="flex flex-wrap items-center gap-3 px-4 pb-3">
@@ -513,6 +528,13 @@ export default function InvoiceSection({
                       Còn lại: <b className="text-amber-600">{formatMoney(inv.remaining)}</b>
                     </div>
                   </div>
+                  {(inv.prior_debts?.length || 0) > 0 && (
+                    <div className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                      <b>Còn nợ đợt trước:</b>{" "}
+                      {(inv.prior_debts || []).map((d) => `đợt ${d.installment_no} (${formatMoney(d.remaining)})`).join(" · ")}
+                      {" — "}tổng cần thu đợt này: <b>{formatMoney(totalCollectible(inv))}</b>
+                    </div>
+                  )}
                   {inv.notes && <div className="mt-2 text-xs text-slate-500">Ghi chú: {inv.notes}</div>}
 
                   {/* Lịch sử thu tiền */}
@@ -545,9 +567,16 @@ export default function InvoiceSection({
                   </div>
 
                   {/* Ghi nhận thu */}
-                  {inv.status !== "cancelled" && inv.remaining > 0 && (
+                  {inv.status !== "cancelled" && totalCollectible(inv) > 0 && (
                     <div className="mt-3 rounded-xl bg-white p-3">
                       <div className="text-xs font-extrabold text-navy-900">+ Ghi nhận thu tiền</div>
+                      {(inv.prior_debts?.length || 0) > 0 && (
+                        <div className="mt-1 text-xs text-slate-500">
+                          Tổng cần thu đợt này: <b className="text-navy-900">{formatMoney(totalCollectible(inv))}</b>{" "}
+                          (đợt {inv.installment_no}: {formatMoney(inv.remaining)}
+                          {(inv.prior_debts || []).map((d) => ` + nợ đợt ${d.installment_no}: ${formatMoney(d.remaining)}`).join("")})
+                        </div>
+                      )}
                       <div className="mt-2 grid gap-2 md:grid-cols-5">
                         <input
                           type="number"
@@ -585,6 +614,17 @@ export default function InvoiceSection({
                           className="rounded-xl border border-navy-900/10 px-3 py-2 text-sm"
                         />
                       </div>
+                      {(inv.prior_debts?.length || 0) > 0 && (
+                        <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={allocatePrior}
+                            onChange={(e) => setAllocatePrior(e.target.checked)}
+                            className="h-3.5 w-3.5"
+                          />
+                          Gạch nợ đợt trước trước (cũ nhất trước), phần còn lại ghi cho đợt {inv.installment_no}
+                        </label>
+                      )}
                       <button
                         onClick={() => submitPay(inv)}
                         disabled={busy}
@@ -592,6 +632,12 @@ export default function InvoiceSection({
                       >
                         {busy ? "Đang ghi…" : "Ghi nhận thu tiền"}
                       </button>
+                      {lastAllocations.length > 0 && (
+                        <div className="mt-2 rounded-xl bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                          Đã phân bổ:{" "}
+                          {lastAllocations.map((a) => `đợt ${a.installment_no} ${formatMoney(a.amount)}`).join(" · ")}
+                        </div>
+                      )}
                     </div>
                   )}
 

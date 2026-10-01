@@ -113,6 +113,27 @@ Email do **hệ thống quản lý hồ sơ** gửi, không phải email bán h�
 - Nhãn mốc trong `getNotificationLabel()` cũng đã bỏ chữ “gấp/khẩn cấp” để dashboard và email nói cùng một giọng.
 - `tests/expiry-email.test.cjs` khoá toàn bộ các quy tắc trên (tiêu đề, thuật ngữ, nhãn bảng, danh sách từ bị cấm, footer).
 
+## Cấn trừ nợ giữa các đợt thu (VAT đợt trước chưa trả)
+
+Mỗi đợt thu là một hóa đơn; VAT mặc định 8%. Trường hợp thật: khách **chưa trả VAT đợt 1**,
+chỉ tạm ứng 9.000.000 trên hóa đơn 9.720.000 → đợt 1 còn **720.000** (tự động nằm ở "Còn phải thu").
+
+- **Nợ đợt trước** (`prior_debts`, `carried_over`) được tính khi đọc hóa đơn: các hóa đơn **cùng số hợp đồng**
+  (nếu hóa đơn có số hợp đồng; không có thì theo cùng hồ sơ), `installment_no` nhỏ hơn, chưa hủy, còn nợ.
+  Khác hợp đồng trên cùng một hồ sơ (ví dụ hợp đồng gia hạn) **không** cấn trừ lẫn nhau.
+- **Đề nghị thanh toán** liệt kê rõ từng đợt còn nợ và tổng:
+  *"- Cộng số tiền còn lại của các đợt trước chưa thanh toán: + Đợt 1 (hóa đơn …): còn lại 720.000 đồng trên tổng 9.720.000 đồng."*
+  và *"Tổng số tiền đề nghị thanh toán đợt này: 10.440.000 đồng (bao gồm 9.720.000 đồng của đợt 2 và 720.000 đồng còn lại của các đợt trước)."*
+  Hóa đơn đã thu đủ nhưng đợt trước còn nợ thì **vẫn xuất được** đề nghị để thu nốt khoản nợ đó.
+- **Ghi nhận thu tiền**: số tiền khách trả được **phân bổ cũ nhất trước** (`planPaymentAllocation`) khi bật
+  "Gạch nợ đợt trước trước". Khách trả 10.440.000 ở đợt 2 → 720.000 gạch nợ đợt 1, 9.720.000 vào đợt 2,
+  cả hai đợt chuyển "Đã thu đủ"; khoản phân bổ được ghi chú *"Phân bổ trả nợ đợt 1 (thu ở đợt 2…)"* trong lịch sử thu.
+  Không bật phân bổ thì tiền nằm nguyên ở đợt đang thu (hành vi cũ).
+- Giao diện: thẻ hóa đơn hiện "+ nợ đợt trước", phần chi tiết hiện tổng cần thu, form thu tiền mặc định điền
+  đúng tổng (đợt này + nợ cũ) và hiện kết quả phân bổ sau khi ghi.
+- `tests/carry-over.test.cjs` (15 test) khoá toàn bộ luồng: từ khách tạm ứng thiếu VAT → nợ chuyển sang đợt sau →
+  văn bản + PDF đề nghị thanh toán có khoản nợ → phân bổ tiền thu xoá nợ đúng chỗ.
+
 ## Bộ lọc trang danh sách hồ sơ
 
 `/dashboard/ho-so` có bộ lọc đầy đủ (tiếng Việt và tiếng Anh):

@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   if (gate.error || !gate.user) return gate.error;
   try {
     const body = await req.json().catch(() => ({}));
-    const pid = await createPayment(
+    const result = await createPayment(
       Number(params.id),
       {
         amount: Number(body.amount || 0),
@@ -29,11 +29,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         method: String(body.method || ""),
         reference: String(body.reference || ""),
         note: String(body.note || ""),
+        // Phân bổ trả nợ đợt trước (cũ nhất trước) khi client yêu cầu
+        allocate_prior: body.allocate_prior === true,
       },
       gate.user.id
     );
     const item = await getInvoice(Number(params.id));
-    return NextResponse.json({ id: pid, success: true, item });
+    return NextResponse.json({ id: result.id, allocations: result.allocations, success: true, item });
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg === "AMOUNT_REQUIRED") return NextResponse.json({ error: "Số tiền phải lớn hơn 0." }, { status: 400 });

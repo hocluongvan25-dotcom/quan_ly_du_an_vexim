@@ -453,7 +453,7 @@ export async function listPayments(invoice_id: number) {
 
 export async function createPayment(
   invoice_id: number,
-  input: { amount: number; paid_at?: string; method?: string; reference?: string; note?: string },
+  input: { amount: number; paid_at?: string; method?: string; reference?: string; note?: string; allocate_prior?: boolean },
   createdBy: number
 ) {
   return isSupabaseEnabled() ? cloud.createPayment(invoice_id, input, createdBy) : sqlite.createPayment(invoice_id, input, createdBy);
