@@ -1,6 +1,6 @@
 import type { Certificate, Standard } from "./types";
 import { resolveValidityYears } from "./types";
-import { expiryFromStandard } from "./utils";
+import { expiryFromStandard, remainingDays } from "./utils";
 
 export type CertificateInput = {
   standard: Standard;
@@ -56,6 +56,30 @@ export function prepareCertificateChanges(current: Certificate, input: Certifica
 
 export function sameCertificateFields(a: CertificateChanges | Certificate, b: CertificateChanges | Certificate) {
   return certificateFields.every((field) => a[field] === b[field]);
+}
+
+/**
+ * Trạng thái vận hành của một hồ sơ — dùng chung cho bộ lọc ở trang danh sách và
+ * các ô thống kê ở trang Toàn cảnh, để hai nơi luôn nói cùng một con số.
+ *  - draft: bản nháp
+ *  - pending: đã xuất bản nhưng đang có thay đổi chờ admin duyệt
+ *  - expired: quá ngày hết hạn
+ *  - expiring: còn ≤ 90 ngày
+ *  - valid: còn trên 90 ngày
+ */
+export type CertificateRecordState = "draft" | "pending" | "expired" | "expiring" | "valid";
+
+export const EXPIRING_SOON_DAYS = 90;
+
+export function certificateRecordState(
+  item: Pick<Certificate, "status" | "expires_at" | "validity_confirmed" | "pending_changes">
+): CertificateRecordState {
+  if (item.status === "draft") return "draft";
+  if (needsCertificateApproval(item as Certificate)) return "pending";
+  const left = remainingDays(item.expires_at);
+  if (left < 0) return "expired";
+  if (left <= EXPIRING_SOON_DAYS) return "expiring";
+  return "valid";
 }
 
 export function needsCertificateApproval(item: Certificate) {

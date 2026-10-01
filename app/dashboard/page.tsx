@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { formatDate, formatVnd, remainingDays, statusLabel, getValidityYears } from "@/lib/utils";
 import { FDA_FIXED_YEARS, GACC_FIXED_YEARS } from "@/lib/types";
+import { certificateRecordState } from "@/lib/certificate-workflow";
 import { AlertTriangle, FileBadge2, ShieldCheck, Wallet, MessageSquare } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
 import type { Certificate } from "@/lib/types";
@@ -43,12 +44,9 @@ export default function DashboardPage() {
       .catch(() => {});
   }, []);
 
-  const published = items.filter((i) => i.status !== "draft");
-  const valid = published.filter((i) => remainingDays(i.expires_at) >= 0);
-  const expiring = published.filter((i) => {
-    const d = remainingDays(i.expires_at);
-    return d >= 0 && d <= 90;
-  });
+  // Cùng định nghĩa với bộ lọc ở trang danh sách hồ sơ (certificateRecordState)
+  const valid = items.filter((i) => certificateRecordState(i) === "valid");
+  const expiring = items.filter((i) => certificateRecordState(i) === "expiring");
 
   const validityStats = Array.from(new Set(items.map((c) => getValidityYears(c))))
     .filter((years) => years >= 1 && years <= 10)
@@ -93,18 +91,21 @@ export default function DashboardPage() {
             fda: items.filter((i) => i.standard === "FDA").length,
             gacc: items.filter((i) => i.standard === "GACC").length,
           })}
+          href="/dashboard/ho-so"
         />
         <Stat
           icon={<ShieldCheck className="h-5 w-5" />}
           label={t("dashboard.valid")}
           value={String(valid.length)}
           hint={t("dashboard.validHint")}
+          href="/dashboard/ho-so?status=valid"
         />
         <Stat
           icon={<AlertTriangle className="h-5 w-5" />}
           label={t("dashboard.expiring")}
           value={String(expiring.length)}
           hint={t("dashboard.expiringHint")}
+          href="/dashboard/ho-so?status=expiring"
         />
         <Stat
           icon={<Wallet className="h-5 w-5" />}
@@ -233,20 +234,29 @@ function Stat({
   label,
   value,
   hint,
+  href,
 }: {
   icon: React.ReactNode;
   label: string;
   value: string;
   hint: string;
+  /** Bấm vào ô thống kê để mở danh sách hồ sơ đã lọc sẵn theo con số này. */
+  href?: string;
 }) {
-  return (
-    <div className="rounded-3xl bg-white p-5 shadow-card">
+  const body = (
+    <>
       <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-teal-50 text-teal-700">
         {icon}
       </div>
       <div className="mt-4 text-xs font-semibold uppercase tracking-wider text-navy-900/45">{label}</div>
       <div className="mt-1 font-display text-2xl font-extrabold text-navy-900">{value}</div>
       <div className="mt-1 text-xs text-navy-900/50">{hint}</div>
-    </div>
+    </>
+  );
+  if (!href) return <div className="rounded-3xl bg-white p-5 shadow-card">{body}</div>;
+  return (
+    <Link href={href} className="rounded-3xl bg-white p-5 shadow-card transition hover:shadow-lg hover:ring-1 hover:ring-navy-900/10">
+      {body}
+    </Link>
   );
 }

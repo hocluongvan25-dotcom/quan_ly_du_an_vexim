@@ -113,6 +113,26 @@ Email do **hệ thống quản lý hồ sơ** gửi, không phải email bán h�
 - Nhãn mốc trong `getNotificationLabel()` cũng đã bỏ chữ “gấp/khẩn cấp” để dashboard và email nói cùng một giọng.
 - `tests/expiry-email.test.cjs` khoá toàn bộ các quy tắc trên (tiêu đề, thuật ngữ, nhãn bảng, danh sách từ bị cấm, footer).
 
+## Bộ lọc trang danh sách hồ sơ
+
+`/dashboard/ho-so` có bộ lọc đầy đủ (tiếng Việt và tiếng Anh):
+
+- **Trạng thái**: Tất cả · Còn hiệu lực · Sắp hết hạn (≤90 ngày) · Đã hết hạn · Chờ duyệt · Bản nháp.
+  Mỗi nút hiện số lượng; bấm lại nút đang chọn để bỏ lọc. Số lượng tính theo các bộ lọc khác (không tính chính nó).
+- **Tiêu chuẩn**: Tất cả / FDA / GACC.
+- **Kỳ hạn hợp đồng**: các mức năm đang có trong dữ liệu.
+- **Sắp xếp**: Hết hạn gần nhất (mặc định) · Công ty A→Z · Mới tạo gần đây.
+- **Tìm kiếm**: công ty, số hồ sơ, mã đăng ký, DUNS.
+- **Xoá lọc** và dòng "Hiển thị X/Y hồ sơ".
+- Bộ lọc ghi lên URL (`?status=expiring&standard=FDA&term=2&q=...`) nên **gửi link là người khác mở đúng
+  khung nhìn đã lọc**; dùng `history.replaceState` nên gõ ô tìm kiếm không gọi lại server.
+- Trang **Toàn cảnh**: ba ô *Tổng hồ sơ / Còn hiệu lực / Sắp hết hạn* bấm được, dẫn sang danh sách đã lọc sẵn.
+
+Định nghĩa trạng thái nằm ở **một chỗ duy nhất**: `certificateRecordState()` trong `lib/certificate-workflow.ts`
+(nháp → chờ duyệt → đã hết hạn → sắp hết hạn ≤ `EXPIRING_SOON_DAYS`=90 → còn hiệu lực).
+Trang danh sách và trang Toàn cảnh đều dùng hàm này nên **con số trên ô thống kê luôn khớp với danh sách khi bấm vào**.
+Nhãn trạng thái trong bảng cũng lấy từ i18n nên hiển thị đúng tiếng Việt (trước đây là "VALID/Expiring Soon" tiếng Anh).
+
 ## Nhắc hạn & gia hạn (vòng đời hồ sơ)
 
 - **Chống gửi trùng theo KỲ HẠN**: mỗi thông báo chỉ được tính là "đã gửi" trong **kỳ hạn hiện tại**.
