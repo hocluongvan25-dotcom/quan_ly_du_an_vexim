@@ -1,5 +1,7 @@
 import nodemailer from "nodemailer";
 import { verifyUrlFor } from "./site-url";
+import { EXPIRY_STAGE_PRESENTATION, type NotificationType } from "./expiry-notice";
+export type { NotificationType } from "./expiry-notice";
 
 // Zoho Mail SMTP configuration for contact@veximglobal.com
 // Required env vars:
@@ -233,26 +235,17 @@ export type ExpiryWarningData = {
   renewal_count?: number;
 };
 
-export type NotificationType = "90_days" | "60_days" | "30_days" | "14_days" | "7_days" | "3_days" | "1_day" | "expired" | "renewal_reminder";
-
 /**
- * Nhãn trạng thái dùng trong email và danh sách thông báo.
- * Văn phong trung tính, không thúc ép ("cần gia hạn gấp", "khẩn cấp") — đây là
- * thông báo tự động của hệ thống quản lý hồ sơ, không phải email bán hàng.
+ * Nhãn trạng thái và màu dùng chung cho email + giao diện quản lý.
+ * Màu thay đổi theo từng mốc, nhưng nội dung vẫn nói rõ ngày cụ thể để không phụ thuộc vào màu sắc.
  */
-export function getNotificationLabel(type: NotificationType): { vi: string; en: string; urgency: "low" | "medium" | "high" | "critical" } {
-  switch (type) {
-    case "90_days": return { vi: "Còn 90 ngày", en: "90 days remaining", urgency: "low" };
-    case "60_days": return { vi: "Còn 60 ngày", en: "60 days remaining", urgency: "low" };
-    case "30_days": return { vi: "Còn 30 ngày", en: "30 days remaining", urgency: "medium" };
-    case "14_days": return { vi: "Còn 14 ngày", en: "14 days remaining", urgency: "medium" };
-    case "7_days": return { vi: "Còn 7 ngày", en: "7 days remaining", urgency: "high" };
-    case "3_days": return { vi: "Còn 3 ngày", en: "3 days remaining", urgency: "high" };
-    case "1_day": return { vi: "Còn 1 ngày", en: "1 day remaining", urgency: "high" };
-    case "expired": return { vi: "Đã hết hạn", en: "Expired", urgency: "high" };
-    case "renewal_reminder": return { vi: "Nhắc gia hạn", en: "Renewal reminder", urgency: "medium" };
-    default: return { vi: "Thông báo tình trạng hồ sơ", en: "Registration status notice", urgency: "medium" };
-  }
+export function getNotificationLabel(type: NotificationType): {
+  vi: string;
+  en: string;
+  urgency: "low" | "medium" | "high" | "critical" | "complete";
+} {
+  const stage = EXPIRY_STAGE_PRESENTATION[type];
+  return { vi: stage.labelVi, en: stage.labelEn, urgency: stage.urgency };
 }
 
 /** "Đăng ký FDA" / "Đăng ký GACC" — FDA facility registration không phải "chứng nhận". */
@@ -270,12 +263,54 @@ function formatEmailDate(iso: string) {
   return match ? `${match[3]}/${match[2]}/${match[1]}` : (iso || "—");
 }
 
-/** Dòng trạng thái duy nhất, dùng chung cho tiêu đề, chip và bảng thông tin. */
+const FDA_REGISTRATION_GUIDANCE_URL = "https://www.fda.gov/food/hfp-constituent-updates/fda-reminds-food-facilities-biennial-renewal-requirements";
+const FDA_AGENT_GUIDANCE_URL = "https://www.fda.gov/files/food/published/Questions-and-Answers-Regarding-Food-Facility-Registration-(Seventh-Edition).pdf";
+
+/** Hướng xử lý tăng dần theo mốc, không dùng ngôn từ hù dọa hoặc cam kết kết quả. */
+function expiryNextStep(type: NotificationType, isExpired: boolean, standard: "FDA" | "GACC") {
+  const officialSystem = standard === "FDA" ? "FDA Industry Systems" : "hệ thống đăng ký chính thức của cơ quan quản lý";
+  if (isExpired) {
+    return `Trước khi bố trí lô hàng tiếp theo, hãy xác minh trạng thái hiện tại trên ${officialSystem} và liên hệ Vexim để được đối chiếu hồ sơ, hướng xử lý tiếp theo.`;
+  }
+  if (type === "14_days" || type === "7_days" || type === "3_days" || type === "1_day") {
+    return `Ưu tiên xác minh trạng thái đăng ký chính thức trên ${officialSystem} ngay, đặc biệt nếu doanh nghiệp sắp xếp lô hàng. Liên hệ Vexim để đối chiếu hồ sơ và thời gian xử lý trước khi chốt lịch giao hàng.`;
+  }
+  if (type === "30_days") {
+    return `Đề nghị doanh nghiệp xác nhận tình trạng hồ sơ chính thức trên ${officialSystem}, rà soát thay đổi về cơ sở/thông tin đăng ký và thống nhất kế hoạch với Vexim trong thời gian sớm.`;
+  }
+  if (type === "60_days") {
+    return `Đây là thời điểm phù hợp để đối chiếu thông tin cơ sở, mã đăng ký và các thay đổi cần cập nhật; vui lòng xác nhận chu kỳ chính thức trên ${officialSystem} cùng Vexim.`;
+  }
+  return `Vui lòng kiểm tra thông tin doanh nghiệp, địa chỉ cơ sở và mã đăng ký đang lưu tại Vexim; xác nhận mốc gia hạn chính thức trên ${officialSystem} để chủ động lập kế hoạch.`;
+}
+
+function renewalRisk(data: ExpiryWarningData) {
+  if (data.standard === "FDA") {
+    return {
+      title: "Rủi ro nếu đăng ký FDA chính thức không được duy trì",
+      impact: "Với cơ sở thực phẩm nước ngoài thuộc diện phải đăng ký, nếu đăng ký FDA chính thức bị hết hạn do không gia hạn theo yêu cầu, FDA xem cơ sở là chưa đăng ký. Thực phẩm từ cơ sở đó đưa vào Hoa Kỳ có thể bị giữ tại cửa khẩu hoặc cơ sở bảo đảm cho đến khi đăng ký hợp lệ. Cơ sở nước ngoài cũng phải duy trì một U.S. Agent đã đồng ý đảm nhiệm vai trò này; nếu không có agent hợp lệ, FDA có thể giữ lô hàng cho đến khi hồ sơ được cập nhật. Tùy hồ sơ và quyết định của FDA, việc này có thể làm chậm thông quan/giao hàng và phát sinh chi phí logistics.",
+      clarification: `Mốc ngày trong email là kỳ hạn dịch vụ/hồ sơ Vexim đang theo dõi, không phải trạng thái thời gian thực trên FDA Industry Systems. Hợp đồng dịch vụ hết hạn tự nó không xác nhận đăng ký FDA đã hết hạn; tuy nhiên, nếu ${data.us_agent ? `hồ sơ Vexim hiện ghi U.S. Agent là ${data.us_agent} và` : ""} dịch vụ sắp kết thúc bao gồm vai trò U.S. Agent, doanh nghiệp cần thống nhất phương án thay thế/cập nhật với FDA. Thay đổi thông tin bắt buộc cần được cập nhật trong 60 ngày. Food Facility Registration thuộc diện áp dụng gia hạn hai năm một lần, từ 1/10–31/12 của năm chẵn; FDA không thu phí đăng ký/gia hạn, còn phí Vexim (nếu có) là phí dịch vụ riêng theo hợp đồng. Hãy xác minh trạng thái chính thức và phạm vi dịch vụ với Vexim.`,
+      sources: [
+        { label: "FDA: chu kỳ gia hạn Food Facility Registration", url: FDA_REGISTRATION_GUIDANCE_URL },
+        { label: "FDA: U.S. Agent và cập nhật đăng ký cơ sở nước ngoài", url: FDA_AGENT_GUIDANCE_URL },
+      ],
+    };
+  }
+
+  return {
+    title: "Rủi ro nếu hồ sơ đăng ký chính thức không được duy trì",
+    impact: "Nếu hồ sơ GACC chính thức hết hiệu lực hoặc thông tin cần cập nhật chưa được hoàn tất, doanh nghiệp có thể gặp vướng mắc khi sử dụng mã đăng ký cho lô hàng thuộc diện áp dụng; việc này có thể ảnh hưởng tiến độ khai báo, thông quan và giao hàng. Yêu cầu cụ thể phụ thuộc nhóm sản phẩm và trạng thái hồ sơ của cơ quan quản lý.",
+    clarification: "Mốc ngày trong email là kỳ hạn dịch vụ/hồ sơ Vexim đang theo dõi; việc kết thúc dịch vụ Vexim không tự động thay đổi trạng thái đăng ký GACC chính thức. Hãy xác minh trên hệ thống đăng ký hiện hành và đối chiếu phạm vi sản phẩm với Vexim trước khi bố trí lô hàng.",
+    sources: [],
+  };
+}
+
+/** Dòng trạng thái mô tả mốc dịch vụ/hồ sơ Vexim, không khẳng định trạng thái pháp lý trên cổng FDA/GACC. */
 export function registrationStatusLine(data: ExpiryWarningData, isExpired: boolean) {
   const remaining = Math.max(0, Math.round(data.remaining_days || 0));
-  if (isExpired) return "Đã hết hiệu lực";
-  if (remaining <= 0) return "Hết hiệu lực hôm nay";
-  return `Còn ${remaining} ngày đến ngày hết hạn`;
+  if (isExpired) return "Đã qua mốc hết hạn ghi nhận tại Vexim";
+  if (remaining <= 0) return "Mốc hết hạn ghi nhận tại Vexim là hôm nay";
+  return `Còn ${remaining} ngày đến mốc hết hạn ghi nhận tại Vexim`;
 }
 
 export function buildExpiryWarningEmail(data: ExpiryWarningData, type: NotificationType): { subject: string; html: string; text: string } {
@@ -289,23 +324,25 @@ export function buildExpiryWarningEmail(data: ExpiryWarningData, type: Notificat
     : "General Administration of Customs of China (GACC)";
   const verifyUrl = verifyUrlFor(data.public_code);
   const expiryDate = formatEmailDate(data.expires_at);
+  const effectiveStage = isExpired ? "expired" : onExpiryDay ? "1_day" : type;
+  const stage = EXPIRY_STAGE_PRESENTATION[effectiveStage];
+  const stageLabel = onExpiryDay ? "Hết hạn hôm nay" : stage.labelVi;
+  const risk = renewalRisk(data);
+  const nextStep = expiryNextStep(effectiveStage, isExpired, data.standard);
+  const remainingLabel = isExpired ? "Đã qua mốc" : remaining === 0 ? "Hôm nay (0 ngày)" : `${remaining} ngày`;
 
-  // Tiêu đề ngắn, factual: [Còn 7 ngày] Đăng ký FDA của <công ty> sắp hết hạn
+  // Nêu rõ đây là kỳ dịch vụ/hồ sơ Vexim, không suy diễn thành trạng thái chính thức trên FDA/GACC.
   const subject = isExpired
-    ? `[Đã hết hạn] ${noun} của ${data.company_name} đã hết hiệu lực ngày ${expiryDate}`
+    ? `[Quá mốc dịch vụ Vexim] Hồ sơ theo dõi ${noun} của ${data.company_name} · ${expiryDate}`
     : onExpiryDay
-      ? `[Hết hạn hôm nay] ${noun} của ${data.company_name} hết hiệu lực hôm nay`
-      : `[Còn ${remaining} ngày] ${noun} của ${data.company_name} sắp hết hạn`;
+      ? `[Dịch vụ Vexim đến hạn hôm nay] Hồ sơ ${noun} của ${data.company_name}`
+      : `[Còn ${remaining} ngày] Dịch vụ Vexim theo dõi hồ sơ ${noun} của ${data.company_name} sắp kết thúc`;
 
   const summary = isExpired
-    ? `${noun} của ${data.company_name} đã hết hiệu lực vào ngày ${expiryDate}. Nếu doanh nghiệp tiếp tục xuất khẩu sản phẩm thuộc phạm vi đăng ký, vui lòng liên hệ Vexim để kiểm tra hồ sơ và thủ tục gia hạn.`
+    ? `Theo hồ sơ Vexim, mốc kết thúc dịch vụ theo dõi hồ sơ ${noun} của ${data.company_name} đã qua vào ngày ${expiryDate}. Vui lòng xác minh trạng thái đăng ký chính thức trước khi sắp xếp lô hàng tiếp theo.`
     : onExpiryDay
-      ? `${noun} của ${data.company_name} hết hiệu lực trong hôm nay (${expiryDate}). Nếu doanh nghiệp tiếp tục xuất khẩu sản phẩm thuộc phạm vi đăng ký, vui lòng liên hệ Vexim để kiểm tra thủ tục gia hạn trước khi hết ngày.`
-      : `${noun} của ${data.company_name} dự kiến hết hạn vào ngày ${expiryDate}. Nếu doanh nghiệp tiếp tục xuất khẩu sản phẩm thuộc phạm vi đăng ký, vui lòng chuẩn bị và kiểm tra thủ tục gia hạn trước ngày hết hạn.`;
-
-  const accent = isExpired ? "#B91C1C" : "#0B1837";
-  const statusBg = isExpired ? "#FEF2F2" : "#F8F4EC";
-  const statusBorder = isExpired ? "#F3D4D4" : "#E7D4A6";
+      ? `Theo hồ sơ Vexim, dịch vụ theo dõi hồ sơ ${noun} của ${data.company_name} đến mốc kết thúc ngày ${expiryDate} hôm nay. Đây không phải xác nhận tự động về trạng thái đăng ký chính thức trên cổng của cơ quan quản lý.`
+      : `Theo hồ sơ Vexim, dịch vụ theo dõi hồ sơ ${noun} của ${data.company_name} dự kiến kết thúc vào ngày ${expiryDate}. Doanh nghiệp nên xác nhận trạng thái đăng ký chính thức và chủ động kế hoạch trước mốc này.`;
 
   const row = (label: string, value: string, mono = false) => `
         <tr>
@@ -315,20 +352,28 @@ export function buildExpiryWarningEmail(data: ExpiryWarningData, type: Notificat
 
   const html = `
   <div style="font-family:Inter,Arial,sans-serif; max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden">
-    <div style="background:${accent}; padding:20px 24px; color:#ffffff">
-      <div style="font-size:11px; letter-spacing:0.15em; text-transform:uppercase; opacity:0.85">VEXIM GLOBAL · HỆ THỐNG QUẢN LÝ HỒ SƠ FDA/GACC</div>
-      <div style="margin-top:10px; font-size:20px; font-weight:800">Thông báo tình trạng đăng ký</div>
-      <div style="margin-top:4px; font-size:13px; opacity:0.9">${data.company_name} · ${noun} · ${data.certificate_no}</div>
+    <div style="background:${stage.email.accent}; padding:20px 24px; color:#ffffff">
+      <div style="font-size:11px; letter-spacing:0.15em; text-transform:uppercase; opacity:0.92">VEXIM GLOBAL · HỆ THỐNG QUẢN LÝ HỒ SƠ FDA/GACC</div>
+      <div style="margin-top:10px; font-size:20px; font-weight:800">Thông báo mốc dịch vụ/hồ sơ</div>
+      <div style="margin-top:4px; font-size:13px; opacity:0.95">${data.company_name} · ${noun} · ${data.certificate_no}</div>
     </div>
 
     <div style="padding:24px">
-      <div style="background:${statusBg}; border:1px solid ${statusBorder}; border-radius:12px; padding:14px 16px; margin-bottom:20px">
-        <div style="font-size:12px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:${accent}">${statusLine}</div>
+      <div style="background:${stage.email.background}; border:1px solid ${stage.email.border}; border-left:5px solid ${stage.email.accent}; border-radius:12px; padding:14px 16px; margin-bottom:20px">
+        <div style="font-size:12px; font-weight:800; letter-spacing:0.04em; color:${stage.email.accent}">${statusLine}</div>
+        <div style="margin-top:6px; font-size:11px; font-weight:700; color:${stage.email.accent}">MỐC THÔNG BÁO: ${stageLabel.toLocaleUpperCase("vi-VN")}</div>
       </div>
 
-      <p style="margin:0 0 22px; font-size:14px; line-height:1.65; color:#334155">${summary}</p>
+      <p style="margin:0 0 18px; font-size:14px; line-height:1.65; color:#334155">${summary}</p>
 
-      <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:6px">Thông tin hồ sơ</div>
+      <div style="margin:0 0 22px; padding:16px; background:#FFFBEB; border:1px solid #FDE68A; border-left:5px solid ${stage.email.accent}; border-radius:12px">
+        <div style="font-size:14px; font-weight:800; color:#78350F">${risk.title}</div>
+        <p style="margin:8px 0 0; font-size:13px; line-height:1.65; color:#451A03">${risk.impact}</p>
+        <p style="margin:10px 0 0; font-size:12px; line-height:1.65; color:#57534E">${risk.clarification}</p>
+        ${risk.sources.map((source) => `<p style="margin:10px 0 0; font-size:12px"><a href="${source.url}" style="color:#0f766e; font-weight:700">${source.label}</a></p>`).join("")}
+      </div>
+
+      <div style="font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.08em; color:#64748b; margin-bottom:6px">Thông tin hồ sơ Vexim đang theo dõi</div>
       <table style="width:100%; border-collapse:collapse; font-size:14px">
         <tbody>
           ${row("Doanh nghiệp", data.company_name)}
@@ -336,20 +381,18 @@ export function buildExpiryWarningEmail(data: ExpiryWarningData, type: Notificat
           ${row(registrationNoLabel(data.standard), data.registration_code || "—", true)}
           ${data.duns_code ? row("D-U-N-S", data.duns_code) : ""}
           ${data.us_agent ? row("U.S. Agent", data.us_agent) : ""}
-          ${row("Ngày đăng ký", formatEmailDate(data.registered_at))}
-          ${row("Ngày hết hạn", expiryDate)}
-          ${row("Kỳ hạn đăng ký", `${data.validity_years} năm`)}
-          ${row("Số ngày còn lại", `${remaining} ngày`)}
-          ${row("Cơ quan đăng ký", registryName)}
-          ${row("Kiểm tra thông tin hồ sơ", `<a href="${verifyUrl}" style="color:#0f766e; word-break:break-all">${verifyUrl}</a>`)}
+          ${row("Ngày đăng ký ghi nhận", formatEmailDate(data.registered_at))}
+          ${row("Mốc kết thúc kỳ dịch vụ (Vexim)", expiryDate)}
+          ${row("Kỳ hạn dịch vụ/hồ sơ Vexim", `${data.validity_years} năm`)}
+          ${row("Thời gian đến mốc Vexim ghi nhận", remainingLabel)}
+          ${row("Cơ quan quản lý", registryName)}
+          ${row("Hồ sơ trên hệ thống Vexim", `<a href="${verifyUrl}" style="color:#0f766e; word-break:break-all">${verifyUrl}</a>`)}
         </tbody>
       </table>
 
       <div style="margin-top:22px; padding:16px; background:#F8FAFC; border:1px solid #e2e8f0; border-radius:12px">
-        <div style="font-size:13px; font-weight:700; color:#0f172a">Nếu cần gia hạn</div>
-        <p style="margin:8px 0 0; font-size:13px; line-height:1.6; color:#334155">
-          Vui lòng liên hệ Vexim để kiểm tra hồ sơ hiện tại, xác nhận thông tin đăng ký và báo phí gia hạn.
-        </p>
+        <div style="font-size:13px; font-weight:800; color:#0f172a">Bước tiếp theo</div>
+        <p style="margin:8px 0 0; font-size:13px; line-height:1.65; color:#334155">${nextStep}</p>
         <p style="margin:10px 0 0; font-size:13px; color:#334155">
           Hotline: <a href="tel:0373685634" style="color:#0f172a; font-weight:700; text-decoration:none">0373 685 634</a>
           · Email: <a href="mailto:${FROM_EMAIL}" style="color:#0f172a; font-weight:700; text-decoration:none">${FROM_EMAIL}</a>
@@ -357,7 +400,7 @@ export function buildExpiryWarningEmail(data: ExpiryWarningData, type: Notificat
       </div>
 
       <div style="margin-top:20px">
-        <a href="${verifyUrl}" style="display:inline-block; background:#0B1837; color:#ffffff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">Kiểm tra thông tin hồ sơ</a>
+        <a href="${verifyUrl}" style="display:inline-block; background:${stage.email.accent}; color:#ffffff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">Xem hồ sơ đang theo dõi tại Vexim</a>
       </div>
 
       <div style="margin-top:22px; padding-top:16px; border-top:1px solid #e2e8f0; font-size:11px; line-height:1.7; color:#94a3b8">
@@ -375,19 +418,23 @@ export function buildExpiryWarningEmail(data: ExpiryWarningData, type: Notificat
 
 ${summary}
 
-THÔNG TIN HỒ SƠ
+${risk.title.toUpperCase()}
+${risk.impact}
+${risk.clarification}
+${risk.sources.map((source) => `${source.label}: ${source.url}`).join("\n")}
+THÔNG TIN HỒ SƠ VEXIM ĐANG THEO DÕI
 Doanh nghiệp: ${data.company_name}
 Mã hồ sơ Vexim: ${data.certificate_no}
 ${registrationNoLabel(data.standard)}: ${data.registration_code || "—"}
-${data.duns_code ? `D-U-N-S: ${data.duns_code}\n` : ""}${data.us_agent ? `U.S. Agent: ${data.us_agent}\n` : ""}Ngày đăng ký: ${formatEmailDate(data.registered_at)}
-Ngày hết hạn: ${expiryDate}
-Kỳ hạn đăng ký: ${data.validity_years} năm
-Số ngày còn lại: ${remaining} ngày
-Cơ quan đăng ký: ${registryName}
-Kiểm tra thông tin hồ sơ: ${verifyUrl}
+${data.duns_code ? `D-U-N-S: ${data.duns_code}\n` : ""}${data.us_agent ? `U.S. Agent: ${data.us_agent}\n` : ""}Ngày đăng ký ghi nhận: ${formatEmailDate(data.registered_at)}
+Mốc kết thúc kỳ dịch vụ (Vexim): ${expiryDate}
+Kỳ hạn dịch vụ/hồ sơ Vexim: ${data.validity_years} năm
+Thời gian đến mốc Vexim ghi nhận: ${remainingLabel}
+Cơ quan quản lý: ${registryName}
+Hồ sơ trên hệ thống Vexim: ${verifyUrl}
 
-NẾU CẦN GIA HẠN
-Vui lòng liên hệ Vexim để kiểm tra hồ sơ hiện tại, xác nhận thông tin đăng ký và báo phí gia hạn.
+BƯỚC TIẾP THEO
+${nextStep}
 Hotline: 0373 685 634 · Email: ${FROM_EMAIL}
 
 Email được gửi tự động từ hệ thống quản lý hồ sơ FDA/GACC của Vexim Global.
@@ -398,7 +445,6 @@ VEXIM GLOBAL CO., LTD · Hotline: 0373 685 634 · ${FROM_EMAIL} · www.veximglob
   return { subject, html, text };
 }
 
-
 /** Email xác nhận gia hạn — cùng văn phong thông báo tự động với email cảnh báo hết hạn. */
 export function buildRenewalConfirmationEmail(data: ExpiryWarningData): { subject: string; html: string; text: string } {
   const noun = registrationSubject(data.standard);
@@ -408,6 +454,7 @@ export function buildRenewalConfirmationEmail(data: ExpiryWarningData): { subjec
   const verifyUrl = verifyUrlFor(data.public_code);
   const expiryDate = formatEmailDate(data.expires_at);
   const renewals = Math.max(1, Math.round(data.renewal_count || 1));
+  const stage = EXPIRY_STAGE_PRESENTATION.renewal_reminder;
   const subject = `[Đã gia hạn] ${noun} của ${data.company_name} có hiệu lực đến ${expiryDate}`;
 
   const row = (label: string, value: string, mono = false) => `
@@ -418,15 +465,15 @@ export function buildRenewalConfirmationEmail(data: ExpiryWarningData): { subjec
 
   const html = `
   <div style="font-family:Inter,Arial,sans-serif; max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden">
-    <div style="background:#0B1837; padding:20px 24px; color:#ffffff">
-      <div style="font-size:11px; letter-spacing:0.15em; text-transform:uppercase; opacity:0.85">VEXIM GLOBAL · HỆ THỐNG QUẢN LÝ HỒ SƠ FDA/GACC</div>
+    <div style="background:${stage.email.accent}; padding:20px 24px; color:#ffffff">
+      <div style="font-size:11px; letter-spacing:0.15em; text-transform:uppercase; opacity:0.92">VEXIM GLOBAL · HỆ THỐNG QUẢN LÝ HỒ SƠ FDA/GACC</div>
       <div style="margin-top:10px; font-size:20px; font-weight:800">Xác nhận gia hạn đăng ký</div>
       <div style="margin-top:4px; font-size:13px; opacity:0.9">${data.company_name} · ${noun} · ${data.certificate_no}</div>
     </div>
 
     <div style="padding:24px">
-      <div style="background:#F8F4EC; border:1px solid #E7D4A6; border-radius:12px; padding:14px 16px; margin-bottom:20px">
-        <div style="font-size:12px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:#0B1837">Đã gia hạn · Hiệu lực đến ${expiryDate}</div>
+      <div style="background:${stage.email.background}; border:1px solid ${stage.email.border}; border-left:5px solid ${stage.email.accent}; border-radius:12px; padding:14px 16px; margin-bottom:20px">
+        <div style="font-size:12px; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:${stage.email.accent}">Đã gia hạn · Hiệu lực đến ${expiryDate}</div>
       </div>
 
       <p style="margin:0 0 22px; font-size:14px; line-height:1.65; color:#334155">
@@ -463,7 +510,7 @@ export function buildRenewalConfirmationEmail(data: ExpiryWarningData): { subjec
       </div>
 
       <div style="margin-top:20px">
-        <a href="${verifyUrl}" style="display:inline-block; background:#0B1837; color:#ffffff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">Kiểm tra thông tin hồ sơ</a>
+        <a href="${verifyUrl}" style="display:inline-block; background:${stage.email.accent}; color:#ffffff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">Kiểm tra thông tin hồ sơ</a>
       </div>
 
       <div style="margin-top:22px; padding-top:16px; border-top:1px solid #e2e8f0; font-size:11px; line-height:1.7; color:#94a3b8">

@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import { Bell, AlertTriangle, Clock, Mail, Send, Loader2, CheckCircle, XCircle, Calendar, Building2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
+import { EXPIRY_STAGE_ORDER, EXPIRY_STAGE_PRESENTATION, expiryStageForRemaining, type NotificationType } from "@/lib/expiry-notice";
 
 type Notification = {
   id: number;
   certificate_id: number;
   company_name: string;
-  notification_type: string;
+  notification_type: NotificationType;
   recipient_email: string;
   status: string;
   sent_at: string;
@@ -65,27 +66,12 @@ export default function ExpiryAlertsPage() {
     setScanning(false);
   };
 
-  const getTypeLabel = (type: string) => {
-    const map: Record<string, string> = {
-      "90_days": "Còn 90 ngày",
-      "60_days": "Còn 60 ngày",
-      "30_days": "Còn 30 ngày",
-      "14_days": "Còn 14 ngày",
-      "7_days": "Còn 7 ngày",
-      "3_days": "Còn 3 ngày",
-      "1_day": "Còn 1 ngày / Hôm nay",
-      expired: "Đã hết hạn",
-      renewal_reminder: "Nhắc gia hạn",
-    };
-    return map[type] || type;
+  const getTypeLabel = (type: NotificationType, remaining?: number) => {
+    if (type === "1_day") return remaining === 0 ? "Hết hạn hôm nay" : "Còn 1 ngày / hôm nay";
+    return EXPIRY_STAGE_PRESENTATION[type].labelVi;
   };
 
-  const getUrgencyColor = (remaining: number) => {
-    if (remaining < 0) return "bg-rose-100 text-rose-800 border-rose-200";
-    if (remaining <= 7) return "bg-orange-100 text-orange-800 border-orange-200";
-    if (remaining <= 30) return "bg-amber-100 text-amber-800 border-amber-200";
-    return "bg-emerald-50 text-emerald-700 border-emerald-200";
-  };
+  const getStage = (type: NotificationType) => EXPIRY_STAGE_PRESENTATION[type];
 
   return (
     <div className="space-y-6">
@@ -118,6 +104,27 @@ export default function ExpiryAlertsPage() {
         </div>
       </div>
 
+      <div className="flex gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+        <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-sky-700" />
+        <div>
+          <div className="font-bold">Lưu ý khi tư vấn hồ sơ FDA</div>
+          <p className="mt-1 leading-6">
+            Mốc hết hạn dịch vụ/hồ sơ Vexim không đồng nghĩa tự động với ngày hết hạn chính thức của đăng ký FDA.
+            Food Facility Registration thuộc diện áp dụng được gia hạn 2 năm/lần, từ 1/10 đến 31/12 của năm chẵn.
+            FDA không thu phí đăng ký/gia hạn; phí hỗ trợ Vexim (nếu có) là khoản riêng theo hợp đồng.
+            Hãy xác minh trạng thái trên FDA Industry Systems trước khi kết luận về lô hàng.
+            <a
+              href="https://www.fda.gov/food/hfp-constituent-updates/fda-reminds-food-facilities-biennial-renewal-requirements"
+              target="_blank"
+              rel="noreferrer"
+              className="ml-1 font-bold underline decoration-sky-400 underline-offset-2"
+            >
+              Xem hướng dẫn FDA
+            </a>
+          </p>
+        </div>
+      </div>
+
       {lastResult && (
         <div className={`rounded-2xl p-5 border ${lastResult.success ? "bg-emerald-50 border-emerald-200" : "bg-rose-50 border-rose-200"}`}>
           <div className="flex items-center gap-2 font-bold">
@@ -128,15 +135,27 @@ export default function ExpiryAlertsPage() {
             <div className="mt-3 max-h-[200px] overflow-y-auto text-xs space-y-1">
               {lastResult.details
                 .filter((d: any) => d.type)
-                .map((d: any, i: number) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <span className="font-mono">{d.certificate_no}</span>
-                    <span>{d.company_name}</span>
-                    <span className={`px-1.5 py-0.5 rounded text-[10px] ${d.sent ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
-                      {d.type} {d.sent ? "✓ sent" : `✗ ${d.error || ""}`}
-                    </span>
-                  </div>
-                ))}
+                .map((d: any, i: number) => {
+                  const type = d.type as NotificationType;
+                  const stage = getStage(type);
+                  const sendStatus = d.sent
+                    ? "Đã gửi"
+                    : d.error === "Already sent"
+                      ? "Đã gửi trước đó"
+                      : `Chưa gửi${d.error ? ` · ${d.error}` : ""}`;
+                  return (
+                    <div key={i} className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono">{d.certificate_no}</span>
+                      <span>{d.company_name}</span>
+                      <span className={`rounded border px-1.5 py-0.5 text-[10px] font-bold ${stage.badgeClass}`}>
+                        {getTypeLabel(type, d.remaining)}
+                      </span>
+                      <span className={`rounded px-1.5 py-0.5 text-[10px] ${d.sent ? "bg-emerald-100 text-emerald-800" : "bg-slate-100 text-slate-700"}`}>
+                        {sendStatus}
+                      </span>
+                    </div>
+                  );
+                })}
             </div>
           )}
           <div className="mt-2 text-[11px] text-slate-500">Thời gian: {new Date(lastResult.timestamp).toLocaleString("vi-VN")}</div>
@@ -149,7 +168,17 @@ export default function ExpiryAlertsPage() {
           <h2 className="font-display text-lg font-bold text-navy-900 flex items-center gap-2">
             <AlertTriangle className="h-5 w-5 text-amber-500" /> Sắp Hết Hạn ({expiring.length})
           </h2>
-          <p className="text-xs text-slate-500 mt-1">Tự động quét từ database chính thức, tính theo công thức UTC đã audit</p>
+          <p className="text-xs text-slate-500 mt-1">Ngày còn lại là số chính xác; màu thể hiện nhóm thời gian để ưu tiên xử lý.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="Chú giải màu theo thời gian còn lại">
+            {EXPIRY_STAGE_ORDER.map((type) => {
+              const stage = getStage(type);
+              return (
+                <div key={type} className={`rounded-lg border px-2.5 py-2 text-[11px] font-bold ${stage.badgeClass}`}>
+                  {stage.bandLabel}
+                </div>
+              );
+            })}
+          </div>
 
           {loading ? (
             <div className="py-8 text-center text-slate-400 flex items-center justify-center gap-2">
@@ -162,25 +191,29 @@ export default function ExpiryAlertsPage() {
             </div>
           ) : (
             <div className="mt-4 space-y-3 max-h-[500px] overflow-y-auto">
-              {expiring.map((c) => (
-                <div key={c.id} className="rounded-xl border p-4 hover:bg-slate-50">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="font-mono font-bold text-sm text-navy-900">{c.certificate_no}</div>
-                      <div className="text-sm font-semibold mt-1 flex items-center gap-1.5">
-                        <Building2 className="h-3.5 w-3.5 text-slate-400" /> {c.company_name}
+              {expiring.map((c) => {
+                const stage = getStage(expiryStageForRemaining(c.remaining_days));
+                return (
+                  <div key={c.id} className={`rounded-xl border border-l-4 p-4 transition-colors hover:bg-white ${stage.cardClass} ${stage.markerClass}`}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-mono text-sm font-bold text-navy-900">{c.certificate_no}</div>
+                        <div className="mt-1 flex items-center gap-1.5 text-sm font-semibold">
+                          <Building2 className="h-3.5 w-3.5 text-slate-400" /> {c.company_name}
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${c.standard === "FDA" ? "border-blue-200 bg-blue-50 text-blue-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>{c.standard}</span>
+                          <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${stage.badgeClass}`}>{stage.bandLabel}</span>
+                          <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDate(c.expires_at)}</span>
+                        </div>
                       </div>
-                      <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${c.standard === "FDA" ? "bg-blue-50 text-blue-700 border-blue-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}`}>{c.standard}</span>
-                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" /> {formatDate(c.expires_at)}</span>
-                      </div>
+                      <span className={`shrink-0 rounded-full border px-2.5 py-1 text-xs font-extrabold ${stage.badgeClass}`}>
+                        {c.remaining_days < 0 ? `Quá hạn ${Math.abs(c.remaining_days)} ngày` : c.remaining_days === 0 ? "Hết hạn hôm nay" : `Còn ${c.remaining_days} ngày`}
+                      </span>
                     </div>
-                    <span className={`px-2.5 py-1 rounded-full text-xs font-bold border ${getUrgencyColor(c.remaining_days)}`}>
-                      {c.remaining_days < 0 ? `Hết hạn ${Math.abs(c.remaining_days)} ngày` : c.remaining_days === 0 ? "Hết hạn hôm nay" : `Còn ${c.remaining_days} ngày`}
-                    </span>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -201,20 +234,25 @@ export default function ExpiryAlertsPage() {
             </div>
           ) : (
             <div className="mt-4 space-y-2 max-h-[500px] overflow-y-auto">
-              {notifications.map((n) => (
-                <div key={n.id} className="rounded-xl border p-3 text-sm">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono font-semibold">{n.company_name}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${n.status === "sent" ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>{n.status}</span>
+              {notifications.map((n) => {
+                const stage = getStage(n.notification_type);
+                return (
+                  <div key={n.id} className={`rounded-xl border border-l-4 p-3 text-sm ${stage.cardClass} ${stage.markerClass}`}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono font-semibold">{n.company_name}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${n.status === "sent" ? "bg-emerald-100 text-emerald-800" : "bg-rose-100 text-rose-800"}`}>
+                        {n.status === "sent" ? "Đã gửi" : "Gửi lỗi"}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                      <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${stage.badgeClass}`}>{getTypeLabel(n.notification_type)}</span>
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {new Date(n.sent_at).toLocaleString("vi-VN")}</span>
+                    </div>
+                    <div className="mt-1 truncate text-xs text-slate-500">To: {n.recipient_email}</div>
+                    <div className="text-[11px] text-slate-400">Mã hồ sơ: {n.certificate_id}</div>
                   </div>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-600">
-                    <span className="px-2 py-0.5 rounded-full bg-slate-100 border text-[10px] font-bold">{getTypeLabel(n.notification_type)}</span>
-                    <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> {new Date(n.sent_at).toLocaleString("vi-VN")}</span>
-                  </div>
-                  <div className="mt-1 text-xs text-slate-500 truncate">To: {n.recipient_email}</div>
-                  <div className="text-[11px] text-slate-400">Cert ID: {n.certificate_id}</div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

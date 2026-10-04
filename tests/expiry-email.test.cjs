@@ -1,7 +1,6 @@
 // node --test tests/expiry-email.test.cjs
-// Email cảnh báo hết hạn phải là thông báo tự động của hệ thống quản lý hồ sơ,
-// không phải email bán hàng: tiêu đề ngắn - factual, không thúc ép, không lẫn
-// nội dung sales, và gọi đúng thuật ngữ "Đăng ký FDA" (không phải "chứng nhận").
+// Validate that customer notices are informative, regulatory-accurate, and clearly
+// distinguish the Vexim service record from the facility's actual FDA/GACC status.
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -20,6 +19,7 @@ for (const ext of ['.ts', '.tsx']) {
 }
 
 const { buildExpiryWarningEmail, getNotificationLabel } = require('../lib/email.ts');
+const { EXPIRY_STAGE_ORDER, EXPIRY_STAGE_PRESENTATION } = require('../lib/expiry-notice.ts');
 const { siteBaseUrl, DEFAULT_SITE_URL } = require('../lib/site-url.ts');
 
 const FDA = {
@@ -45,171 +45,167 @@ const GACC = {
   us_agent: '',
 };
 
-/** Mọi chữ xuất hiện trong email (tiêu đề + HTML + bản text). */
+/** All customer-visible email text (subject, HTML and plain-text fallback). */
 const allText = (data, type) => {
   const email = buildExpiryWarningEmail(data, type);
   return email.subject + '\n' + email.html + '\n' + email.text;
 };
 
-test('tiêu đề ngắn, factual, không lặp số ngày và không hối thúc', () => {
-  const { subject } = buildExpiryWarningEmail(FDA, '7_days');
-  assert.equal(subject, '[Còn 7 ngày] Đăng ký FDA của NGUYEN TRAN COMPANY sắp hết hạn');
-
-  const mail = allText(FDA, '7_days');
-  assert.doesNotMatch(mail, /cần gia hạn gấp/i);
-  assert.doesNotMatch(mail, /khẩn cấp/i);
-  assert.doesNotMatch(mail, /còn 7 ngày[^.]{0,3}còn 7 ngày/i, 'không lặp "còn 7 ngày" hai lần');
+test('subject and summary identify the Vexim service milestone, not an unverified FDA expiry', () => {
+  const email = buildExpiryWarningEmail(FDA, '7_days');
+  assert.equal(email.subject, '[Còn 7 ngày] Dịch vụ Vexim theo dõi hồ sơ Đăng ký FDA của NGUYEN TRAN COMPANY sắp kết thúc');
+  assert.match(email.html, /dự kiến kết thúc vào ngày 05\/10\/2026/);
+  assert.match(email.html, /Mốc kết thúc kỳ dịch vụ \(Vexim\)/);
+  assert.match(email.html, /kỳ hạn dịch vụ\/hồ sơ Vexim/i);
+  assert.match(email.html, /không phải trạng thái thời gian thực trên FDA Industry Systems/);
+  assert.doesNotMatch(email.subject + email.html, /Đăng ký FDA của NGUYEN TRAN COMPANY đã hết hiệu lực/);
 });
 
-test('gọi đúng thuật ngữ đăng ký FDA, không dùng chữ "chứng nhận"', () => {
-  const mail = allText(FDA, '30_days');
+test('FDA risk disclosure is specific, conditional, sourced, and not alarmist', () => {
+  const mail = allText({ ...FDA, remaining_days: 30 }, '30_days');
+  assert.match(mail, /FDA xem cơ sở là chưa đăng ký/);
+  assert.match(mail, /có thể bị giữ tại cửa khẩu hoặc cơ sở bảo đảm/);
+  assert.match(mail, /có thể làm chậm thông quan\/giao hàng/);
+  assert.match(mail, /phát sinh chi phí logistics/);
+  assert.match(mail, /Food Facility Registration thuộc diện áp dụng gia hạn hai năm một lần/);
+  assert.match(mail, /1\/10–31\/12 của năm chẵn/);
+  assert.match(mail, /FDA không thu phí đăng ký\/gia hạn/);
+  assert.match(mail, /phí Vexim \(nếu có\) là phí dịch vụ riêng theo hợp đồng/);
+  assert.match(mail, /U\.S\. Agent đã đồng ý đảm nhiệm vai trò này/);
+  assert.match(mail, /cập nhật trong 60 ngày/);
+  assert.match(mail, /FDA: chu kỳ gia hạn Food Facility Registration/);
+  assert.match(mail, /FDA: U\.S\. Agent và cập nhật đăng ký cơ sở nước ngoài/);
+  assert.match(mail, /https:\/\/www\.fda\.gov\/food\/hfp-constituent-updates\/fda-reminds-food-facilities-biennial-renewal-requirements/);
+  assert.match(mail, /hồ sơ Vexim hiện ghi U\.S\. Agent là Vexim Global LLC/);
+  assert.match(mail, /doanh nghiệp cần thống nhất phương án thay thế\/cập nhật với FDA/);
+
+  // Service expiry is not represented as an automatic cancellation, but a lapse in a required agent service is flagged.
+  assert.match(mail, /Hợp đồng dịch vụ hết hạn tự nó không xác nhận đăng ký FDA đã hết hạn/);
+  assert.doesNotMatch(mail, /chắc chắn bị từ chối|sẽ bị cấm xuất khẩu|tự động bị hủy/i);
+});
+
+test('FDA reminder action becomes more direct as the deadline approaches', () => {
+  const early = allText({ ...FDA, remaining_days: 90 }, '90_days');
+  assert.match(early, /chủ động lập kế hoạch/);
+  const near = allText({ ...FDA, remaining_days: 7 }, '7_days');
+  assert.match(near, /Ưu tiên xác minh trạng thái đăng ký chính thức/);
+  assert.match(near, /trước khi chốt lịch giao hàng/);
+  const expired = allText({ ...FDA, remaining_days: -2 }, 'expired');
+  assert.match(expired, /Trước khi bố trí lô hàng tiếp theo/);
+});
+
+test('expired and expiry-day notices state the Vexim milestone without asserting official FDA status', () => {
+  const expired = buildExpiryWarningEmail({ ...FDA, remaining_days: -12 }, 'expired');
+  assert.equal(expired.subject, '[Quá mốc dịch vụ Vexim] Hồ sơ theo dõi Đăng ký FDA của NGUYEN TRAN COMPANY · 05/10/2026');
+  assert.match(expired.html, /Đã qua mốc hết hạn ghi nhận tại Vexim/);
+  assert.match(expired.html, /Thời gian đến mốc Vexim ghi nhận/);
+  assert.match(expired.html, /Đã qua mốc/);
+  assert.doesNotMatch(expired.subject + expired.html, /Đăng ký FDA[^<.]{0,80}đã hết hiệu lực/);
+  assert.doesNotMatch(expired.html, /-12 ngày/);
+
+  const today = buildExpiryWarningEmail({ ...FDA, remaining_days: 0 }, '1_day');
+  assert.equal(today.subject, '[Dịch vụ Vexim đến hạn hôm nay] Hồ sơ Đăng ký FDA của NGUYEN TRAN COMPANY');
+  assert.match(today.html, /Mốc hết hạn ghi nhận tại Vexim là hôm nay/);
+  assert.match(today.html, /MỐC THÔNG BÁO: HẾT HẠN HÔM NAY/);
+  assert.match(today.html, /Hôm nay \(0 ngày\)/);
+  assert.doesNotMatch(today.html, /-\d+ ngày/);
+});
+
+test('FDA wording uses the correct registration terminology and the Vexim CTA is not presented as an official portal', () => {
+  const mail = allText(FDA, '14_days');
   assert.match(mail, /Đăng ký FDA của NGUYEN TRAN COMPANY/);
   assert.match(mail, /FDA Registration No\./);
-  assert.doesNotMatch(mail, /Chứng nhận FDA/i, 'FDA facility registration không gọi là "chứng nhận"');
-  assert.doesNotMatch(mail, /chứng nhận/i, 'không dùng chữ "chứng nhận" ở bất kỳ đâu trong email');
-
-  const gacc = allText(GACC, '30_days');
-  assert.match(gacc, /Đăng ký GACC của NGUYEN TRAN COMPANY/);
-  assert.match(gacc, /GACC Registration No\./);
-  assert.doesNotMatch(gacc, /Chứng nhận GACC/i);
+  assert.doesNotMatch(mail, /chứng nhận/i);
+  assert.match(mail, /Hồ sơ trên hệ thống Vexim/);
+  assert.match(mail, /Xem hồ sơ đang theo dõi tại Vexim/);
+  assert.match(mail, /FDA Industry Systems/);
 });
 
-test('nội dung chính đúng văn phong thông báo, không phải nhắc bán hàng', () => {
-  const mail = allText(FDA, '7_days');
-  assert.match(
-    mail,
-    /Đăng ký FDA của NGUYEN TRAN COMPANY dự kiến hết hạn vào ngày 05\/10\/2026\./,
-    'phải nói rõ ngày hết hạn dạng dd/mm/yyyy'
-  );
-  assert.match(mail, /vui lòng chuẩn bị và kiểm tra thủ tục gia hạn trước ngày hết hạn\./);
-  assert.match(mail, /Nếu cần gia hạn/);
-  assert.match(mail, /Vui lòng liên hệ Vexim để kiểm tra hồ sơ hiện tại, xác nhận thông tin đăng ký và báo phí gia hạn\./);
+test('notification emails use a distinct color for every reminder batch', () => {
+  const warningStages = EXPIRY_STAGE_ORDER;
+  const colors = warningStages.map((type) => EXPIRY_STAGE_PRESENTATION[type].email.accent);
+  assert.equal(new Set(colors).size, warningStages.length, 'mỗi mốc cần một màu riêng');
 
-  // Không còn nội dung bán hàng / thúc ép
-  for (const banned of [
-    'Hành động cần thiết',
-    'phí gấp',
-    'giá ưu đãi',
-    'Chuẩn bị phí gia hạn',
-    'Không xuất khẩu lô hàng mới',
-    'thu hồi mã',
-    'FDA hiệu lực 1-10 năm theo hợp đồng',
-    'GACC cố định 5 năm',
-    'tư vấn gia hạn',
-  ]) {
-    assert.equal(mail.includes(banned), false, `không được có "${banned}" trong email cảnh báo`);
+  const daysForStage = { '90_days': 90, '60_days': 60, '30_days': 30, '14_days': 14, '7_days': 7, '3_days': 3, '1_day': 1, expired: -1 };
+  for (const type of warningStages) {
+    const mail = buildExpiryWarningEmail({ ...FDA, remaining_days: daysForStage[type] }, type);
+    const color = EXPIRY_STAGE_PRESENTATION[type].email.accent;
+    assert.ok(mail.html.includes(`background:${color}`), `${type} phải dùng màu ở header`);
+    assert.ok(mail.html.includes(`MỐC THÔNG BÁO: ${EXPIRY_STAGE_PRESENTATION[type].labelVi.toLocaleUpperCase('vi-VN')}`));
   }
 });
 
-test('giữ bảng thông tin hồ sơ với nhãn chuẩn', () => {
+test('GACC has a qualified operational risk note without incorrectly applying FDA requirements', () => {
+  const mail = allText(GACC, '30_days');
+  assert.match(mail, /Rủi ro nếu hồ sơ đăng ký chính thức không được duy trì/);
+  assert.match(mail, /có thể ảnh hưởng tiến độ khai báo, thông quan và giao hàng/);
+  assert.match(mail, /hệ thống đăng ký hiện hành/);
+  assert.doesNotMatch(mail, /Food Facility Registration|FDA Industry Systems|U\.S\. Agent/);
+  assert.doesNotMatch(mail, /https:\/\/www\.fda\.gov/);
+});
+
+test('table keeps the correct identifiers and omits FDA-only fields from GACC email', () => {
   const mail = allText({ ...FDA, remaining_days: 14 }, '14_days');
   const labels = [
-    'Thông tin hồ sơ',
-    'Doanh nghiệp',
-    'NGUYEN TRAN COMPANY',
-    'Mã hồ sơ Vexim',
-    'VXM-FDA-2026-0015',
-    'FDA Registration No.',
-    '18900123456',
-    'D-U-N-S',
-    '112223333',
-    'U.S. Agent',
-    'Vexim Global LLC',
-    'Ngày đăng ký',
-    '05/10/2024',
-    'Ngày hết hạn',
-    '05/10/2026',
-    'Kỳ hạn đăng ký',
-    'Số ngày còn lại',
-    '14 ngày',
-    'Kiểm tra thông tin hồ sơ',
+    'Thông tin hồ sơ Vexim đang theo dõi',
+    'Doanh nghiệp', 'NGUYEN TRAN COMPANY',
+    'Mã hồ sơ Vexim', 'VXM-FDA-2026-0015',
+    'FDA Registration No.', '18900123456',
+    'D-U-N-S', '112223333', 'U.S. Agent', 'Vexim Global LLC',
+    'Ngày đăng ký ghi nhận', '05/10/2024',
+    'Mốc kết thúc kỳ dịch vụ (Vexim)', '05/10/2026',
+    'Kỳ hạn dịch vụ/hồ sơ Vexim', '2 năm',
+    'Thời gian đến mốc Vexim ghi nhận', '14 ngày',
+    'Hồ sơ trên hệ thống Vexim',
   ];
   for (const label of labels) assert.ok(mail.includes(label), `thiếu "${label}"`);
 
-  // GACC không có DUNS / US Agent
   const gacc = allText({ ...GACC, remaining_days: 14 }, '14_days');
   assert.equal(gacc.includes('D-U-N-S'), false);
   assert.equal(gacc.includes('U.S. Agent'), false);
   assert.ok(gacc.includes('CVNM31012609200198'));
 });
 
-test('giữ link xác minh làm trust element, có CTA rõ ràng', () => {
+test('Vexim QR-verification link is consistent and the CTA identifies it as a Vexim record', () => {
   const email = buildExpiryWarningEmail(FDA, '60_days');
   const url = `${siteBaseUrl()}/verify/QRCODE123456`;
-  assert.ok(email.html.includes(url), 'phải còn link xác minh');
+  assert.ok(email.html.includes(url));
   assert.ok(email.text.includes(url));
-  assert.ok(email.html.includes('<a href="tel:0373685634"'), 'phải có hotline liên hệ');
-  const links = email.html.match(/<a [^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/g) || [];
-  const cta = links.filter((a) => a.includes(url));
-  assert.ok(cta.length >= 2, 'email phải có cả dòng link và nút CTA tới trang xác minh');
-  assert.ok(cta.some((a) => a.includes('Kiểm tra thông tin hồ sơ')), 'nút CTA phải là "Kiểm tra thông tin hồ sơ"');
+  assert.ok(email.html.includes('<a href="tel:0373685634"'));
+  assert.ok(email.html.includes('Xem hồ sơ đang theo dõi tại Vexim'));
+  assert.equal(email.html.includes('verify.vexim.vn'), false);
+  assert.ok(email.html.includes('https://vanhanh.veximglobal.com/verify/QRCODE123456'));
 });
 
-test('link trong email trỏ đúng trang mà mã QR mở ra, không dùng tên miền chết', () => {
-  // Trang QR mã hoá `${origin}/verify/<mã>` với origin là địa chỉ thật đang chạy.
-  // Email từng hardcode "verify.vexim.vn" — tên miền không tồn tại, khách bấm vào không mở được.
-  const mail = allText(FDA, '30_days');
-  assert.equal(mail.includes('verify.vexim.vn'), false, 'không được dùng tên miền verify.vexim.vn');
-  assert.match(mail, /https:\/\/vanhanh\.veximglobal\.com\/verify\/QRCODE123456/, 'phải trỏ tới đúng địa chỉ hệ thống đang chạy');
-  assert.equal(mail.split(`${DEFAULT_SITE_URL}/verify/`).length - 1 >= 2, true, 'dòng thông tin và nút CTA dùng cùng một link');
-});
-
-test('địa chỉ trong link đổi được bằng NEXT_PUBLIC_SITE_URL (khi đổi tên miền)', () => {
+test('Vexim verification URL follows NEXT_PUBLIC_SITE_URL', () => {
   const previous = process.env.NEXT_PUBLIC_SITE_URL;
   try {
     process.env.NEXT_PUBLIC_SITE_URL = 'https://verify.veximglobal.com/';
-    assert.equal(siteBaseUrl(), 'https://verify.veximglobal.com', 'bỏ dấu / ở cuối');
+    assert.equal(siteBaseUrl(), 'https://verify.veximglobal.com');
     const mail = allText(FDA, '30_days');
-    assert.ok(mail.includes('https://verify.veximglobal.com/verify/QRCODE123456'), 'link phải theo cấu hình');
+    assert.ok(mail.includes('https://verify.veximglobal.com/verify/QRCODE123456'));
   } finally {
     if (previous === undefined) delete process.env.NEXT_PUBLIC_SITE_URL;
     else process.env.NEXT_PUBLIC_SITE_URL = previous;
   }
-  assert.equal(siteBaseUrl(), DEFAULT_SITE_URL, 'không cấu hình thì quay về tên miền mặc định');
+  assert.equal(siteBaseUrl(), DEFAULT_SITE_URL);
 });
 
-test('footer giữ tính hệ thống: gửi tự động, thời gian, mã tra cứu, pháp nhân, liên hệ', () => {
+test('auto-email footer keeps Vexim sender/contact and renewal labels are factual', () => {
   const mail = allText(FDA, '90_days');
-  assert.match(
-    mail,
-    /Email được gửi tự động từ hệ thống quản lý hồ sơ FDA\/GACC của Vexim Global\./
-  );
-  assert.ok(mail.includes('Thời gian gửi:'));
-  assert.ok(mail.includes('Mã hồ sơ: VXM-FDA-2026-0015'));
-  assert.ok(mail.includes('Mã tra cứu: QRCODE123456'));
-  assert.ok(mail.includes('VEXIM GLOBAL CO., LTD'));
-  assert.ok(mail.includes('0373 685 634'));
-  assert.ok(mail.includes('contact@veximglobal.com'));
-  assert.ok(mail.includes('www.veximglobal.com'));
-});
+  assert.match(mail, /Email được gửi tự động từ hệ thống quản lý hồ sơ FDA\/GACC của Vexim Global\./);
+  assert.match(mail, /Thời gian gửi:/);
+  assert.match(mail, /Mã hồ sơ: VXM-FDA-2026-0015/);
+  assert.match(mail, /Mã tra cứu: QRCODE123456/);
+  assert.match(mail, /VEXIM GLOBAL CO\., LTD/);
+  assert.match(mail, /0373 685 634/);
+  assert.match(mail, /contact@veximglobal\.com/);
+  assert.match(mail, /www\.veximglobal\.com/);
 
-test('hồ sơ đã hết hạn: nói đúng tình trạng, không hù dọa', () => {
-  const expired = { ...FDA, remaining_days: -12 };
-  const email = buildExpiryWarningEmail(expired, 'expired');
-  assert.equal(
-    email.subject,
-    '[Đã hết hạn] Đăng ký FDA của NGUYEN TRAN COMPANY đã hết hiệu lực ngày 05/10/2026'
-  );
-  const mail = expired.subject + email.subject + email.html;
-  assert.match(email.html, /Đã hết hiệu lực/);
-  assert.match(email.html, /đã hết hiệu lực vào ngày 05\/10\/2026\./);
-  assert.doesNotMatch(email.subject + email.html, /KHẨN CẤP/);
-  assert.doesNotMatch(email.subject + email.html, /⛔|⚠️/);
-  assert.ok(email.html.includes('Số ngày còn lại'), 'bảng vẫn có dòng số ngày còn lại');
-});
-
-test('ngày hết hạn (còn 0 ngày) không hiện "Còn 1 ngày" hay số ngày âm', () => {
-  const email = buildExpiryWarningEmail({ ...FDA, remaining_days: 0 }, '1_day');
-  assert.equal(email.subject, '[Hết hạn hôm nay] Đăng ký FDA của NGUYEN TRAN COMPANY hết hiệu lực hôm nay');
-  assert.match(email.html, /Hết hiệu lực hôm nay/);
-  assert.doesNotMatch(email.html, /-\d+ ngày/, 'không hiện số ngày âm');
-});
-
-test('nhãn trạng thái trung tính cho mọi mốc, không có "gấp/khẩn cấp"', () => {
-  for (const type of ['90_days', '60_days', '30_days', '14_days', '7_days', '3_days', '1_day', 'expired', 'renewal_reminder']) {
+  for (const type of [...EXPIRY_STAGE_ORDER, 'renewal_reminder']) {
     const label = getNotificationLabel(type);
     assert.ok(label.vi && label.en);
-    assert.doesNotMatch(label.vi, /gấp|khẩn cấp/i, `nhãn ${type} không được hối thúc`);
+    assert.doesNotMatch(label.vi, /gấp|khẩn cấp/i);
     assert.doesNotMatch(label.en, /urgent|critical/i);
   }
   assert.equal(getNotificationLabel('7_days').vi, 'Còn 7 ngày');
