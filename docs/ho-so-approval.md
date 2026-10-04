@@ -92,26 +92,44 @@ SQLite tự bổ sung cột khi mở database. Không cần thao tác dữ liệ
 
 Không tự động sửa thời hạn lịch sử đã bị tính lại trước đây: cần đối chiếu hồ sơ thật và bản sao lưu nếu phát hiện sai.
 
-## Email cảnh báo hết hạn (văn phong thông báo tự động)
+## Email cảnh báo hết hạn (thông báo hệ thống, đánh vào hậu quả thật)
 
-Email do **hệ thống quản lý hồ sơ** gửi, không phải email bán hàng:
+Email do **hệ thống quản lý hồ sơ** gửi, không phải email bán hàng — nhưng phải nêu rõ
+**hậu quả cụ thể** của việc hồ sơ hết hạn (lô hàng bị giữ/từ chối nhập khẩu, buyer tra cứu
+thấy hết hạn, mất tuần chờ xét duyệt lại). Nỗi sợ thật của doanh nghiệp là hậu quả thật;
+không cần từ ngữ sale để khuếch đại:
 
 - **Thuật ngữ**: dùng *“Đăng ký FDA”*, *“FDA Registration No.”* — FDA facility registration **không** gọi là “chứng nhận”.
   GACC tương ứng *“Đăng ký GACC”* / *“GACC Registration No.”*. Trong toàn bộ email không dùng chữ “chứng nhận”.
-- **Tiêu đề ngắn, factual**: `[Còn 7 ngày] Đăng ký FDA của <công ty> sắp hết hạn`;
-  ngày hết hạn: `[Hết hạn hôm nay] …`; quá hạn: `[Đã hết hạn] … đã hết hiệu lực ngày dd/mm/yyyy`.
-  Không lặp “còn N ngày” hai lần, không có “cần gia hạn gấp”, không “KHẨN CẤP”, không emoji ⚠️/⛔.
-- **Thân email**: dòng trạng thái *“Còn N ngày đến ngày hết hạn”* + một đoạn nêu ngày hết hạn và hướng dẫn
-  chuẩn bị/kiểm tra thủ tục gia hạn. Không thúc ép, không “hành động cần thiết”, không “phí gấp”, không giá ưu đãi.
+- **Tiêu đề factual, leo thang theo mốc**: mốc thông tin (90/60/30/14 ngày) giữ tiêu đề trung tính
+  `[Còn 60 ngày] Đăng ký FDA của <công ty> sắp hết hạn`; từ mốc cảnh báo (7/3/1 ngày, hết hạn hôm nay,
+  đã hết hạn) mới thêm hậu quả: `… · lô hàng có thể bị từ chối nhập khẩu`.
+  Không lặp “còn N ngày” hai lần, không “cần gia hạn gấp”, không “KHẨN CẤP”, không emoji ⚠️/⛔.
+- **Thân email**: dòng trạng thái *“Còn N ngày đến ngày hết hạn”* + đoạn nêu ngày hết hạn + hướng dẫn
+  chuẩn bị/kiểm tra thủ tục gia hạn. Không “hành động cần thiết”, không “phí gấp”, không giá ưu đãi.
+- **Khối rủi ro** (mới, `riskContent()`): 3 gạch đầu dòng hậu quả thật, luôn dùng “có thể/nguy cơ” để
+  giữ chính xác — ví dụ FDA: *“Lô hàng … có thể bị từ chối nhập khẩu (refused entry) khi đến cảng Mỹ”*,
+  *“Buyer Mỹ có thể tra cứu trạng thái đăng ký … trên hệ thống công khai của FDA”*; GACC: *“hết hạn là
+  không khai được”*. Nội dung đổi theo mức cảnh báo: thông tin (60 ngày) → chặt theo hạn (7 ngày) →
+  hậu quả đang hiện hữu (đã hết hạn).
+- **Màu sắc leo thang** (`urgencyTheme()`) để mắt nhận mức độ trước cả khi đọc chữ — toàn bộ màu solid
+  (an toàn cho client email): 90/60 ngày xanh navy trung tính `#334155/#0B1837` → 30/14 ngày vàng hổ phách
+  `#F59E0B/#B45309` → 7/3/1 ngày cam `#EA580C/#C2410C` → đã hết hạn đỏ `#DC2626/#B91C1C`. Màu áp lên:
+  dải mỏng trên đầu email, số đếm ngược cỡ lớn trong khối trạng thái (“7 ngày”, “HÔM NAY”, “ĐÃ HẾT HẠN”),
+  khối rủi ro và nút CTA chính.
 - **Bảng thông tin hồ sơ** (giữ nguyên vì thể hiện tính hệ thống): Doanh nghiệp · **Mã hồ sơ Vexim** ·
   **FDA Registration No.** / **GACC Registration No.** · D-U-N-S · U.S. Agent · Ngày đăng ký · Ngày hết hạn ·
   Kỳ hạn đăng ký · Số ngày còn lại · Cơ quan đăng ký · **Kiểm tra thông tin hồ sơ** (link xác minh, xem bên dưới).
+- **CTA theo mức cảnh báo**: mốc thấp giữ nút navy “Kiểm tra thông tin hồ sơ”; từ 7/3/1 ngày và đã hết hạn,
+  nút chính mang màu cảnh báo “Gia hạn ngay · 0373 685 634” (gọi hotline), nút xác minh thành nút phụ viền.
 - **Khối “Nếu cần gia hạn”**: chỉ hướng dẫn liên hệ — *“Vui lòng liên hệ Vexim để kiểm tra hồ sơ hiện tại,
   xác nhận thông tin đăng ký và báo phí gia hạn.”* Không kèm thông tin bán hàng (hiệu lực 1-10 năm, “chuẩn bị phí gia hạn”).
 - **Footer**: *“Email được gửi tự động từ hệ thống quản lý hồ sơ FDA/GACC của Vexim Global.”* + thời gian gửi,
   mã hồ sơ, mã tra cứu, pháp nhân, hotline/email/website.
-- Nhãn mốc trong `getNotificationLabel()` cũng đã bỏ chữ “gấp/khẩn cấp” để dashboard và email nói cùng một giọng.
-- `tests/expiry-email.test.cjs` khoá toàn bộ các quy tắc trên (tiêu đề, thuật ngữ, nhãn bảng, danh sách từ bị cấm, footer).
+- Nhãn mốc trong `getNotificationLabel()` giữ trung tính để dashboard và email nói cùng một giọng;
+  cảm xúc nằm ở màu sắc (`urgencyLevelFor` → `urgencyTheme`) và khối rủi ro, không nằm ở chữ nhãn.
+- `tests/expiry-email.test.cjs` khoá toàn bộ các quy tắc trên (tiêu đề, thuật ngữ, khối rủi ro, bảng màu
+  leo thang, CTA theo mốc, danh sách từ bị cấm, footer).
 
 ## Cấn trừ nợ giữa các đợt thu (VAT đợt trước chưa trả)
 

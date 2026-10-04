@@ -1,7 +1,9 @@
 // node --test tests/expiry-email.test.cjs
-// Email cảnh báo hết hạn phải là thông báo tự động của hệ thống quản lý hồ sơ,
-// không phải email bán hàng: tiêu đề ngắn - factual, không thúc ép, không lẫn
-// nội dung sales, và gọi đúng thuật ngữ "Đăng ký FDA" (không phải "chứng nhận").
+// Email cảnh báo hết hạn là thông báo tự động của hệ thống quản lý hồ sơ, KHÔNG phải
+// email bán hàng: không từ ngữ sale ("gấp", "khẩn cấp", giá ưu đãi...), gọi đúng thuật
+// ngữ "Đăng ký FDA" (không phải "chứng nhận"). Nhưng phải ĐÁNH VÀO HẬU QUẢ THẬT của
+// doanh nghiệp: khối rủi ro cụ thể (lô hàng bị giữ/từ chối nhập khẩu, buyer tra cứu
+// thấy hết hạn) và màu sắc leo thang theo mức cảnh báo (navy → vàng → cam → đỏ).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -51,9 +53,17 @@ const allText = (data, type) => {
   return email.subject + '\n' + email.html + '\n' + email.text;
 };
 
-test('tiêu đề ngắn, factual, không lặp số ngày và không hối thúc', () => {
+test('tiêu đề ngắn, factual; từ mốc cảnh báo mới nêu hậu quả lô hàng', () => {
   const { subject } = buildExpiryWarningEmail(FDA, '7_days');
-  assert.equal(subject, '[Còn 7 ngày] Đăng ký FDA của NGUYEN TRAN COMPANY sắp hết hạn');
+  assert.equal(
+    subject,
+    '[Còn 7 ngày] Đăng ký FDA của NGUYEN TRAN COMPANY sắp hết hạn · lô hàng có thể bị từ chối nhập khẩu'
+  );
+  // Mốc thông tin (90/60/30/14 ngày) giữ tiêu đề trung tính
+  assert.equal(
+    buildExpiryWarningEmail({ ...FDA, remaining_days: 60 }, '60_days').subject,
+    '[Còn 60 ngày] Đăng ký FDA của NGUYEN TRAN COMPANY sắp hết hạn'
+  );
 
   const mail = allText(FDA, '7_days');
   assert.doesNotMatch(mail, /cần gia hạn gấp/i);
@@ -183,12 +193,12 @@ test('footer giữ tính hệ thống: gửi tự động, thời gian, mã tra 
   assert.ok(mail.includes('www.veximglobal.com'));
 });
 
-test('hồ sơ đã hết hạn: nói đúng tình trạng, không hù dọa', () => {
+test('hồ sơ đã hết hạn: nêu đúng tình trạng và hậu quả, không từ ngữ dọa dẫm', () => {
   const expired = { ...FDA, remaining_days: -12 };
   const email = buildExpiryWarningEmail(expired, 'expired');
   assert.equal(
     email.subject,
-    '[Đã hết hạn] Đăng ký FDA của NGUYEN TRAN COMPANY đã hết hiệu lực ngày 05/10/2026'
+    '[Đã hết hạn] Đăng ký FDA của NGUYEN TRAN COMPANY đã hết hiệu lực ngày 05/10/2026 · lô hàng có thể bị từ chối nhập khẩu'
   );
   const mail = expired.subject + email.subject + email.html;
   assert.match(email.html, /Đã hết hiệu lực/);
@@ -198,9 +208,76 @@ test('hồ sơ đã hết hạn: nói đúng tình trạng, không hù dọa', (
   assert.ok(email.html.includes('Số ngày còn lại'), 'bảng vẫn có dòng số ngày còn lại');
 });
 
+test('email phải nêu rủi ro cụ thể khi hồ sơ hết hạn (đánh vào hậu quả thật)', () => {
+  // FDA — 60 ngày: đã nêu hậu quả nhưng giọng thông tin
+  const low = allText(FDA, '60_days');
+  assert.match(low, /Vì sao nên gia hạn trước ngày hết hạn/);
+  assert.match(low, /có thể bị từ chối nhập khẩu \(refused entry\) khi đến cảng Mỹ/);
+
+  // FDA — 7 ngày: rủi ro chặt theo hạn cụ thể
+  const high = allText(FDA, '7_days');
+  assert.match(high, /Rủi ro nếu không gia hạn trước ngày 05\/10\/2026/);
+  assert.match(high, /Chỉ còn 7 ngày để gia hạn trước khi số đăng ký FDA mất hiệu lực\./);
+  assert.match(high, /buyer/i, 'phải nêu buyer tra cứu trạng thái đăng ký');
+
+  // FDA — đã hết hạn: rủi ro đang hiện hữu
+  const expiredMail = allText({ ...FDA, remaining_days: -12 }, 'expired');
+  assert.match(expiredMail, /Rủi ro của doanh nghiệp lúc này/);
+  assert.match(expiredMail, /đang trên đường sang Mỹ có nguy cơ bị giữ tại cảng/);
+
+  // GACC — hậu quả theo luật Trung Quốc, không dùng nội dung FDA
+  const gacc = allText(GACC, '14_days');
+  assert.match(gacc, /không còn dùng được để khai báo thông quan vào Trung Quốc/);
+  assert.equal(gacc.includes('refused entry'), false, 'thuật ngữ refused entry chỉ dùng cho FDA');
+  const gaccHigh = allText(GACC, '3_days');
+  assert.match(gaccHigh, /hết hạn là không khai được/);
+
+  // Bản text cũng có khối rủi ro
+  const textEmail = buildExpiryWarningEmail(FDA, '30_days');
+  assert.match(textEmail.text, /VÌ SAO NÊN GIA HẠN TRƯỚC NGÀY HẾT HẠN/);
+  assert.ok(textEmail.text.includes('- '));
+});
+
+test('màu sắc leo thang theo mức cảnh báo: navy → vàng → cam → đỏ', () => {
+  const htmlFor = (data, type) => buildExpiryWarningEmail(data, type).html;
+
+  // 90/60 ngày: trung tính, không có màu cảnh báo
+  const low = htmlFor(FDA, '60_days');
+  assert.ok(low.includes('background:#334155'), 'dải màu trên đầu là xanh trung tính');
+  assert.ok(low.includes('#F1F5F9'), 'khối trạng thái nền xám trung tính');
+  assert.ok(!low.includes('#FFFBEB') && !low.includes('#FFF7ED') && !low.includes('#FEF2F2'), '60 ngày không được mang màu cảnh báo');
+
+  // 30/14 ngày: vàng hổ phách
+  const medium = htmlFor(FDA, '30_days');
+  assert.ok(medium.includes('background:#F59E0B'), 'dải màu vàng');
+  assert.ok(medium.includes('#FFFBEB') && medium.includes('#B45309'), 'khối trạng thái + accent vàng hổ phách');
+
+  // 7/3/1 ngày: cam
+  const high = htmlFor(FDA, '7_days');
+  assert.ok(high.includes('background:#EA580C'), 'dải màu cam');
+  assert.ok(high.includes('#C2410C'), 'số đếm ngược + nút CTA màu cam');
+
+  // đã hết hạn: đỏ
+  const critical = htmlFor({ ...FDA, remaining_days: -12 }, 'expired');
+  assert.ok(critical.includes('background:#DC2626'), 'dải màu đỏ');
+  assert.ok(critical.includes('#B91C1C'), 'accent đỏ');
+  assert.match(critical, /ĐÃ HẾT HẠN/, 'đếm ngược hiển thị chữ đã hết hạn');
+});
+
+test('CTA theo mức cảnh báo: mốc cao đưa nút gọi hotline lên trước, nút xác minh vẫn còn', () => {
+  const high = buildExpiryWarningEmail(FDA, '3_days');
+  assert.ok(high.html.includes('Gia hạn ngay · 0373 685 634'), 'nút gọi hotline nổi bật ở mốc cao');
+  assert.ok(high.html.includes('background:#C2410C'), 'nút gọi mang màu cảnh báo');
+  assert.equal((high.html.match(/Kiểm tra thông tin hồ sơ/g) || []).length >= 2, true, 'vẫn còn nút + dòng link tới trang xác minh');
+
+  const low = buildExpiryWarningEmail(FDA, '60_days');
+  assert.ok(low.html.includes('background:#0B1837; color:#ffffff; padding:12px 20px'), 'mốc thấp giữ nút xác minh navy làm CTA chính');
+  assert.ok(low.html.includes('href="tel:0373685634"'), 'mốc thấp vẫn có hotline trong khối liên hệ');
+});
+
 test('ngày hết hạn (còn 0 ngày) không hiện "Còn 1 ngày" hay số ngày âm', () => {
   const email = buildExpiryWarningEmail({ ...FDA, remaining_days: 0 }, '1_day');
-  assert.equal(email.subject, '[Hết hạn hôm nay] Đăng ký FDA của NGUYEN TRAN COMPANY hết hiệu lực hôm nay');
+  assert.equal(email.subject, '[Hết hạn hôm nay] Đăng ký FDA của NGUYEN TRAN COMPANY hết hiệu lực hôm nay · lô hàng có thể bị từ chối nhập khẩu');
   assert.match(email.html, /Hết hiệu lực hôm nay/);
   assert.doesNotMatch(email.html, /-\d+ ngày/, 'không hiện số ngày âm');
 });
