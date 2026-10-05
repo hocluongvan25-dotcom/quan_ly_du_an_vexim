@@ -71,8 +71,10 @@ const parts = [`<!doctype html><html lang="vi"><head><meta charset="utf-8"/><met
   section('Sau — FDA · còn 30 ngày', 'urgency MEDIUM · vàng hổ phách', after.buildExpiryWarningEmail({ ...FDA, remaining_days: 30 }, '30_days')),
   section('Sau — FDA · còn 7 ngày', 'urgency HIGH · cam + CTA gọi hotline', after.buildExpiryWarningEmail(FDA, '7_days')),
   section('Sau — FDA · còn 1 ngày', 'urgency HIGH', after.buildExpiryWarningEmail({ ...FDA, remaining_days: 1 }, '1_day')),
+  section('Sau — FDA · NGÀY 0 — hết hạn hôm nay', 'cron vẫn gửi (threshold days:0) · "HÔM NAY", không hiện "Chỉ còn 0 ngày"', after.buildExpiryWarningEmail({ ...FDA, remaining_days: 0 }, '1_day')),
   section('Sau — FDA · đã hết hạn', 'urgency CRITICAL · đỏ', after.buildExpiryWarningEmail({ ...FDA, remaining_days: -12 }, 'expired')),
   section('Sau — GACC · còn 7 ngày', 'rủi ro theo luật hải quan Trung Quốc', after.buildExpiryWarningEmail(GACC, '7_days')),
+  section('Sau — GACC · NGÀY 0 — hết hạn hôm nay', 'văn phong ngày 0 cho GACC', after.buildExpiryWarningEmail({ ...GACC, remaining_days: 0 }, '1_day')),
   section('Sau — GACC · đã hết hạn', 'không khai được tờ khai hải quan', after.buildExpiryWarningEmail(GACC, 'expired')),
 
   '</body></html>'];

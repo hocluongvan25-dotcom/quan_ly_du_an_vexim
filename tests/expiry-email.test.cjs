@@ -280,6 +280,13 @@ test('ngày hết hạn (còn 0 ngày) không hiện "Còn 1 ngày" hay số ng�
   assert.equal(email.subject, '[Hết hạn hôm nay] Đăng ký FDA của NGUYEN TRAN COMPANY hết hiệu lực hôm nay · lô hàng có thể bị từ chối nhập khẩu');
   assert.match(email.html, /Hết hiệu lực hôm nay/);
   assert.doesNotMatch(email.html, /-\d+ ngày/, 'không hiện số ngày âm');
+  assert.doesNotMatch(email.subject + email.html + email.text, /Chỉ còn 0 ngày/, 'ngày 0 không đọc kiểu "Chỉ còn 0 ngày"');
+  assert.match(email.html, /Rủi ro khi hồ sơ hết hạn trong hôm nay/, 'khối rủi ro đổi văn phong cho ngày 0');
+  assert.match(email.html, /Ngày hết hạn là hôm nay \(05\/10\/2026\)/);
+
+  const gacc = buildExpiryWarningEmail({ ...GACC, remaining_days: 0 }, '1_day');
+  assert.doesNotMatch(gacc.subject + gacc.html + gacc.text, /Chỉ còn 0 ngày/);
+  assert.match(gacc.html, /hết hôm nay, số đăng ký GACC ngưng hiệu lực/);
 });
 
 test('nhãn trạng thái trung tính cho mọi mốc, không có "gấp/khẩn cấp"', () => {

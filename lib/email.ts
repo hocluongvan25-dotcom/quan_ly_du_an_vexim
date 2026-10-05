@@ -348,16 +348,19 @@ function riskContent(
         ],
       };
     }
-    if (urgency === "high") {
-      return {
-        title: `Rủi ro nếu không gia hạn trước ngày ${expiryDate}`,
-        items: [
-          `Chỉ còn ${remaining} ngày để gia hạn trước khi số đăng ký FDA mất hiệu lực.`,
-          "Lô hàng đã book hoặc đang trên đường sang Mỹ sau ngày hết hạn có nguy cơ bị giữ và bị từ chối nhập khẩu (refused entry) tại cảng.",
-          "Buyer Mỹ có thể tra cứu trạng thái đăng ký của nhà máy trên hệ thống công khai của FDA — hồ sơ hết hạn ảnh hưởng trực tiếp tới đơn hàng.",
-        ],
-      };
-    }
+  if (urgency === "high") {
+    const lastCall = remaining <= 0;
+    return {
+      title: lastCall ? "Rủi ro khi hồ sơ hết hạn trong hôm nay" : `Rủi ro nếu không gia hạn trước ngày ${expiryDate}`,
+      items: [
+        lastCall
+          ? `Ngày hết hạn là hôm nay (${expiryDate}) — qua hôm nay, số đăng ký FDA không còn hiệu lực.`
+          : `Chỉ còn ${remaining} ngày để gia hạn trước khi số đăng ký FDA mất hiệu lực.`,
+        "Lô hàng đã book hoặc đang trên đường sang Mỹ sau ngày hết hạn có nguy cơ bị giữ và bị từ chối nhập khẩu (refused entry) tại cảng.",
+        "Buyer Mỹ có thể tra cứu trạng thái đăng ký của nhà máy trên hệ thống công khai của FDA — hồ sơ hết hạn ảnh hưởng trực tiếp tới đơn hàng.",
+      ],
+    };
+  }
     return {
       title: "Vì sao nên gia hạn trước ngày hết hạn",
       items: [
@@ -380,10 +383,13 @@ function riskContent(
     };
   }
   if (urgency === "high") {
+    const lastCall = remaining <= 0;
     return {
-      title: `Rủi ro nếu không gia hạn trước ngày ${expiryDate}`,
+      title: lastCall ? "Rủi ro khi hồ sơ hết hạn trong hôm nay" : `Rủi ro nếu không gia hạn trước ngày ${expiryDate}`,
       items: [
-        `Chỉ còn ${remaining} ngày để gia hạn trước khi số đăng ký GACC mất hiệu lực.`,
+        lastCall
+          ? `Ngày hết hạn là hôm nay (${expiryDate}) — hết hôm nay, số đăng ký GACC ngưng hiệu lực.`
+          : `Chỉ còn ${remaining} ngày để gia hạn trước khi số đăng ký GACC mất hiệu lực.`,
         "Lô hàng dự kiến đến Trung Quốc sau ngày hết hạn có nguy cơ bị giữ tại cảng hoặc bị trả về.",
         "Đối tác nhập khẩu Trung Quốc khai báo hải quan bằng số đăng ký này — hết hạn là không khai được.",
       ],
