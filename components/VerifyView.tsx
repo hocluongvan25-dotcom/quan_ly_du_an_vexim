@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactN
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight, Building2, CheckCircle2, ChevronDown, Clock3, Copy,
-  FileCheck2, Globe2, Info, Link2, Mail, Phone, RefreshCw, ShieldCheck, ShieldX, X,
+  FileCheck2, Globe2, Info, Link2, Mail, MessageCircle, Phone, RefreshCw, ShieldCheck, ShieldX, X,
 } from "lucide-react";
 import type { publicCertificate } from "@/lib/certificate-workflow";
 import { COMPANY } from "@/lib/types";
@@ -185,6 +185,22 @@ export function VerifyView({ cert, checkedAt, locale }: Props) {
                 </div>
               </div>
             </div>
+            {result.state === "expired" && (
+              <div className={styles.renewCallout}>
+                <div className={styles.renewCalloutText}>
+                  <strong>{t("renewCalloutTitle")}</strong>
+                  <p>{t("renewCalloutText", { standard: cert.standard })}</p>
+                </div>
+                <div className={styles.renewCalloutActions}>
+                  <a href={COMPANY.phoneHref} className={styles.renewCallButton}>
+                    <Phone size={15} aria-hidden="true" /> {t("renewCallButton")} · {COMPANY.phone}
+                  </a>
+                  <a href="https://zalo.me/0373685634" target="_blank" rel="noreferrer" className={styles.renewZaloButton}>
+                    <MessageCircle size={15} aria-hidden="true" /> {t("renewZaloButton")}
+                  </a>
+                </div>
+              </div>
+            )}
           </section>
 
           <div className={styles.documentBody}>

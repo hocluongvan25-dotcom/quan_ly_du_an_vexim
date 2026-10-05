@@ -84,6 +84,16 @@
 .primaryButton:hover { background: #214565; }
 .secondaryButton { border: 1px solid #d4dde6; background: #fff; color: var(--verify-navy); }
 .secondaryButton:hover { background: #f0f4f8; }
+/* Khối gia hạn khi hồ sơ đã hết hạn — người quét QR thấy EXPIRED là lập tức có đường gọi lại Vexim */
+.renewCallout { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin: 0 0 24px; padding: 15px 17px; border: 1px solid #ecc6ca; border-left: 4px solid #a8333d; background: #fff2f2; border-radius: 6px; }
+.renewCalloutText strong { display: block; font-size: 13px; font-weight: 750; letter-spacing: -.01em; color: #a8333d; }
+.renewCalloutText p { margin-top: 4px; font-size: 11.5px; line-height: 1.7; color: var(--verify-muted); }
+.renewCalloutActions { display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+.renewCallButton, .renewZaloButton { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 10px 14px; border-radius: 5px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+.renewCallButton { background: #a8333d; border: 1px solid #a8333d; color: #fff; }
+.renewCallButton:hover { background: #8f2932; }
+.renewZaloButton { background: #fff; border: 1px solid #ecc6ca; color: #a8333d; }
+.renewZaloButton:hover { background: #fff8f8; }
 .support { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 28px 2px; }
 .supportLabel { color: var(--verify-gold); font-size: 9px; font-weight: 700; letter-spacing: .1em; }
 .support p + p { font-size: 11px; color: var(--verify-muted); margin-top: 3px; }

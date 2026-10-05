@@ -352,6 +352,7 @@ export const translations: Record<Locale, TranslationTree> = {
   vi: {
     common: {
       search: "Tìm kiếm",
+      today: "Hôm nay",
       save: "Lưu",
       cancel: "Hủy",
       confirm: "Xác nhận",

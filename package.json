@@ -11,6 +11,7 @@
     "test:certificates": "node --test tests/certificate-workflow.test.cjs",
     "test:certificate-ui": "node --test tests/certificate-form-ui.test.cjs",
     "test:verification": "node --test tests/verification-view.test.cjs",
+    "test:records-day0": "node --test tests/records-day0-ui.test.cjs",
     "test:quotes": "node --test tests/quotes.test.cjs",
     "test:quote-ui": "node --test tests/quote-create-ui.test.cjs",
     "test:login": "node --test tests/login-page.test.cjs",

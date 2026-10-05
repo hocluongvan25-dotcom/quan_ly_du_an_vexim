@@ -94,6 +94,29 @@ test('expired and unconfirmed records never display Certificate Verified or a va
   assert.ok(!pending.includes('Certificate Expired'));
 });
 
+test('hồ sơ hết hạn trên trang QR phải có khối gọi gia hạn ngay (tel + Zalo)', () => {
+  const expired = render({ expires_at: '2026-09-19' });
+  assert.ok(expired.includes('renewCallout'), 'phải có khối gia hạn');
+  assert.ok(expired.includes('Đăng ký đã hết hiệu lực — cần gia hạn trước lô hàng tiếp theo'));
+  assert.ok(expired.includes('nguy cơ bị giữ hoặc bị từ chối nhập khẩu'), 'phải nêu hậu quả lô hàng');
+  assert.ok(expired.includes('href="tel:0373685634"'), 'nút gọi hotline');
+  assert.ok(expired.includes('Gọi gia hạn ngay · 0373 685 634'));
+  assert.ok(expired.includes('https://zalo.me/0373685634'), 'nút chat Zalo');
+  assert.ok(expired.includes('Chat Zalo'));
+
+  // Bản tiếng Anh cũng phải có, không lẫn tiếng Việt
+  const expiredEn = render({ expires_at: '2026-09-19' }, 'en');
+  assert.ok(expiredEn.includes('Registration expired — renew before your next shipment'));
+  assert.ok(expiredEn.includes('Call to renew now') && expiredEn.includes('Chat on Zalo'));
+  assert.ok(expiredEn.includes('refused at import'), 'nội dung rủi ro bản tiếng Anh');
+  assert.ok(!expiredEn.includes('Gọi gia hạn ngay') && !expiredEn.includes('Chat Zalo'), 'không lẫn chữ tiếng Việt');
+
+  // Hồ sơ còn hiệu lực thì KHÔNG có khối này (không làm nhiễu người buyer quét hồ sơ ổn)
+  const valid = render();
+  assert.ok(!valid.includes('renewCallout'));
+  assert.ok(!valid.includes('Gọi gia hạn ngay'));
+});
+
 test('rendered public record retains the approved snapshot and no private data', () => {
   const input = { ...cert, service_price: 999123, company_email: 'private@example.test',
     pending_changes: { company_name: 'UNAPPROVED NAME', scope: 'UNAPPROVED SCOPE' } };

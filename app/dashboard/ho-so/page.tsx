@@ -283,7 +283,7 @@ function CertificatesList() {
                       {formatDate(c.registered_at)}
                       <div className="text-navy-900/45">→ {formatDate(c.expires_at)}</div>
                     </td>
-                    <td className="px-4 py-3 font-semibold">{left < 0 ? "—" : `${left} ${t("common.days")}`}</td>
+                    <td className="px-4 py-3 font-semibold">{left < 0 ? "—" : left === 0 ? t("common.today") : `${left} ${t("common.days")}`}</td>
                     {role === "admin" && <td className="px-4 py-3 text-xs">{formatVnd(c.service_price)}</td>}
                     <td className="px-4 py-3">
                       <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${STATUS_BADGE_STYLE[state]}`}>
