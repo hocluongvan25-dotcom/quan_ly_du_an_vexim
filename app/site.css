@@ -35,6 +35,8 @@
   background: var(--s-paper);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 .site *,
@@ -1125,7 +1127,7 @@
 .service__list {
   display: grid;
   gap: 9px;
-  margin: 20px 0 0;
+  margin: 20px 0 24px;
   padding: 0;
   list-style: none;
 }
@@ -1150,7 +1152,8 @@
 
 .service__cta {
   margin-top: auto;
-  padding-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--s-line);
 }
 
 /* ---------------------------------- FAQ ---------------------------------- */
@@ -1345,17 +1348,21 @@
 /* ------------------------------- Responsive ------------------------------ */
 
 @media (max-width: 1080px) {
+  /* Một cột: gom nội dung vào giữa trang để nửa phải không bị bỏ trống. */
   .hero__grid {
     grid-template-columns: minmax(0, 1fr);
-    gap: 40px;
+    justify-items: center;
+    gap: 36px;
+  }
+
+  .hero__copy,
+  .lookup {
+    width: 100%;
+    max-width: 620px;
   }
 
   .hero {
     padding: 52px 0 60px;
-  }
-
-  .lookup {
-    max-width: 620px;
   }
 
   .hero__facts-label {
@@ -1377,6 +1384,12 @@
 
   .faq-intro__contact a {
     font-size: 20px;
+  }
+}
+
+@media (max-width: 1120px) {
+  .site-header__phone {
+    display: none;
   }
 }
 
@@ -1468,8 +1481,8 @@
   .hero__facts li {
     padding: 12px 2px;
     text-align: center;
-    font-size: 8.5px;
-    letter-spacing: 0.03em;
+    font-size: 10px;
+    letter-spacing: 0.02em;
   }
 
   .lookup {
@@ -1846,5 +1859,11 @@
 
   .auth-top {
     inset: 18px 18px auto;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
   }
 }
