@@ -1,16 +1,15 @@
 "use client";
 
 import { FormEvent, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogoWordmark } from "@/components/Logo";
 import { COMPANY } from "@/lib/types";
-import { ShieldCheck } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 export default function LoginPage() {
   const router = useRouter();
-  const { t } = useI18n();
+  const { t, locale, setLocale } = useI18n();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -36,63 +35,72 @@ export default function LoginPage() {
 
   return (
     /* Form nằm giữa màn hình theo cả chiều ngang lẫn chiều dọc */
-    <div className="mesh relative flex min-h-screen items-center justify-center px-4 py-10">
-      <div className="absolute right-4 top-4">
-        <LanguageSwitcher />
+    <div className="site auth-shell relative flex min-h-screen items-center justify-center px-4 py-10">
+      <div className="auth-top">
+        <Link href="/" className="auth-home">
+          VEXIM GLOBAL
+        </Link>
+
+        <div className="auth-lang" role="group" aria-label={t("common.language")}>
+          <button type="button" aria-pressed={locale === "vi"} onClick={() => setLocale("vi")}>
+            VI
+          </button>
+          <span aria-hidden="true">/</span>
+          <button type="button" aria-pressed={locale === "en"} onClick={() => setLocale("en")}>
+            EN
+          </button>
+        </div>
       </div>
 
       <div className="w-full max-w-[430px]">
-        <div className="rounded-[32px] border border-gold-400/30 bg-white p-8 shadow-lift md:p-10">
-          {/* Logo dùng chữ của hệ thống, không dùng ảnh */}
-          <div className="flex justify-center">
+        <div className="auth-card">
+          <div className="auth-card__mark">
             <LogoWordmark size="lg" />
           </div>
 
-          <h1 className="mt-6 text-center font-display text-2xl font-bold text-navy-900">
-            {t("login.title")}
-          </h1>
-          <p className="mt-1 text-center text-sm text-navy-900/55">{t("login.subtitle")}</p>
+          <h1 className="auth-card__title">{t("login.title")}</h1>
+          <p className="auth-card__sub">{t("login.subtitle")}</p>
 
-          <form onSubmit={onSubmit} className="mt-8">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-navy-900/60">
-              {t("login.email")}
+          <form onSubmit={onSubmit}>
+            <label className="auth-field">
+              <span className="auth-field__label">{t("login.email")}</span>
+              <input
+                className="auth-input"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                type="email"
+                autoComplete="email"
+                required
+              />
             </label>
-            <input
-              className="mt-1.5 w-full rounded-xl border border-navy-900/10 bg-[#fffaf0] px-3 py-2.5 text-sm outline-none ring-gold-400/40 focus:ring-4"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              autoComplete="email"
-              required
-            />
-            <label className="mt-4 block text-xs font-semibold uppercase tracking-wider text-navy-900/60">
-              {t("login.password")}
+            <label className="auth-field">
+              <span className="auth-field__label">{t("login.password")}</span>
+              <input
+                className="auth-input"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                type="password"
+                autoComplete="current-password"
+                required
+              />
             </label>
-            <input
-              className="mt-1.5 w-full rounded-xl border border-navy-900/10 bg-[#fffaf0] px-3 py-2.5 text-sm outline-none ring-gold-400/40 focus:ring-4"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type="password"
-              autoComplete="current-password"
-              required
-            />
-            {error && <p className="mt-3 text-sm text-rose-600">{error}</p>}
-            <button
-              disabled={loading}
-              className="mt-6 w-full rounded-xl bg-gradient-to-r from-gold-400 to-teal-500 py-3 text-sm font-bold text-navy-950 hover:opacity-95 disabled:opacity-60"
-            >
+
+            {error && <p className="auth-error">{error}</p>}
+
+            <button className="auth-submit" disabled={loading}>
               {loading ? t("login.loggingIn") : t("login.loginButton")}
             </button>
           </form>
 
-          <div className="mt-6 flex flex-col items-center justify-center gap-1 border-t border-navy-900/5 pt-4 text-center text-[11px] text-navy-900/45">
-            <span className="flex items-center gap-2">
-              <ShieldCheck className="h-3.5 w-3.5 text-teal-600" />
-              {t("login.companyInfo")}
-            </span>
-            <span className="text-[10px] text-navy-900/35">{COMPANY.legal}</span>
-          </div>
+          <p className="auth-card__foot">
+            <span aria-hidden="true" />
+            {COMPANY.legal}
+          </p>
         </div>
+
+        <Link href="/" className="auth-back">
+          {COMPANY.websiteLabel}
+        </Link>
       </div>
     </div>
   );

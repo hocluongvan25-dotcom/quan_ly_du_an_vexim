@@ -56,6 +56,24 @@ npm run dev
 
 If **no** Supabase vars, app falls back to SQLite `data/vexim.db` for UI preview.
 
+## 3a. Public website — `/` and `/en`
+
+The root domain is now the public site: look up FDA / GACC codes, read the four services, and read the FAQ.
+The internal app stays behind `/login` and `/dashboard`.
+
+- Vietnamese at `/` (canonical, `hreflang="vi"`), English at `/en` (`hreflang="en"`), both declared in metadata,
+  `sitemap.xml` and `robots.txt`.
+- Title, meta description, H1/H2/H3 order, the four services, the seven FAQs and the footer follow the content
+  specification. All copy lives in `lib/public-content.ts` (`vi` / `en` branches).
+- The lookup box searches published records by registration code or company name (Vietnamese diacritics ignored),
+  shows company, code type, status (valid / expiring soon / expired) and the next deadline, and links to the
+  verification page. Drafts never appear. Fees, customer emails and portal credentials are never returned.
+- `GET /api/public/lookup?type=FDA|GACC&q=...` — no cache, max 6 results.
+- QR scan button opens the camera (BarcodeDetector); browsers without support get a short fallback message.
+- `FAQPage` JSON-LD is generated from the same content object as the visible FAQ, so they cannot drift apart.
+- `/login` is `noindex, nofollow` and every link to it carries `rel="nofollow"`.
+- See `docs/website-cong-khai.md`.
+
 ## 3b. Service Quotes (New) — `/dashboard/bao-gia`
 
 Pre-built quote templates per service so staff only enter customer details and export a PDF:

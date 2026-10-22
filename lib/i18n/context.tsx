@@ -13,12 +13,23 @@ type I18nContextType = {
 
 const I18nContext = createContext<I18nContextType | undefined>(undefined);
 
+/**
+ * Trang công khai tự khai báo ngôn ngữ riêng (/ là tiếng Việt, /en là tiếng Anh),
+ * nên provider không ghi đè `document.documentElement.lang` ở các đường dẫn này.
+ */
+function isPublicSitePath() {
+  if (typeof window === "undefined") return false;
+  const path = window.location.pathname;
+  return path === "/" || path === "/en" || path === "/en/";
+}
+
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(defaultLocale);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    if (isPublicSitePath()) return;
     const stored = localStorage.getItem("vexm-locale") as Locale | null;
     if (stored && locales.includes(stored)) {
       setLocaleState(stored);

@@ -15,6 +15,8 @@
     "test:quotes": "node --test tests/quotes.test.cjs",
     "test:quote-ui": "node --test tests/quote-create-ui.test.cjs",
     "test:login": "node --test tests/login-page.test.cjs",
+    "test:home": "node --test tests/home-page.test.cjs",
+    "test:lookup": "node --test tests/public-lookup.test.cjs",
     "test:all": "for f in tests/*.cjs; do node --test \"$f\" || exit 1; done"
   },
   "dependencies": {
