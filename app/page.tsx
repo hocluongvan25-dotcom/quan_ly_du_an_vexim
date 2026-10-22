@@ -1,103 +1,101 @@
-"use client";
-
+import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "@/components/Logo";
-import { COMPANY } from "@/lib/types";
-import { ArrowRight, Bell, KanbanSquare, QrCode, ReceiptText, ShieldCheck, FileText } from "lucide-react";
-import { useI18n } from "@/lib/i18n/context";
-import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { FAQ_VI } from "@/lib/site/faq";
+import { COMPANY, SITE_URL } from "@/lib/site/company";
+import { HOME_VI } from "@/lib/site/content";
+import { renewalSeasonYear } from "@/lib/site/lookup";
+import { buildPageSchema } from "@/lib/site/schema";
+import { PageShell } from "@/components/site/PageShell";
+import { JsonLd } from "@/components/site/JsonLd";
+import { Hero } from "@/components/site/home/Hero";
+import { ServicesSection } from "@/components/site/home/ServicesSection";
+import { SystemSection } from "@/components/site/home/SystemSection";
+import { FaqSection } from "@/components/site/home/FaqSection";
+import { ContactBanner } from "@/components/site/ContactBanner";
+
+export const metadata: Metadata = {
+  title: HOME_VI.meta.title,
+  description: HOME_VI.meta.description,
+  alternates: {
+    canonical: "/",
+    languages: { vi: "/", en: "/en", "x-default": "/" },
+  },
+  openGraph: {
+    type: "website",
+    locale: "vi_VN",
+    alternateLocale: ["en_US"],
+    url: "/",
+    siteName: "Vexim Global",
+    title: HOME_VI.meta.ogTitle,
+    description: HOME_VI.meta.ogDescription,
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Tra cứu mã FDA, GACC | Vexim Global",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: HOME_VI.meta.ogTitle,
+    description: HOME_VI.meta.ogDescription,
+    images: ["/og-image.png"],
+  },
+  robots: { index: true, follow: true },
+};
 
 export default function HomePage() {
-  const { t } = useI18n();
+  const copy = HOME_VI;
+  const seasonYear = renewalSeasonYear();
+
+  const schema = buildPageSchema({
+    lang: "vi",
+    path: "/",
+    title: copy.meta.title,
+    description: copy.meta.description,
+    crumbs: [
+      { name: "Vexim Global", url: `${COMPANY.website}/` },
+      { name: "Tra cứu mã FDA, GACC", url: `${SITE_URL}/` },
+    ],
+    faqIds: FAQ_VI.map((item) => item.id),
+    includeServices: true,
+  });
+
   return (
-    <div className="mesh min-h-screen text-navy-900">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-6">
-        <Logo />
-        <div className="flex items-center gap-3">
-          <LanguageSwitcher />
-          <Link
-            href="/login"
-            className="rounded-full bg-navy-900 px-4 py-2 text-sm font-semibold text-gold-400 hover:bg-navy-800"
-          >
-            {t("home.internalLogin")}
-          </Link>
-        </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-5 pb-20 pt-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.32em] text-teal-700">
-          {t("home.network")}
-        </p>
-        <h1 className="mt-4 max-w-3xl font-display text-4xl font-extrabold leading-tight md:text-6xl">
-          {t("home.title")}
-        </h1>
-        <p className="mt-5 max-w-xl text-base text-navy-900/70 md:text-lg">
-          {t("home.description")}
-        </p>
-        <div className="mt-8 flex flex-wrap gap-3">
-          <Link
-            href="/login"
-            className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-gold-400 to-teal-500 px-5 py-3 text-sm font-bold text-navy-950 shadow-lift"
-          >
-            {t("home.goToSystem")} <ArrowRight className="h-4 w-4" />
-          </Link>
-          <a
-            href={COMPANY.website}
-            className="inline-flex items-center gap-2 rounded-full border border-navy-900/15 bg-white/70 px-5 py-3 text-sm font-semibold"
-          >
-            veximglobal.com
-          </a>
-        </div>
-        <div className="mt-14 grid gap-4 md:grid-cols-3">
-          {[
-            {
-              icon: ShieldCheck,
-              titleKey: "home.features.validity.title",
-              descKey: "home.features.validity.desc",
-            },
-            {
-              icon: QrCode,
-              titleKey: "home.features.qr.title",
-              descKey: "home.features.qr.desc",
-            },
-            {
-              icon: KanbanSquare,
-              titleKey: "home.features.crm.title",
-              descKey: "home.features.crm.desc",
-            },
-            {
-              icon: FileText,
-              titleKey: "home.features.contract.title",
-              descKey: "home.features.contract.desc",
-            },
-            {
-              icon: ReceiptText,
-              titleKey: "home.features.accounting.title",
-              descKey: "home.features.accounting.desc",
-            },
-            {
-              icon: Bell,
-              titleKey: "home.features.reminders.title",
-              descKey: "home.features.reminders.desc",
-            },
-          ].map((c) => (
-            <div
-              key={c.titleKey}
-              className="rounded-3xl border border-gold-400/40 bg-white/80 p-6 shadow-card"
+    <PageShell lang="vi" schema={<JsonLd data={schema} id="vexim-home-schema" />}>
+      <Hero lang="vi" copy={copy} seasonYear={seasonYear} />
+
+      <div className="border-b border-line bg-paper">
+        <div className="mx-auto flex max-w-site flex-col gap-4 px-5 py-5 md:flex-row md:items-start md:justify-between md:gap-10 md:px-8">
+          <p className="flex flex-col gap-1.5 border-l-2 border-brass-300 pl-4 text-[11.5px] leading-6 text-ink-500 sm:flex-row sm:items-start sm:gap-3">
+            <span className="text-[10px] font-semibold uppercase tracking-label text-brass-600">
+              Lưu ý
+            </span>
+            <span className="max-w-3xl">{copy.fixedNote}</span>
+          </p>
+          <nav aria-label="Trang tra cứu" className="flex gap-5 pl-4 text-[11.5px] md:shrink-0 md:pl-0">
+            <Link
+              href="/tra-cuu-ma-fda"
+              className="focus-ring whitespace-nowrap font-medium text-brand-800 decoration-brass-400 underline-offset-4 hover:underline"
             >
-              <c.icon className="h-6 w-6 text-teal-600" />
-              <h3 className="mt-4 font-display text-lg font-bold">{t(c.titleKey)}</h3>
-              <p className="mt-2 text-sm text-navy-900/65">{t(c.descKey)}</p>
-            </div>
-          ))}
+              Tra cứu mã FDA
+            </Link>
+            <Link
+              href="/tra-cuu-ma-gacc"
+              className="focus-ring whitespace-nowrap font-medium text-brand-800 decoration-brass-400 underline-offset-4 hover:underline"
+            >
+              Tra cứu mã GACC
+            </Link>
+          </nav>
         </div>
-        <footer className="mt-16 border-t border-navy-900/10 pt-6 text-sm text-navy-900/60">
-          <div className="font-semibold text-navy-900">{COMPANY.legal}</div>
-          <div>{COMPANY.address}</div>
-          <div>
-            Hotline {COMPANY.phone} · {COMPANY.email}
-          </div>
-        </footer>
-      </main>
-    </div>
+      </div>
+
+      <ServicesSection lang="vi" copy={copy} />
+      <SystemSection lang="vi" copy={copy} />
+      <FaqSection lang="vi" copy={copy} />
+      <ContactBanner lang="vi" copy={copy} />
+    </PageShell>
   );
 }

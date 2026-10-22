@@ -2,6 +2,7 @@
 
 Internal system of **Vexim Global Co., Ltd**: FDA / GACC record management, QR verification, revenue analytics.
 
+- Public service site for FDA / GACC code lookup, with Vietnamese primary and English mirror (see section 0)
 - FDA flexible **1-10 years** per client contract (default 2 years), GACC **1-10 years** (default 5 years)
 - Renewal follows contract duration
 - Roles: Admin and Specialist
@@ -12,6 +13,29 @@ Internal system of **Vexim Global Co., Ltd**: FDA / GACC record management, QR v
 - Deploy on **Vercel**
 
 Font: **Be Vietnam Pro** (full Vietnamese diacritics support, but UI is English).
+
+## 0. Public website (rebuilt 22/10/2026)
+
+`vanhanh.veximglobal.com` is now the public service site for FDA and GACC code lookup and registration
+advice; the internal management system keeps its own login, moved to the top-right corner and linked with
+`rel="nofollow"`.
+
+- Layout follows a business directory pattern: fixed block order (lookup, services, records system, FAQ,
+  footer), short sentences, label/value rows, no decorative icons, no animations, no stock imagery.
+- Vietnamese is the primary version at `/`, English mirrors it at `/en` with `hreflang` (`vi`, `en`,
+  `x-default`) on both.
+- Sub-pages for search: `/tra-cuu-ma-fda`, `/tra-cuu-ma-gacc`, `/dich-vu/dang-ky-gacc`,
+  `/dich-vu/dang-ky-fda`, `/dich-vu/niem-yet-vexim-trade`, `/dich-vu/thiet-ke-website`,
+  `/cau-hoi-thuong-gap`, `/lien-he`, `/chinh-sach-bao-mat`, `/dieu-khoan-su-dung`.
+- Public lookup: `GET /api/public/lookup?q=...&type=FDA|GACC` searches published records only and returns
+  the company name, registration type, a partially masked registration number, validity status, expiry
+  date and last update. Service fees, contract numbers, documents, contacts, U.S. Agent and DUNS are never
+  returned. `/tra-cuu` is `noindex`; `/login` is `noindex, nofollow`.
+- JSON-LD `@graph` (Organization + ProfessionalService, WebSite with SearchAction, WebPage, BreadcrumbList,
+  4 Service, FAQPage with the same 12 answers shown on the page) is emitted server-side from a single
+  content source, so page text and schema can never drift apart.
+- Content, FAQ, schema and editorial rules are documented in `docs/website-cong-khai.md`; the automated
+  checks live in `tests/public-site.test.cjs`.
 
 ## 1. Flexible Validity + DUNS (New)
 

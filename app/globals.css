@@ -74,3 +74,93 @@ input[type="number"]::-webkit-inner-spin-button {
 .input:focus {
   box-shadow: 0 0 0 4px rgba(232, 178, 42, 0.22);
 }
+
+/* ---------------------------------------------------------------------------
+   Website công khai Vexim Global
+   Bố cục kiểu danh bạ doanh nghiệp: nền giấy, đường kẻ mảnh, chữ serif cho tiêu đề.
+--------------------------------------------------------------------------- */
+
+:root {
+  --site-ink: #161a20;
+  --site-paper: #faf8f3;
+  --site-brand: #102944;
+  --site-brass: #ae8a3c;
+  --site-line: #e3ded3;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  text-rendering: optimizeLegibility;
+}
+
+.site-section {
+  scroll-margin-top: 6rem;
+}
+
+.focus-ring {
+  outline: none;
+}
+
+.focus-ring:focus-visible {
+  outline: 2px solid var(--site-brass);
+  outline-offset: 3px;
+}
+
+.faq-item summary {
+  list-style: none;
+}
+
+.faq-item summary::-webkit-details-marker {
+  display: none;
+}
+
+.faq-toggle {
+  position: relative;
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.faq-toggle::before,
+.faq-toggle::after {
+  content: "";
+  position: absolute;
+  background: currentColor;
+}
+
+.faq-toggle::before {
+  left: 0;
+  top: 6.5px;
+  width: 14px;
+  height: 1px;
+}
+
+.faq-toggle::after {
+  left: 6.5px;
+  top: 0;
+  width: 1px;
+  height: 14px;
+  transition: transform 0.18s ease;
+  transform-origin: center;
+}
+
+.faq-item[open] .faq-toggle::after {
+  transform: scaleY(0);
+}
+
+.site-checker {
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 84px 84px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .faq-toggle::after {
+    transition: none;
+  }
+}
