@@ -26,5 +26,3 @@ export const COMPANY = {
   hoursEn: "Monday to Friday, 8:00 to 18:00. Saturday, 8:00 to 12:00.",
   logo: `${SITE_URL}/logo.png`,
 } as const;
-
-export const HOTLINE_TEXT_VI = `Đường dây nóng ${COMPANY.phone}`;
