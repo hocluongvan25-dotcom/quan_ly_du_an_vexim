@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { formatDate, formatVnd, remainingDays, getValidityYears, formatDuns } from "@/lib/utils";
+import { formatDate, remainingDays, getValidityYears } from "@/lib/utils";
 import { certificateRecordState, type CertificateRecordState } from "@/lib/certificate-workflow";
 import type { Certificate } from "@/lib/types";
 import { Search, X } from "lucide-react";
@@ -25,6 +25,11 @@ const STATUS_BADGE_STYLE: Record<CertificateRecordState, string> = {
   draft: "bg-slate-100 text-slate-600",
 };
 
+/** DUNS hiển thị trong bảng dạng 9 chữ số liền, bỏ dấu gạch và khoảng trắng. */
+function dunsDigits(code: string | null | undefined) {
+  return String(code || "").replace(/\D/g, "");
+}
+
 const SORTS = ["expiry", "company", "newest"] as const;
 type SortKey = (typeof SORTS)[number];
 
@@ -33,7 +38,6 @@ function CertificatesList() {
   const sp = useSearchParams();
   const [items, setItems] = useState<Certificate[]>([]);
   const [loading, setLoading] = useState(true);
-  const [role, setRole] = useState<string>("");
 
   // Bộ lọc — đọc từ URL để chia sẻ được link đã lọc (ví dụ: hồ sơ sắp hết hạn)
   const [q, setQ] = useState(sp.get("q") || "");
@@ -50,10 +54,6 @@ function CertificatesList() {
       .then((d) => setItems(d.items || []))
       .catch(() => setItems([]))
       .finally(() => setLoading(false));
-    fetch("/api/auth/me")
-      .then((r) => r.json())
-      .then((d) => setRole(d.user?.role || ""))
-      .catch(() => setRole(""));
   }, []);
 
   // Giữ bộ lọc trên URL để tải lại / gửi link vẫn giữ nguyên.
@@ -249,10 +249,9 @@ function CertificatesList() {
                 <th className="px-4 py-3">{t("records.standard")}</th>
                 <th className="px-4 py-3">{t("records.contract")}</th>
                 <th className="px-4 py-3">{t("records.code")}</th>
-                <th className="px-4 py-3">{t("records.duns")}</th>
+                <th className="whitespace-nowrap px-4 py-3 pr-6">{t("records.duns")}</th>
                 <th className="px-4 py-3">{t("records.regExpiry")}</th>
                 <th className="px-4 py-3">{t("records.remaining")}</th>
-                {role === "admin" && <th className="px-4 py-3">{t("records.serviceFee")}</th>}
                 <th className="px-4 py-3">{t("records.status")}</th>
               </tr>
             </thead>
@@ -276,15 +275,14 @@ function CertificatesList() {
                       </span>
                     </td>
                     <td className="px-4 py-3 font-mono text-xs">{c.registration_code}</td>
-                    <td className="px-4 py-3 font-mono text-xs">
-                      {c.duns_code ? formatDuns(c.duns_code) : <span className="text-navy-900/30">—</span>}
+                    <td className="whitespace-nowrap px-4 py-3 pr-6 font-mono text-xs tabular-nums">
+                      {dunsDigits(c.duns_code) || <span className="text-navy-900/30">—</span>}
                     </td>
                     <td className="px-4 py-3 text-xs">
                       {formatDate(c.registered_at)}
                       <div className="text-navy-900/45">→ {formatDate(c.expires_at)}</div>
                     </td>
                     <td className="px-4 py-3 font-semibold">{left < 0 ? "—" : left === 0 ? t("common.today") : `${left} ${t("common.days")}`}</td>
-                    {role === "admin" && <td className="px-4 py-3 text-xs">{formatVnd(c.service_price)}</td>}
                     <td className="px-4 py-3">
                       <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${STATUS_BADGE_STYLE[state]}`}>
                         {t(STATUS_LABEL_KEY[state])}
@@ -295,7 +293,7 @@ function CertificatesList() {
               })}
               {!loading && filtered.length === 0 && (
                 <tr>
-                  <td colSpan={role === "admin" ? 10 : 9} className="px-4 py-10 text-center text-navy-900/45">
+                  <td colSpan={9} className="px-4 py-10 text-center text-navy-900/45">
                     {t("records.noRecords")}
                     {isFiltered && (
                       <button onClick={clearFilters} className="ml-2 font-semibold text-navy-900 underline">

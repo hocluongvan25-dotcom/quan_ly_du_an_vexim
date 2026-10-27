@@ -98,7 +98,7 @@ const base = {
 };
 
 const CERTS = [
-  { ...base, id: 1, certificate_no: 'VXM-FDA-2026-0001', standard: 'FDA', company_name: 'HOM NAY FOODS', registration_code: 'FDA-TODAY', registered_at: iso(-730), expires_at: iso(0), validity_years: 2 },
+  { ...base, id: 1, certificate_no: 'VXM-FDA-2026-0001', standard: 'FDA', company_name: 'HOM NAY FOODS', registration_code: 'FDA-TODAY', duns_code: '12-345-6789', registered_at: iso(-730), expires_at: iso(0), validity_years: 2 },
   { ...base, id: 2, certificate_no: 'VXM-GACC-2026-0002', standard: 'GACC', company_name: 'QUA HAN FOODS', registration_code: 'CVNM-PAST', registered_at: iso(-2000), expires_at: iso(-5), validity_years: 5 },
 ];
 
@@ -129,7 +129,10 @@ async function open(search = '') {
     rows: () => rows(),
     companies: () => rows().map((tr) => tr.children[1].textContent.trim()),
     remainingOf: (company) => rows().find((tr) => tr.children[1].textContent.includes(company))?.children[7]?.textContent.trim(),
-    statusOf: (company) => rows().find((tr) => tr.children[1].textContent.includes(company))?.children[9]?.textContent.trim(),
+    /* Bảng hồ sơ không còn cột Phí dịch vụ: 9 cột, trạng thái ở vị trí cuối. */
+    statusOf: (company) => rows().find((tr) => tr.children[1].textContent.includes(company))?.children[8]?.textContent.trim(),
+    headers: () => all('thead th').map((th) => th.textContent.trim()),
+    dunsOf: (company) => rows().find((tr) => tr.children[1].textContent.includes(company))?.children[5]?.textContent.trim(),
     button: (label) => all('button').find((b) => b.textContent.trim() === label),
     click: async (el) => {
       assert.ok(el, 'không tìm thấy phần tử để bấm');
@@ -141,6 +144,16 @@ async function open(search = '') {
 after(() => { fs.rmSync(stubs, { recursive: true, force: true }); });
 
 /* ---------------------------------- Tests ---------------------------------- */
+
+test('bảng hồ sơ bỏ cột Phí dịch vụ, DUNS hiển thị liền 9 chữ số', async () => {
+  const ui = await open();
+  const headers = ui.headers();
+  assert.equal(headers.length, 9, 'bảng còn 9 cột sau khi bỏ Phí dịch vụ');
+  assert.ok(!headers.includes('Phí dịch vụ'), 'không còn tiêu đề Phí dịch vụ');
+  assert.ok(!ui.html().includes('Phí dịch vụ'), 'không còn ô Phí dịch vụ trong bảng');
+  assert.equal(ui.dunsOf('HOM NAY FOODS'), '123456789', 'DUNS bỏ dấu gạch, hiện đủ 9 chữ số');
+  await ui.close();
+});
 
 test('hồ sơ hết hạn đúng hôm nay: cột Còn lại đọc là "Hôm nay", không hiện "0 ngày"', async () => {
   const ui = await open();
