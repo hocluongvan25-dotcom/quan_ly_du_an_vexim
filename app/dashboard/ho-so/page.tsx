@@ -17,18 +17,19 @@ const STATUS_LABEL_KEY: Record<CertificateRecordState, string> = {
   pending: "records.statusPending",
   draft: "records.statusDraft",
 };
-const STATUS_BADGE_STYLE: Record<CertificateRecordState, string> = {
-  valid: "bg-emerald-50 text-emerald-700",
-  expiring: "bg-amber-50 text-amber-700",
-  expired: "bg-rose-50 text-rose-600",
-  pending: "bg-sky-50 text-sky-700",
-  draft: "bg-slate-100 text-slate-600",
-};
-
 /** DUNS hiển thị trong bảng dạng 9 chữ số liền, bỏ dấu gạch và khoảng trắng. */
 function dunsDigits(code: string | null | undefined) {
   return String(code || "").replace(/\D/g, "");
 }
+
+/** Nhãn ngắn cho huy hiệu trong bảng; bộ lọc phía trên vẫn dùng nhãn đầy đủ. */
+const STATUS_BADGE_KEY: Record<CertificateRecordState, string> = {
+  valid: "records.statusValid",
+  expiring: "records.statusExpiringShort",
+  expired: "records.statusExpired",
+  pending: "records.statusPending",
+  draft: "records.statusDraft",
+};
 
 const SORTS = ["expiry", "company", "newest"] as const;
 type SortKey = (typeof SORTS)[number];
@@ -115,197 +116,325 @@ function CertificatesList() {
   }
 
   return (
-    <div>
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-extrabold text-navy-900">{t("records.title")}</h1>
-          <p className="mt-1 text-sm text-navy-900/55">{t("records.subtitle")}</p>
-        </div>
-        <Link
-          href="/dashboard/ho-so/moi"
-          className="rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white"
-        >
-          {t("records.createRecord")}
-        </Link>
-      </div>
-
-      <div className="mt-6 rounded-3xl bg-white p-4 shadow-card">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[240px] flex-1">
-            <Search className="absolute left-3 top-2.5 h-4 w-4 text-navy-900/35" />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder={t("records.searchPlaceholder")}
-              className="w-full rounded-xl border border-navy-900/10 bg-white py-2 pl-9 pr-3 text-sm outline-none"
-            />
+    <div className="records-page">
+      <div className="records-page__inner">
+        <div className="rec-head">
+          <div>
+            <h1 className="rec-head__title">{t("records.title")}</h1>
+            <p className="rec-head__sub">{t("records.subtitle")}</p>
           </div>
-          {isFiltered && (
-            <button
-              onClick={clearFilters}
-              className="flex items-center gap-1.5 rounded-xl border border-navy-900/10 px-3 py-2 text-sm font-semibold text-navy-900/70 hover:bg-navy-900/5"
-            >
-              <X className="h-3.5 w-3.5" />
-              {t("records.clearFilters")}
-            </button>
+          <div className="rec-head__actions">
+            <Link href="/dashboard/ho-so/moi" className="rec-btn-primary">
+              {t("records.createRecord")}
+            </Link>
+          </div>
+        </div>
+
+        <section className="rec-toolbar" aria-label={t("records.filterStatus")}>
+          <div className="rec-toolbar__row">
+            <div className="rec-search">
+              <Search className="rec-search__icon" aria-hidden="true" />
+              <input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder={t("records.searchPlaceholder")}
+                className="rec-search__input"
+                type="search"
+                aria-label={t("records.searchPlaceholder")}
+                enterKeyHint="search"
+              />
+              {q !== "" && (
+                <button
+                  type="button"
+                  className="rec-search__clear"
+                  onClick={() => setQ("")}
+                  aria-label={t("records.clearFilters")}
+                >
+                  <X className="h-3 w-3" aria-hidden="true" />
+                </button>
+              )}
+            </div>
+
+            <span className="rec-count">
+              {t("records.showing", { shown: filtered.length, total: items.length })}
+            </span>
+
+            {isFiltered && (
+              <button type="button" onClick={clearFilters} className="rec-btn-quiet">
+                <X className="h-3 w-3" aria-hidden="true" />
+                {t("records.clearFilters")}
+              </button>
+            )}
+          </div>
+
+          <div className="rec-toolbar__row">
+            <div className="rec-group">
+              <span className="rec-group__label">{t("records.filterStatus")}</span>
+              <div className="rec-seg rec-seg--status" role="group" aria-label={t("records.filterStatus")}>
+                <button
+                  type="button"
+                  className="rec-seg__btn"
+                  aria-pressed={status === "ALL"}
+                  onClick={() => setStatus("ALL")}
+                >
+                  {t("records.all")}{" "}
+                  <span className="rec-seg__count">({baseFiltered.length})</span>
+                </button>
+                {STATUS_FILTERS.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className="rec-seg__btn"
+                    aria-pressed={status === key}
+                    onClick={() => setStatus(status === key ? "ALL" : key)}
+                  >
+                    {t(STATUS_LABEL_KEY[key])}{" "}
+                    <span className="rec-seg__count">({statusCounts[key]})</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="rec-toolbar__row">
+            <div className="rec-group">
+              <span className="rec-group__label">{t("records.filterStandard")}</span>
+              <div className="rec-seg" role="group" aria-label={t("records.filterStandard")}>
+                {["ALL", "FDA", "GACC"].map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    className="rec-seg__btn"
+                    aria-pressed={std === s}
+                    onClick={() => setStd(s)}
+                  >
+                    {s === "ALL" ? t("records.all") : s}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rec-group">
+              <span className="rec-group__label">{t("records.filterTerm")}</span>
+              <div className="rec-seg" role="group" aria-label={t("records.filterTerm")}>
+                <button
+                  type="button"
+                  className="rec-seg__btn"
+                  aria-pressed={term === "ALL"}
+                  onClick={() => setTerm("ALL")}
+                >
+                  {t("records.all")}
+                </button>
+                {terms.map((years) => (
+                  <button
+                    key={years}
+                    type="button"
+                    className="rec-seg__btn"
+                    aria-pressed={term === String(years)}
+                    onClick={() => setTerm(String(years))}
+                  >
+                    {years} {years === 1 ? t("common.year") : t("common.years")}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="rec-group" style={{ marginLeft: "auto" }}>
+              <span className="rec-group__label">{t("records.sortBy")}</span>
+              <span className="rec-select-wrap">
+                <select
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value as SortKey)}
+                  className="rec-select"
+                  aria-label={t("records.sortBy")}
+                >
+                  <option value="expiry">{t("records.sortExpirySoon")}</option>
+                  <option value="company">{t("records.sortCompany")}</option>
+                  <option value="newest">{t("records.sortNewest")}</option>
+                </select>
+              </span>
+            </div>
+          </div>
+        </section>
+
+        <section className="rec-card" aria-label={t("records.title")}>
+          {(loading || filtered.length > 0) && (
+            <div className="rec-scroll">
+              <table className="rec-table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t("records.certificateNo")}</th>
+                    <th scope="col">{t("records.company")}</th>
+                    <th scope="col">{t("records.standard")}</th>
+                    <th scope="col">{t("records.contract")}</th>
+                    <th scope="col">{t("records.code")}</th>
+                    <th scope="col">{t("records.duns")}</th>
+                    <th scope="col">{t("records.regExpiry")}</th>
+                    <th scope="col">{t("records.remaining")}</th>
+                    <th scope="col" className="rec-th-status">
+                      {t("records.status")}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading &&
+                    Array.from({ length: 5 }).map((_, index) => (
+                      <tr key={`skeleton-${index}`}>
+                        {Array.from({ length: 9 }).map((__, cell) => (
+                          <td key={cell}>
+                            <span
+                              className={`rec-skeleton ${
+                                cell === 1 ? "rec-skeleton--wide" : cell === 0 ? "rec-skeleton--mid" : "rec-skeleton--narrow"
+                              }`}
+                            />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+
+                  {!loading &&
+                    filtered.map((c) => {
+                      const left = remainingDays(c.expires_at);
+                      const vy = getValidityYears(c);
+                      const state = certificateRecordState(c);
+                      return (
+                        <tr key={c.id}>
+                          <td>
+                            <Link href={`/dashboard/ho-so/${c.id}`} className="rec-no">
+                              {c.certificate_no}
+                            </Link>
+                          </td>
+                          <td>
+                            <span className="rec-company" title={c.company_name}>
+                              {c.company_name}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`rec-standard${c.standard === "GACC" ? " rec-standard--gacc" : ""}`}>
+                              {c.standard}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="rec-term">
+                              {vy} {vy === 1 ? t("common.year") : t("common.years")}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="rec-code">{c.registration_code}</span>
+                          </td>
+                          <td>
+                            <span className="rec-duns">
+                              {dunsDigits(c.duns_code) || <span className="text-navy-900/30">—</span>}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="rec-dates">
+                              {formatDate(c.registered_at)}
+                              <br />
+                              <span className="rec-dates__to">
+                                <span aria-hidden="true">→</span>
+                                {formatDate(c.expires_at)}
+                              </span>
+                            </span>
+                          </td>
+                          <td>
+                            <span
+                              className={`rec-remaining${
+                                left < 0 ? " rec-remaining--past" : left <= 90 ? " rec-remaining--soon" : ""
+                              }`}
+                            >
+                              {left < 0 ? "—" : left === 0 ? t("common.today") : `${left} ${t("common.days")}`}
+                            </span>
+                          </td>
+                          <td className="rec-td-status">
+                            <span className={`rec-badge rec-badge--${state}`}>{t(STATUS_BADGE_KEY[state])}</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
           )}
-          <div className="text-sm font-semibold text-navy-900/55">
-            {t("records.showing", { shown: filtered.length, total: items.length })}
-          </div>
-        </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-navy-900/40">
-            {t("records.filterStatus")}
-          </span>
-          <button
-            onClick={() => setStatus("ALL")}
-            className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-              status === "ALL" ? "bg-navy-900 text-white" : "bg-navy-900/5 text-navy-900/70 hover:bg-navy-900/10"
-            }`}
-          >
-            {t("records.all")} ({baseFiltered.length})
-          </button>
-          {STATUS_FILTERS.map((key) => (
-            <button
-              key={key}
-              onClick={() => setStatus(status === key ? "ALL" : key)}
-              className={`rounded-full px-3 py-1.5 text-xs font-bold ${
-                status === key ? "bg-navy-900 text-white" : "bg-navy-900/5 text-navy-900/70 hover:bg-navy-900/10"
-              }`}
-            >
-              {t(STATUS_LABEL_KEY[key])} ({statusCounts[key]})
-            </button>
-          ))}
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-navy-900/5 pt-4">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-navy-900/40">
-              {t("records.filterStandard")}
-            </span>
-            {["ALL", "FDA", "GACC"].map((s) => (
-              <button
-                key={s}
-                onClick={() => setStd(s)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
-                  std === s ? "bg-navy-900 text-white" : "bg-navy-900/5 text-navy-900/70 hover:bg-navy-900/10"
-                }`}
-              >
-                {s === "ALL" ? t("records.all") : s}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-navy-900/40">
-              {t("records.filterTerm")}
-            </span>
-            <button
-              onClick={() => setTerm("ALL")}
-              className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
-                term === "ALL" ? "bg-navy-900 text-white" : "bg-navy-900/5 text-navy-900/70 hover:bg-navy-900/10"
-              }`}
-            >
-              {t("records.all")}
-            </button>
-            {terms.map((years) => (
-              <button
-                key={years}
-                onClick={() => setTerm(String(years))}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
-                  term === String(years) ? "bg-navy-900 text-white" : "bg-navy-900/5 text-navy-900/70 hover:bg-navy-900/10"
-                }`}
-              >
-                {years} {years === 1 ? t("common.year") : t("common.years")}
-              </button>
-            ))}
-          </div>
-
-          <label className="flex items-center gap-2">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-navy-900/40">
-              {t("records.sortBy")}
-            </span>
-            <select
-              value={sort}
-              onChange={(e) => setSort(e.target.value as SortKey)}
-              className="rounded-lg border border-navy-900/10 bg-white px-2.5 py-1.5 text-xs font-semibold text-navy-900 outline-none"
-            >
-              <option value="expiry">{t("records.sortExpirySoon")}</option>
-              <option value="company">{t("records.sortCompany")}</option>
-              <option value="newest">{t("records.sortNewest")}</option>
-            </select>
-          </label>
-        </div>
-      </div>
-
-      <div className="mt-5 overflow-hidden rounded-3xl bg-white shadow-card">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] text-left text-sm">
-            <thead className="bg-[#fffaf0] text-[11px] uppercase tracking-wider text-navy-900/45">
-              <tr>
-                <th className="px-4 py-3">{t("records.certificateNo")}</th>
-                <th className="px-4 py-3">{t("records.company")}</th>
-                <th className="px-4 py-3">{t("records.standard")}</th>
-                <th className="px-4 py-3">{t("records.contract")}</th>
-                <th className="px-4 py-3">{t("records.code")}</th>
-                <th className="whitespace-nowrap px-4 py-3 pr-6">{t("records.duns")}</th>
-                <th className="px-4 py-3">{t("records.regExpiry")}</th>
-                <th className="px-4 py-3">{t("records.remaining")}</th>
-                <th className="px-4 py-3">{t("records.status")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((c) => {
+          <ul className="rec-cards">
+            {!loading &&
+              filtered.map((c) => {
                 const left = remainingDays(c.expires_at);
                 const vy = getValidityYears(c);
                 const state = certificateRecordState(c);
                 return (
-                  <tr key={c.id} className="border-t border-navy-900/5 hover:bg-teal-50/40">
-                    <td className="px-4 py-3">
-                      <Link href={`/dashboard/ho-so/${c.id}`} className="font-semibold text-navy-900">
+                  <li className="rec-item" key={`card-${c.id}`}>
+                    <div className="rec-item__head">
+                      <Link href={`/dashboard/ho-so/${c.id}`} className="rec-item__no">
                         {c.certificate_no}
                       </Link>
-                    </td>
-                    <td className="px-4 py-3">{c.company_name}</td>
-                    <td className="px-4 py-3 font-bold">{c.standard}</td>
-                    <td className="px-4 py-3">
-                      <span className="rounded-full bg-gold-100 px-2 py-0.5 text-xs font-bold text-gold-700">
-                        {vy} {vy === 1 ? t("common.year") : t("common.years")}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs">{c.registration_code}</td>
-                    <td className="whitespace-nowrap px-4 py-3 pr-6 font-mono text-xs tabular-nums">
-                      {dunsDigits(c.duns_code) || <span className="text-navy-900/30">—</span>}
-                    </td>
-                    <td className="px-4 py-3 text-xs">
-                      {formatDate(c.registered_at)}
-                      <div className="text-navy-900/45">→ {formatDate(c.expires_at)}</div>
-                    </td>
-                    <td className="px-4 py-3 font-semibold">{left < 0 ? "—" : left === 0 ? t("common.today") : `${left} ${t("common.days")}`}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2 py-1 text-[11px] font-bold ${STATUS_BADGE_STYLE[state]}`}>
-                        {t(STATUS_LABEL_KEY[state])}
-                      </span>
-                    </td>
-                  </tr>
+                      <span className={`rec-badge rec-badge--${state}`}>{t(STATUS_LABEL_KEY[state])}</span>
+                    </div>
+                    <p className="rec-item__company">{c.company_name}</p>
+                    <dl className="rec-item__grid">
+                      <div className="rec-item__pair">
+                        <dt className="rec-item__key">{t("records.standard")}</dt>
+                        <dd className="rec-item__val">
+                          <span className={`rec-standard${c.standard === "GACC" ? " rec-standard--gacc" : ""}`}>
+                            {c.standard}
+                          </span>
+                          <span className="rec-term" style={{ marginLeft: 8 }}>
+                            {vy} {vy === 1 ? t("common.year") : t("common.years")}
+                          </span>
+                        </dd>
+                      </div>
+                      <div className="rec-item__pair">
+                        <dt className="rec-item__key">{t("records.code")}</dt>
+                        <dd className="rec-item__val">{c.registration_code}</dd>
+                      </div>
+                      <div className="rec-item__pair">
+                        <dt className="rec-item__key">{t("records.duns")}</dt>
+                        <dd className="rec-item__val rec-duns">{dunsDigits(c.duns_code) || "—"}</dd>
+                      </div>
+                      <div className="rec-item__pair">
+                        <dt className="rec-item__key">{t("records.remaining")}</dt>
+                        <dd
+                          className={`rec-item__val rec-remaining${
+                            left < 0 ? " rec-remaining--past" : left <= 90 ? " rec-remaining--soon" : ""
+                          }`}
+                        >
+                          {left < 0 ? "—" : left === 0 ? t("common.today") : `${left} ${t("common.days")}`}
+                        </dd>
+                      </div>
+                      <div className="rec-item__pair">
+                        <dt className="rec-item__key">{t("records.regExpiry")}</dt>
+                        <dd className="rec-item__val rec-dates">
+                          {formatDate(c.registered_at)}
+                          <br />
+                          <span className="rec-dates__to">
+                            <span aria-hidden="true">→</span>
+                            {formatDate(c.expires_at)}
+                          </span>
+                        </dd>
+                      </div>
+                    </dl>
+                  </li>
                 );
               })}
-              {!loading && filtered.length === 0 && (
-                <tr>
-                  <td colSpan={9} className="px-4 py-10 text-center text-navy-900/45">
-                    {t("records.noRecords")}
-                    {isFiltered && (
-                      <button onClick={clearFilters} className="ml-2 font-semibold text-navy-900 underline">
-                        {t("records.clearFilters")}
-                      </button>
-                    )}
-                  </td>
-                </tr>
+          </ul>
+
+          {!loading && filtered.length === 0 && (
+            <div className="rec-empty">
+              <span className="rec-empty__icon" aria-hidden="true">
+                <Search className="h-4 w-4" />
+              </span>
+              <p className="rec-empty__title">{t("records.noRecords")}</p>
+              {isFiltered && (
+                <p className="rec-empty__text">
+                  <button type="button" className="rec-btn-link" onClick={clearFilters}>
+                    {t("records.clearFilters")}
+                  </button>
+                </p>
               )}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
@@ -313,7 +442,7 @@ function CertificatesList() {
 
 export default function CertificatesPage() {
   return (
-    <Suspense fallback={<div className="rounded-3xl bg-white p-12 text-center text-navy-900/40 shadow-card">…</div>}>
+    <Suspense fallback={<div className="records-page"><div className="records-page__inner"><div className="rec-fallback">…</div></div></div>}>
       <CertificatesList />
     </Suspense>
   );

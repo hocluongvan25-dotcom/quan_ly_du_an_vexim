@@ -208,7 +208,9 @@ test('lọc theo từng trạng thái, nút đang chọn được tô đậm', a
 
   await ui.click(ui.button('Sắp hết hạn (≤90 ngày) (1)'));
   assert.deepEqual(ui.companies(), ['BETA SEAFOOD']);
-  assert.equal(ui.button('Sắp hết hạn (≤90 ngày) (1)').className.includes('bg-navy-900'), true);
+  /* Giao diện mới đánh dấu mục đang chọn bằng aria-pressed; segmented control
+     tô trắng mục đó qua CSS [aria-pressed="true"]. */
+  assert.equal(ui.button('Sắp hết hạn (≤90 ngày) (1)').getAttribute('aria-pressed'), 'true');
 
   // Hồ sơ nháp được tính là "Bản nháp" chứ không phải "Đã hết hạn"
   await ui.click(ui.button('Đã hết hạn (1)'));
@@ -307,8 +309,8 @@ test('bộ lọc được ghi lên URL và nút Xoá lọc đưa về mặc đ�
 test('mở link đã lọc sẵn thì áp dụng đúng bộ lọc', async () => {
   const ui = await open('?status=expired&standard=GACC');
   assert.deepEqual(ui.companies(), ['GAMMA FRUIT'], 'chỉ hồ sơ GACC đã hết hạn');
-  assert.equal(ui.button('Đã hết hạn (1)').className.includes('bg-navy-900'), true, 'nút lọc phải phản ánh URL');
-  assert.equal(ui.button('GACC').className.includes('bg-navy-900'), true);
+  assert.equal(ui.button('Đã hết hạn (1)').getAttribute('aria-pressed'), 'true', 'nút lọc phải phản ánh URL');
+  assert.equal(ui.button('GACC').getAttribute('aria-pressed'), 'true');
   await ui.close();
 });
 

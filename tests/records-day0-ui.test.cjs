@@ -165,7 +165,13 @@ test('hồ sơ hết hạn đúng hôm nay: cột Còn lại đọc là "Hôm na
 
 test('ngày 0 vẫn là "Sắp hết hạn", quá hạn mới là "Hết hạn"; filter expiring bắt được ngày 0', async () => {
   const ui = await open();
-  assert.equal(ui.statusOf('HOM NAY FOODS'), 'Sắp hết hạn (≤90 ngày)');
+  /* Trong bảng dùng nhãn ngắn để huy hiệu không bị xuống dòng; bộ lọc phía trên
+     vẫn giữ nhãn đầy đủ "Sắp hết hạn (≤90 ngày)". */
+  assert.equal(ui.statusOf('HOM NAY FOODS'), 'Sắp hết hạn');
+  assert.ok(
+    [...document.querySelectorAll('button')].some((b) => b.textContent.trim().startsWith('Sắp hết hạn (≤90 ngày)')),
+    'bộ lọc vẫn dùng nhãn đầy đủ',
+  );
   assert.equal(ui.statusOf('QUA HAN FOODS'), 'Đã hết hạn');
 
   await ui.click(ui.button('Sắp hết hạn (≤90 ngày) (1)'));
