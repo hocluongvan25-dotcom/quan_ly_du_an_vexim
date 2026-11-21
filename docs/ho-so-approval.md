@@ -1,0 +1,244 @@
+# Chỉnh sửa hồ sơ, duyệt và QR
+
+## Quy trình
+
+- Nhân viên và admin đều được nhập/sửa thông tin, bấm **Lưu thay đổi**.
+- Hồ sơ mới vẫn là nháp cho đến khi admin bấm **Duyệt và xuất bản**.
+- Với hồ sơ đã xuất bản (kể cả hết hạn), bản sửa lưu vào `pending_changes`. Các trường công khai, giá dịch vụ/doanh thu và thời hạn đã duyệt chưa thay đổi.
+- Form hiển thị bản sửa đã lưu, kèm nhãn chờ duyệt và bảng đối chiếu bản công khai → đề xuất. Danh sách hồ sơ cũng đánh dấu chờ duyệt.
+- Chỉ admin được duyệt/xuất bản và gia hạn. API chặn cả action cũ `confirm` để không vượt quyền qua yêu cầu thủ công.
+- Admin phải lưu nội dung đang sửa trước khi duyệt. Nếu phiên khác thay đổi hồ sơ, yêu cầu lưu/duyệt cũ nhận HTTP 409, cần tải lại để kiểm tra.
+- Duyệt áp dụng bản sửa vào hồ sơ hiện tại và xóa `pending_changes`, giữ nguyên `public_code`, số chứng nhận và ngày xuất bản lần đầu.
+- Mở lại hồ sơ chỉ đọc dữ liệu mới nhất (`no-store`). QR đã xuất bản tự hiện, không cần xuất bản lại. Nút “Đã xuất bản” bị vô hiệu hóa khi không có gì cần duyệt.
+- Lưu không đổi hoặc xuất bản lại hồ sơ đã duyệt là no-op. Sửa tên/phạm vi/email không tính lại ngày hết hạn đã gia hạn; chỉ thay đổi dữ liệu thời hạn mới tính lại ngày hết hạn.
+- Trang QR và public API không truyền bản sửa chờ duyệt, phí hoặc email doanh nghiệp cho khách hàng.
+- Form có mục **Đăng nhập tài khoản khách (nội bộ)** gồm `User` và `Pass` để nhân viên vào tài khoản của khách xử lý hồ sơ.
+  Hai trường này lưu trong `certificates.portal_user` / `certificates.portal_pass`, **chỉ hiển thị trong hệ thống nội bộ**:
+  không nằm trong allowlist `publicCertificate`, không có trong JSON của `/api/public/certificates/[code]`, không in ra QR/SVG và
+  không gửi trong email cảnh báo hết hạn. Ô mật khẩu mặc định bị che, bấm con mắt để xem; bảng đối chiếu chờ duyệt chỉ hiện dấu `•••`.
+  Sửa User/Pass cũng đi theo luồng duyệt như các trường khác (nháp lưu ngay, hồ sơ đã xuất bản thì chờ admin duyệt).
+
+## Đồng hồ đếm ngược (Hiệu lực chứng nhận)
+
+- Số ngày còn lại là **số ngày trọn vẹn** tính tới hết ngày hết hạn, khớp đúng cột “Số ngày còn lại” và danh sách hồ sơ:
+  kỳ hạn 1 năm đăng ký hôm nay = **365 ngày**, không phải 366; hết hạn hôm nay = 0.
+- Ô giữa vòng tròn, 4 ô Ngày/Giờ/Phút/Giây và dòng “Còn N ngày” dùng **cùng một số ngày**, không còn lệch 1 ngày.
+- Đồng hồ **luôn tính từ thời điểm hiện tại**, kể cả hồ sơ nháp hoặc hồ sơ đang nhập: quá hạn thì hiện *“Đã hết hạn”* và 00:00:00:00,
+  ngày hết hạn thì hiện *“Hết hạn hôm nay”*, thay vì hiện lại cả kỳ hạn như còn nguyên.
+- Chữ dưới vòng tròn đổi theo trạng thái: *“Còn … ngày”* khi còn hạn, *“Đã hết hạn”* khi quá hạn; hồ sơ quá hạn không vẽ cung tiến độ
+  (tránh chấm tròn lạ ở đỉnh vòng) và vành vòng chuyển sang màu cảnh báo.
+
+## Địa chỉ doanh nghiệp (hiện trên trang quét QR)
+
+- Mỗi hồ sơ có trường **Địa chỉ doanh nghiệp** (`certificates.company_address`), nhập trong form hồ sơ, **ngay dưới Tên công ty**.
+- Địa chỉ này **công khai**: in ở mục **01 “Thông tin doanh nghiệp”**, ngay dưới dòng “Doanh nghiệp” khi khách quét mã QR
+  (khác với Email doanh nghiệp và User/Pass — vẫn ẩn hoàn toàn).
+- Chọn doanh nghiệp từ danh bạ thì địa chỉ của danh bạ được điền sẵn; khi lưu, địa chỉ được ghi lại vào danh bạ
+  **chỉ khi danh bạ còn trống** (không ghi đè địa chỉ đã có sẵn).
+- Hồ sơ trống địa chỉ vẫn hợp lệ, trang QR ghi “Chưa có thông tin địa chỉ.” / “No address on record.”
+- Sửa địa chỉ trên hồ sơ đã xuất bản vẫn theo luồng duyệt: khách tiếp tục thấy địa chỉ cũ tới khi admin duyệt.
+
+## Thời hạn hợp đồng (FDA 1-10 năm · GACC cố định 5 năm)
+
+- **FDA**: ô **Thời hạn hợp đồng (năm)** là dropdown chọn 1-10 năm, mặc định 2 năm (ghi rõ `(mặc định)` trong danh sách).
+- **GACC**: ô này là `5 năm (cố định)` chỉ đọc, kèm ghi chú *“GACC cố định 5 năm — không đổi được thời hạn.”* Không có dropdown để chọn.
+- **GACC** giữ đúng 5 năm kể cả dữ liệu cũ gửi lên số khác (API trả lỗi, DB luôn lưu 5).
+- Đổi số năm (FDA) → **Ngày hết hạn** và dòng `Hợp đồng N năm: … → …` tự tính lại ngay; lưu form là lưu đúng số năm đó.
+- Hồ sơ đã xuất bản: đổi số năm cũng đi theo luồng duyệt (bản công khai giữ nguyên tới khi admin duyệt).
+- Hộp thoại **Gia hạn**: FDA chọn 1-10 năm (mặc định là kỳ hạn hiện tại); GACC luôn `5 năm (cố định)`, nút là “Gia hạn 5 năm”.
+- API: `validity_years` ngoài 1-10 bị từ chối (`Thời hạn hợp đồng phải từ 1 đến 10 năm.`); với GACC mọi giá trị khác 5 bị từ chối (`GACC cố định 5 năm, không đổi được thời hạn.`); bỏ trống thì lấy mặc định (FDA 2, GACC 5). Không cần migration Supabase: cột `validity_years` đã có sẵn và vẫn giới hạn 1-10.
+
+## Triển khai
+
+### Nếu chưa chạy migration
+
+Ba cột `portal_user` / `portal_pass` / `company_address` là **tùy chọn**: nếu Supabase chưa có các cột này, hệ thống tự bỏ qua
+khi ghi để việc lưu/duyệt hồ sơ vẫn thành công, ghi cảnh báo vào log và trả `warning` cho form — nhân viên thấy thông báo
+“database chưa có cột … nên User/Pass/Địa chỉ doanh nghiệp chưa lưu được” kèm **đúng tên file migration cần chạy**
+(`20260922_certificate_portal_credentials.sql` cho User/Pass, `20260923_certificate_company_address.sql` cho địa chỉ).
+Mọi cột khác thiếu vẫn báo lỗi rõ ràng như trước
+(`SUPABASE_SCHEMA_MISSING: Column 'x' of table 'certificates' is missing …`), không bị che.
+
+### Supabase — chạy trước khi deploy mã mới
+
+Chạy lần lượt trong SQL Editor của đúng project (mỗi file đều có `notify pgrst, 'reload schema';` ở cuối):
+
+- `supabase/migrations/20260923_certificate_company_address.sql` — cột địa chỉ doanh nghiệp:
+
+```sql
+alter table public.certificates add column if not exists company_address text not null default '';
+notify pgrst, 'reload schema';
+```
+
+- `supabase/migrations/20260922_certificate_portal_credentials.sql` — 2 cột User/Pass nội bộ (nếu chưa chạy).
+- `supabase/migrations/20260920_certificate_approval.sql` — cột `pending_changes`:
+
+```sql
+alter table public.certificates
+  add column if not exists pending_changes jsonb;
+notify pgrst, 'reload schema';
+```
+
+
+```sql
+alter table public.certificates
+  add column if not exists pending_changes jsonb;
+notify pgrst, 'reload schema';
+```
+
+Migration thêm cột nullable, không sửa dữ liệu hồ sơ/QR hiện có. `supabase/schema.sql` cũng đã cập nhật cho cài mới.
+
+SQLite tự bổ sung cột khi mở database. Không cần thao tác dữ liệu thủ công.
+
+Không tự động sửa thời hạn lịch sử đã bị tính lại trước đây: cần đối chiếu hồ sơ thật và bản sao lưu nếu phát hiện sai.
+
+## Email cảnh báo hết hạn (thông báo hệ thống, đánh vào hậu quả thật)
+
+Email do **hệ thống quản lý hồ sơ** gửi, không phải email bán hàng — nhưng phải nêu rõ
+**hậu quả cụ thể** của việc hồ sơ hết hạn (lô hàng bị giữ/từ chối nhập khẩu, buyer tra cứu
+thấy hết hạn, mất tuần chờ xét duyệt lại). Nỗi sợ thật của doanh nghiệp là hậu quả thật;
+không cần từ ngữ sale để khuếch đại:
+
+- **Thuật ngữ**: dùng *“Đăng ký FDA”*, *“FDA Registration No.”* — FDA facility registration **không** gọi là “chứng nhận”.
+  GACC tương ứng *“Đăng ký GACC”* / *“GACC Registration No.”*. Trong toàn bộ email không dùng chữ “chứng nhận”.
+- **Tiêu đề factual, leo thang theo mốc**: mốc thông tin (90/60/30/14 ngày) giữ tiêu đề trung tính
+  `[Còn 60 ngày] Đăng ký FDA của <công ty> sắp hết hạn`; từ mốc cảnh báo (7/3/1 ngày, hết hạn hôm nay,
+  đã hết hạn) mới thêm hậu quả: `… · lô hàng có thể bị từ chối nhập khẩu`.
+  Không lặp “còn N ngày” hai lần, không “cần gia hạn gấp”, không “KHẨN CẤP”, không emoji ⚠️/⛔.
+- **Thân email**: dòng trạng thái *“Còn N ngày đến ngày hết hạn”* + đoạn nêu ngày hết hạn + hướng dẫn
+  chuẩn bị/kiểm tra thủ tục gia hạn. Không “hành động cần thiết”, không “phí gấp”, không giá ưu đãi.
+- **Khối rủi ro** (mới, `riskContent()`): 3 gạch đầu dòng hậu quả thật, luôn dùng “có thể/nguy cơ” để
+  giữ chính xác — ví dụ FDA: *“Lô hàng … có thể bị từ chối nhập khẩu (refused entry) khi đến cảng Mỹ”*,
+  *“Buyer Mỹ có thể tra cứu trạng thái đăng ký … trên hệ thống công khai của FDA”*; GACC: *“hết hạn là
+  không khai được”*. Nội dung đổi theo mức cảnh báo: thông tin (60 ngày) → chặt theo hạn (7 ngày) →
+  hậu quả đang hiện hữu (đã hết hạn).
+- **Màu sắc leo thang** (`urgencyTheme()`) để mắt nhận mức độ trước cả khi đọc chữ — toàn bộ màu solid
+  (an toàn cho client email): 90/60 ngày xanh navy trung tính `#334155/#0B1837` → 30/14 ngày vàng hổ phách
+  `#F59E0B/#B45309` → 7/3/1 ngày cam `#EA580C/#C2410C` → đã hết hạn đỏ `#DC2626/#B91C1C`. Màu áp lên:
+  dải mỏng trên đầu email, số đếm ngược cỡ lớn trong khối trạng thái (“7 ngày”, “HÔM NAY”, “ĐÃ HẾT HẠN”),
+  khối rủi ro và nút CTA chính.
+- **Bảng thông tin hồ sơ** (giữ nguyên vì thể hiện tính hệ thống): Doanh nghiệp · **Mã hồ sơ Vexim** ·
+  **FDA Registration No.** / **GACC Registration No.** · D-U-N-S · U.S. Agent · Ngày đăng ký · Ngày hết hạn ·
+  Kỳ hạn đăng ký · Số ngày còn lại · Cơ quan đăng ký · **Kiểm tra thông tin hồ sơ** (link xác minh, xem bên dưới).
+- **CTA theo mức cảnh báo**: mốc thấp giữ nút navy “Kiểm tra thông tin hồ sơ”; từ 7/3/1 ngày và đã hết hạn,
+  nút chính mang màu cảnh báo “Gia hạn ngay · 0373 685 634” (gọi hotline), nút xác minh thành nút phụ viền.
+- **Khối “Nếu cần gia hạn”**: chỉ hướng dẫn liên hệ — *“Vui lòng liên hệ Vexim để kiểm tra hồ sơ hiện tại,
+  xác nhận thông tin đăng ký và báo phí gia hạn.”* Không kèm thông tin bán hàng (hiệu lực 1-10 năm, “chuẩn bị phí gia hạn”).
+- **Footer**: *“Email được gửi tự động từ hệ thống quản lý hồ sơ FDA/GACC của Vexim Global.”* + thời gian gửi,
+  mã hồ sơ, mã tra cứu, pháp nhân, hotline/email/website.
+- Nhãn mốc trong `getNotificationLabel()` giữ trung tính để dashboard và email nói cùng một giọng;
+  cảm xúc nằm ở màu sắc (`urgencyLevelFor` → `urgencyTheme`) và khối rủi ro, không nằm ở chữ nhãn.
+- `tests/expiry-email.test.cjs` khoá toàn bộ các quy tắc trên (tiêu đề, thuật ngữ, khối rủi ro, bảng màu
+  leo thang, CTA theo mốc, danh sách từ bị cấm, footer).
+
+## Cấn trừ nợ giữa các đợt thu (VAT đợt trước chưa trả)
+
+Mỗi đợt thu là một hóa đơn; VAT mặc định 8%. Trường hợp thật: khách **chưa trả VAT đợt 1**,
+chỉ tạm ứng 9.000.000 trên hóa đơn 9.720.000 → đợt 1 còn **720.000** (tự động nằm ở "Còn phải thu").
+
+- **Nợ đợt trước** (`prior_debts`, `carried_over`) được tính khi đọc hóa đơn: các hóa đơn **cùng số hợp đồng**
+  (nếu hóa đơn có số hợp đồng; không có thì theo cùng hồ sơ), `installment_no` nhỏ hơn, chưa hủy, còn nợ.
+  Khác hợp đồng trên cùng một hồ sơ (ví dụ hợp đồng gia hạn) **không** cấn trừ lẫn nhau.
+- **Đề nghị thanh toán** liệt kê rõ từng đợt còn nợ và tổng:
+  *"- Cộng số tiền còn lại của các đợt trước chưa thanh toán: + Đợt 1 (hóa đơn …): còn lại 720.000 đồng trên tổng 9.720.000 đồng."*
+  và *"Tổng số tiền đề nghị thanh toán đợt này: 10.440.000 đồng (bao gồm 9.720.000 đồng của đợt 2 và 720.000 đồng còn lại của các đợt trước)."*
+  Hóa đơn đã thu đủ nhưng đợt trước còn nợ thì **vẫn xuất được** đề nghị để thu nốt khoản nợ đó.
+- **Ghi nhận thu tiền**: số tiền khách trả được **phân bổ cũ nhất trước** (`planPaymentAllocation`) khi bật
+  "Gạch nợ đợt trước trước". Khách trả 10.440.000 ở đợt 2 → 720.000 gạch nợ đợt 1, 9.720.000 vào đợt 2,
+  cả hai đợt chuyển "Đã thu đủ"; khoản phân bổ được ghi chú *"Phân bổ trả nợ đợt 1 (thu ở đợt 2…)"* trong lịch sử thu.
+  Không bật phân bổ thì tiền nằm nguyên ở đợt đang thu (hành vi cũ).
+- Giao diện: thẻ hóa đơn hiện "+ nợ đợt trước", phần chi tiết hiện tổng cần thu, form thu tiền mặc định điền
+  đúng tổng (đợt này + nợ cũ) và hiện kết quả phân bổ sau khi ghi.
+- `tests/carry-over.test.cjs` (15 test) khoá toàn bộ luồng: từ khách tạm ứng thiếu VAT → nợ chuyển sang đợt sau →
+  văn bản + PDF đề nghị thanh toán có khoản nợ → phân bổ tiền thu xoá nợ đúng chỗ.
+
+## Bộ lọc trang danh sách hồ sơ
+
+`/dashboard/ho-so` có bộ lọc đầy đủ (tiếng Việt và tiếng Anh):
+
+- **Trạng thái**: Tất cả · Còn hiệu lực · Sắp hết hạn (≤90 ngày) · Đã hết hạn · Chờ duyệt · Bản nháp.
+  Mỗi nút hiện số lượng; bấm lại nút đang chọn để bỏ lọc. Số lượng tính theo các bộ lọc khác (không tính chính nó).
+- **Tiêu chuẩn**: Tất cả / FDA / GACC.
+- **Kỳ hạn hợp đồng**: các mức năm đang có trong dữ liệu.
+- **Sắp xếp**: Hết hạn gần nhất (mặc định) · Công ty A→Z · Mới tạo gần đây.
+- **Tìm kiếm**: công ty, số hồ sơ, mã đăng ký, DUNS.
+- **Xoá lọc** và dòng "Hiển thị X/Y hồ sơ".
+- Bộ lọc ghi lên URL (`?status=expiring&standard=FDA&term=2&q=...`) nên **gửi link là người khác mở đúng
+  khung nhìn đã lọc**; dùng `history.replaceState` nên gõ ô tìm kiếm không gọi lại server.
+- Trang **Toàn cảnh**: ba ô *Tổng hồ sơ / Còn hiệu lực / Sắp hết hạn* bấm được, dẫn sang danh sách đã lọc sẵn.
+
+Định nghĩa trạng thái nằm ở **một chỗ duy nhất**: `certificateRecordState()` trong `lib/certificate-workflow.ts`
+(nháp → chờ duyệt → đã hết hạn → sắp hết hạn ≤ `EXPIRING_SOON_DAYS`=90 → còn hiệu lực).
+Trang danh sách và trang Toàn cảnh đều dùng hàm này nên **con số trên ô thống kê luôn khớp với danh sách khi bấm vào**.
+Nhãn trạng thái trong bảng cũng lấy từ i18n nên hiển thị đúng tiếng Việt (trước đây là "VALID/Expiring Soon" tiếng Anh).
+
+## Nhắc hạn & gia hạn (vòng đời hồ sơ)
+
+- **Chống gửi trùng theo KỲ HẠN**: mỗi thông báo chỉ được tính là "đã gửi" trong **kỳ hạn hiện tại**.
+  Kỳ hạn hiện tại bắt đầu từ `last_renewed_at` (lần gia hạn gần nhất) hoặc `registered_at` (chưa gia hạn).
+  Nhờ vậy sau khi gia hạn, khách nhận lại đủ các mốc 90/60/30/14/7/3/1 ngày và cả email "đã hết hạn" của kỳ hạn mới,
+  trong khi lịch sử đã gửi của kỳ hạn cũ vẫn còn nguyên trong dashboard.
+  (Trước đây bản ghi cũ chặn vĩnh viễn mọi cảnh báo về sau — lỗi đã sửa.)
+- Mốc thời gian lưu theo **mili-giây** (`strftime('%Y-%m-%d %H:%M:%f')` ở SQLite, ISO ở Supabase) để phân biệt
+  lần gửi trước và lần gia hạn kể cả khi cùng một giây.
+- **Email xác nhận gia hạn**: ngay khi admin/nhân viên gia hạn (API `action: renew`), hệ thống gửi cho khách
+  email *"[Đã gia hạn] Đăng ký FDA của <công ty> có hiệu lực đến dd/mm/yyyy"* — cùng văn phong thông báo tự động:
+  trạng thái, bảng thông tin hồ sơ (gồm **Ngày hết hạn (mới)** và **Số lần gia hạn**), nút *Kiểm tra thông tin hồ sơ*,
+  footer hệ thống. Ghi vào lịch sử là `renewal_reminder` nên hiện ở trang Cảnh báo.
+- Lỗi gửi email **không làm hỏng việc gia hạn**: API trả `email_sent`, `email_recipients`, `email_warning`
+  và form báo rõ *"Đã gửi email xác nhận tới …"* hoặc *"Chưa gửi được email xác nhận (…)"*.
+- `tests/renewal-notice.test.cjs` khoá cả hai hành vi trên.
+
+## Link xác minh trong email
+
+Nút **Kiểm tra thông tin hồ sơ** trong cả hai email (cảnh báo hết hạn và xác nhận gia hạn) phải trỏ tới
+**đúng trang mà mã QR mở ra**: `<địa chỉ hệ thống>/verify/<mã tra cứu>`.
+
+- `lib/site-url.ts` quyết định địa chỉ: `NEXT_PUBLIC_SITE_URL` (hoặc `SITE_URL`) → tên miền Vercel
+  (`VERCEL_PROJECT_PRODUCTION_URL` / `VERCEL_URL`) → mặc định `https://vanhanh.veximglobal.com`.
+- **Không hardcode tên miền trong email.** Trước đây hai email dùng `https://verify.vexim.vn/…`, một tên miền
+  không tồn tại, nên khách bấm vào chỉ thấy trang không mở được; mã QR thì vẫn đúng vì nó lấy từ trình duyệt.
+- Đổi tên miền (ví dụ sang `verify.veximglobal.com`): thêm biến `NEXT_PUBLIC_SITE_URL` trong Vercel, không cần sửa code.
+- Trang `/verify/[code]` tự chọn ngôn ngữ theo `?lang=` → cookie → `Accept-Language`, nên không cần gắn `?lang=vi` vào link.
+- `tests/expiry-email.test.cjs` khoá lại: link phải cùng địa chỉ hệ thống, không chứa `verify.vexim.vn`,
+  và đổi được theo `NEXT_PUBLIC_SITE_URL`.
+
+## Không được cache dữ liệu hồ sơ
+
+Next.js 14 cache `fetch()` khi render phía server và cache luôn GET route handler, nên nếu không khai báo gì thì
+**sửa/duyệt hồ sơ xong mà trang quét QR vẫn hiện bản cũ** (ví dụ địa chỉ vừa lưu vẫn ghi "Chưa có thông tin địa chỉ").
+Vì vậy:
+
+- `lib/supabase.ts` tạo client với `global.fetch` luôn `cache: "no-store"` — mọi truy vấn Supabase đọc database thật.
+- `app/api/public/certificates/[code]/route.ts`: `dynamic = "force-dynamic"`, `revalidate = 0`, `fetchCache = "force-no-store"`
+  và trả header `Cache-Control: no-store`.
+- `app/verify/[code]/page.tsx`: `force-dynamic` + `revalidate = 0` + `fetchCache = "force-no-store"`.
+- Test `tests/cache-freshness.test.cjs` khoá lại các khai báo này (chạy trong `npm run test:all`).
+
+Lưu ý: mỗi lần Vercel deploy là một cache mới, nhưng nếu deploy lại bản cũ (không có các khai báo trên) thì
+route handler công khai sẽ bị đóng băng ở response đầu tiên.
+
+## Kiểm thử
+
+Node 22+:
+
+```sh
+npm ci
+npm run test:certificates
+npx tsc --noEmit
+npm run build
+```
+
+Bộ test dùng SQLite tạm riêng và mock Supabase query client (không kết nối database production), bao phủ quyền API, nháp, bản sửa chờ duyệt, không lộ bản sửa qua public API/SSR allowlist, QR cố định, no-op, gia hạn, hồ sơ hết hạn, GACC và xung đột phiên.
+
+Kiểm tra thủ công sau deploy:
+
+1. Nhân viên mở hồ sơ đã xuất bản: QR tự hiện; không có nút duyệt/gia hạn.
+2. Sửa phạm vi hoặc tên doanh nghiệp, lưu; tải lại vẫn thấy bản sửa chờ duyệt và cùng QR.
+3. Mở QR ẩn danh: vẫn là thông tin đã duyệt cũ.
+4. Admin mở hồ sơ, xem đối chiếu và duyệt; QR cũ hiển thị thông tin mới.
+5. F5, rời trang rồi quay lại: QR vẫn hiện, không cần thao tác xuất bản.
+6. Hồ sơ có gia hạn: sửa email, lưu và duyệt; ngày hết hạn gia hạn không đổi.
+7. Hai phiên cùng mở: một phiên lưu trước, phiên còn lại duyệt bản cũ phải nhận thông báo tải lại.
+
+Giới hạn kiểm tra trong sandbox: không truy cập được tên miền production; tải Chromium cũng bị lỗi mạng nên chưa chạy kiểm thử trình duyệt tự động. Đã kiểm tra HTTP thực trên Next server local, gồm đăng nhập, quyền sửa/duyệt, lưu trạng thái và chống lộ bản chờ duyệt trong HTML trang QR. Cần xác nhận lại hồ sơ số 5 trên production sau migration và deploy.

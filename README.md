@@ -1,54 +1,178 @@
-# Vexim Global — Quản lý hồ sơ FDA & GACC
+# Vexim Global — FDA & GACC Certificate Management
 
-Hệ thống nội bộ của **Công ty TNHH Vexim Global**: quản lý hồ sơ FDA / GACC, xác thực QR, thống kê doanh thu.
+Internal system of **Vexim Global Co., Ltd**: FDA / GACC record management, QR verification, revenue analytics.
 
-- FDA hiệu lực **2 năm**, GACC hiệu lực **5 năm**
-- Vai trò Admin và Bộ phận chuyên môn
-- Landing page quét QR **không hiển thị giá dịch vụ**
-- Dữ liệu quản trị trên **Supabase** (PostgreSQL)
-- Deploy **Vercel**
+- FDA flexible **1-10 years** per client contract (default 2 years), GACC **1-10 years** (default 5 years)
+- Renewal follows contract duration
+- Roles: Admin and Specialist
+- QR landing page **does not display service fees**
+- Certificate form keeps the customer's portal **User / Pass** for internal use only — never printed on the QR/verification page,
+  never returned by the public API and never sent in warning emails
+- Data managed on **Supabase** (PostgreSQL)
+- Deploy on **Vercel**
 
-Font chữ: **Be Vietnam Pro** (hỗ trợ đầy đủ dấu tiếng Việt).
+Font: **Be Vietnam Pro** (full Vietnamese diacritics support).
 
-## 1. Supabase
+## 1. Flexible Validity + DUNS (New)
 
-1. Tạo project tại [supabase.com](https://supabase.com)
-2. SQL Editor → dán và chạy `supabase/schema.sql`
+**Flexible Validity:** FDA is a **1-10 year** choice per contract (default 2), GACC stays **fixed at 5 years**:
+
+- **Contract Duration** on the record form is a dropdown for **FDA only**: 1, 2, 3, ..., 10 years (default 2 is tagged in the list)
+- **GACC is a read-only `5 years (fixed)` field** — staff cannot pick another duration, and the API rejects any other value with `GACC cố định 5 năm, không đổi được thời hạn.`
+- Expiry auto-calculated from the chosen years: `registered_at + validity_years` (updates as soon as you change the FDA dropdown)
+- FDA values outside 1-10 are rejected (`Thời hạn hợp đồng phải từ 1 đến 10 năm.`); an empty value falls back to the default (FDA 2, GACC 5)
+- **Renewal follows contract duration** — FDA renewals pick 1-10 years (defaulting to the current term); GACC renewals are always +5 years
+- Dashboard shows stats per validity duration (only durations actually in use)
+
+**DUNS Number:**
+
+- **DUNS Number** (Data Universal Numbering System): 9-digit unique identifier issued by Dun & Bradstreet, required for FDA facility registration. Format `12-345-6789`, stored as 9 digits, displayed formatted. Validated on create/update.
+- UI: Form has DUNS input (with XX-XXX-XXXX formatting + 9-digit validation). Dashboard table shows DUNS column. Verification page shows DUNS card.
+- Public API `/api/public/certificates/[code]` now returns `duns_code`.
+
+**Migration:**
+- Re-run `supabase/schema.sql` in Supabase SQL Editor to add `validity_years`, `duns_code` columns (also drops `fda_registration_status` if it exists)
+- Local SQLite will auto-migrate on `npm run dev`
+
+## 2. Supabase Setup
+
+1. Create project at [supabase.com](https://supabase.com)
+2. SQL Editor → paste and run `supabase/schema.sql`
 3. Settings → API, copy:
    - Project URL → `NEXT_PUBLIC_SUPABASE_URL`
    - `anon` `public` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` → `SUPABASE_SERVICE_ROLE_KEY` (chỉ dùng phía server, không đưa ra client)
+   - `service_role` → `SUPABASE_SERVICE_ROLE_KEY` (server-side only, never expose to client)
 
-Lần đăng nhập đầu tiên hệ thống tự tạo tài khoản demo nếu bảng `staff_users` trống.
+On first login, system auto-creates demo accounts if `staff_users` table is empty.
 
-## 2. Chạy local
+## 3. Run Locally
 
 ```bash
 cp .env.example .env.local
-# điền 3 biến Supabase
+# fill 3 Supabase vars
 npm install
 npm run dev
 ```
 
-Nếu **chưa** có biến Supabase, app tạm dùng SQLite `data/vexim.db` để xem giao diện.
+If **no** Supabase vars, app falls back to SQLite `data/vexim.db` for UI preview.
 
-## 3. Deploy Vercel
+## 3a. Public website — `/` and `/en`
+
+The root domain is now the public site: look up FDA / GACC codes, read the FDA and GACC services, and read the FAQ.
+The internal app stays behind `/login` and `/dashboard`.
+
+- Vietnamese at `/` (canonical, `hreflang="vi"`), English at `/en` (`hreflang="en"`), both declared in metadata,
+  `sitemap.xml` and `robots.txt`.
+- Title, meta description, H1/H2/H3 order, the two services, the seven FAQs and the footer follow the content
+  specification. All copy lives in `lib/public-content.ts` (`vi` / `en` branches).
+- The lookup box searches published records by registration code or company name (Vietnamese diacritics ignored),
+  shows company, code type, status (valid / expiring soon / expired) and the next deadline, and links to the
+  verification page. Drafts never appear. Fees, customer emails and portal credentials are never returned.
+- `GET /api/public/lookup?type=FDA|GACC&q=...` — no cache, max 6 results.
+- QR scan button opens the camera (BarcodeDetector); browsers without support get a short fallback message.
+- `FAQPage` JSON-LD is generated from the same content object as the visible FAQ, so they cannot drift apart.
+- `/login` is `noindex, nofollow` and every link to it carries `rel="nofollow"`.
+- See `docs/website-cong-khai.md`.
+
+## 3b. Service Quotes (New) — `/dashboard/bao-gia`
+
+Pre-built FDA and GACC quote templates so staff only enter customer details and export a PDF:
+
+- 2 templates: **FDA** and **GACC** — line items, unit prices, scope of work, documents to be provided,
+  timeline, payment terms and general terms are pre-filled.
+- **Two-step create screen** with a *Tiếp tục* (next) button under the line items: **(1)** items & unit prices →
+  **(2)** customer details + quote conditions.
+- **Customer details auto-map** from the company directory: typing a company name already in the system fills in
+  address, tax code, contact person, phone and email (suggestions while typing).
+- **Only companies that have not registered the service being quoted are suggested**: quoting FDA hides companies
+  that already hold an FDA certificate (GACC-only companies still appear, for cross-selling) and vice versa.
+  Companies already registered for that service are hidden completely — no suggestion and no auto-fill.
+- **Editable line items with live totals** while creating: changing quantity, unit price, discount or VAT
+  recalculates line amounts, subtotal, VAT, grand total and the amount in words instantly.
+- **Service price list at `/dashboard/bao-gia/bang-gia` (Admin only)** — the single place to change service
+  prices: edit/remove items, add new main items and new optional items, edit scope/terms/VAT/validity.
+  Saved in the `quote_templates` table; DB values override `lib/quote-templates.ts`. New quotes use the new
+  prices, existing quotes keep their snapshot.
+- Extra items can be added to any single quote (*Thêm hạng mục khác*) or reset back to the official template price.
+- Optional line items (US Agent, PPC, catalogue…) are quoted separately and **not added to the total**.
+- Numbers are recomputed server-side; the amount in Vietnamese words is printed on every quote.
+- Quote numbers continue from the real-world counter: `QUOTE_NO_START = 290` → `VXM-BG-2026-0290`, `-0291`, …
+  (change the constant in `lib/quotes.ts` to move the starting point).
+- Quote lifecycle: **Nháp → Đã gửi khách → Khách đồng ý / Từ chối** (+ auto *Hết hiệu lực* after the validity date).
+  A quote sent to the customer is locked; use **Nhân bản để sửa** to revise it.
+- PDF export (`/api/quotes/[id]/pdf`) uses the bundled Tinos fonts, repeats table headers across pages.
+  Brand look: **navy** dominant with **gold** accents (band, totals block, rules), and the **wordmark logo only —
+  no slogan** (`assets/quote/logo-wordmark-white.png`, swap to change the logo).
+- Created from a CRM opportunity with one click (service, company, contact, email, phone pre-filled).
+- Migration: `supabase/migrations/20260922_price_book.sql` adds the `quote_templates` table (re-runnable).
+- See `docs/bao-gia.md`. Prices shipped in `lib/quote-templates.ts` are **sample prices** — set the real ones
+  in the in-app price list before sending real quotes.
+
+Migration: run `supabase/schema.sql` or `supabase/migrations/20260921_quotes.sql`, then `NOTIFY pgrst, 'reload schema';`. Existing installations should also apply `supabase/migrations/20261121_remove_sale_amazon.sql` to delete discontinued service data safely.
+
+## 4. Deploy to Vercel
 
 ```bash
 npx vercel
 ```
 
-Trên Vercel → Project → Settings → Environment Variables, thêm đúng 4 biến trong `.env.example`.
+On Vercel → Project → Settings → Environment Variables, add 4 vars from `.env.example`.
 
-Hoặc kết nối GitHub repo `hocluongvan25-dotcom/quan_ly_du_an_vexim` và Import trên vercel.com.
+Or connect GitHub repo `hocluongvan25-dotcom/quan_ly_du_an_vexim` and Import on vercel.com.
 
-## Tài khoản demo
+## 5. Troubleshooting
 
-| Vai trò | Email | Mật khẩu |
+### Error PGRST205: Could not find the table 'public.staff_users' in the schema cache
+
+**Cause:** Table `staff_users` / `certificates` not created in Supabase, or PostgREST schema cache not reloaded.
+
+**Fix:**
+
+1. Go to **Supabase Dashboard** → select project → **SQL Editor** → **New query**
+2. Copy entire `supabase/schema.sql` and run
+3. Then run:
+   ```sql
+   NOTIFY pgrst, 'reload schema';
+   ```
+   Or:
+   ```sql
+   SELECT pg_notify('pgrst', 'reload schema');
+   ```
+4. Wait 5-10 seconds for cache reload
+5. Check **Table Editor** for tables `staff_users` and `certificates`
+6. Test health: visit `/api/health`, should return `status: ok`
+
+**Check Vercel env vars:**
+
+- `NEXT_PUBLIC_SUPABASE_URL` must be like `https://xxxx.supabase.co`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` is anon key
+- `SUPABASE_SERVICE_ROLE_KEY` is service_role key (required to bypass RLS)
+- After changing env vars, **Redeploy**
+
+**Still failing:**
+
+- Supabase → Settings → API → check **Exposed schemas** contains `public`
+- Database → Roles → ensure `service_role` has permissions
+- Temporarily disable RLS for testing: `ALTER TABLE public.staff_users DISABLE ROW LEVEL SECURITY;`
+
+### Quick Debug
+
+Visit `/api/health` endpoint to see:
+- Whether Supabase is configured
+- Whether tables exist
+- Current record counts
+
+## Demo Accounts
+
+| Role | Email | Password |
 | --- | --- | --- |
 | Admin | `admin@veximglobal.com` | `Vexim@Admin2026` |
-| Chuyên môn | `chuyenmon@veximglobal.com` | `Vexim@CM2026` |
+| Specialist | `chuyenmon@veximglobal.com` | `Vexim@CM2026` |
 
-## Liên hệ Vexim Global
+## Contact Vexim Global
 
-Số 25/6/51 Ngọa Long, Tây Tựu, Bắc Từ Liêm, Hà Nội · 0373 685 634 · contact@veximglobal.com
+No. 25/6/51 Ngoa Long, Tay Tuu, Bac Tu Liem, Hanoi · 0373 685 634 · contact@veximglobal.com
+
+## 3c. Invoice workflow
+
+Invoices are managed separately from certificate record editing. The certificate detail page `/dashboard/ho-so/[id]` only stores the FDA/GACC record; Admins create and manage certificate invoices under `/dashboard/ke-toan/hoa-don`, using `/dashboard/ke-toan/hoa-don/moi` to select a certificate and manage its installments. The cleanup migration removes legacy service-contract invoices before restricting invoice references to certificates.

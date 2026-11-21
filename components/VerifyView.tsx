@@ -1,149 +1,237 @@
 "use client";
 
-import { COMPANY, STANDARD_YEARS, type Certificate } from "@/lib/types";
-import { daysBetween, formatDate, isValidNow, remainingDays } from "@/lib/utils";
-import { CountdownRing } from "./CountdownRing";
-import { Logo } from "./Logo";
-import { ValiditySeal } from "./ValiditySeal";
-import { Mail, MapPin, Phone, ShieldCheck } from "lucide-react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import {
+  Building2, CheckCircle2, Clock3, Copy, FileCheck2, Globe2, Info, Link2, Mail, MessageCircle, Phone, RefreshCw, ShieldCheck, ShieldX,
+} from "lucide-react";
+import type { publicCertificate } from "@/lib/certificate-workflow";
+import { COMPANY } from "@/lib/types";
+import { formatDuns } from "@/lib/utils";
+import { formatCheckedAt, formatRegistrationDate, verificationResult } from "@/lib/verification-view";
+import { verificationText, verificationLanguageUrl, VERIFICATION_LOCALE_COOKIE, type VerificationLocale, type VerificationTextKey } from "@/lib/verification-i18n";
+import styles from "./VerifyView.module.css";
 
-export function VerifyView({ cert }: { cert: Omit<Certificate, "service_price"> }) {
-  const valid =
-    Boolean(cert.validity_confirmed) && isValidNow(cert.expires_at, cert.registered_at);
-  const left = remainingDays(cert.expires_at);
-  const total = daysBetween(cert.registered_at, cert.expires_at);
+type Props = { cert: ReturnType<typeof publicCertificate>; checkedAt: string; locale: VerificationLocale };
+export function VerifyView({ cert, checkedAt, locale }: Props) {
+  const t = (key: VerificationTextKey, params?: Record<string, string | number>) => verificationText(locale, key, params);
+  const router = useRouter();
+  const [refreshing, startRefresh] = useTransition();
+  const [switchingLanguage, startLanguageSwitch] = useTransition();
+
+  function switchLanguage(next: VerificationLocale) {
+    if (switchingLanguage || next === locale) return;
+    // Optional preference storage: an explicit link works even when cookies are blocked.
+    try {
+      document.cookie = `${VERIFICATION_LOCALE_COOKIE}=${next}; Path=/verify; Max-Age=31536000; SameSite=Lax${window.location.protocol === "https:" ? "; Secure" : ""}`;
+    } catch { /* Language switching must not depend on storage permission. */ }
+    const url = verificationLanguageUrl(window.location.href, next);
+    startLanguageSwitch(() => router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false }));
+  }
+  const [toast, setToast] = useState<VerificationTextKey | "">("");
+  const result = verificationResult(cert, checkedAt, locale);
+  const isGacc = cert.standard === "GACC";
+  const StateIcon = result.state === "valid" ? ShieldCheck : result.state === "expired" ? ShieldX : Info;
+  const authority = isGacc
+    ? "General Administration of Customs of China (GACC)"
+    : "U.S. Food and Drug Administration (FDA)";
+
+  useEffect(() => {
+    if (!toast) return;
+    const timer = window.setTimeout(() => setToast(""), 3500);
+    return () => window.clearTimeout(timer);
+  }, [toast]);
+
+
+  async function copy(text: string) {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const input = document.createElement("textarea");
+        input.value = text;
+        input.style.position = "fixed";
+        input.style.opacity = "0";
+        document.body.appendChild(input);
+        try {
+          input.select();
+          if (!document.execCommand("copy")) throw new Error("Copy failed");
+        } finally { input.remove(); }
+      }
+      setToast("copySuccess");
+    } catch { setToast("copyFailure"); }
+  }
+
+  const badge = (
+    <span className={styles.statusBadge} data-state={result.state}>
+      {result.state === "valid" ? <CheckCircle2 size={15} aria-hidden="true" /> : <StateIcon size={15} aria-hidden="true" />}
+      {result.label}
+    </span>
+  );
 
   return (
-    <div className="min-h-screen bg-[#fff8ec] text-navy-900">
-      <header className="bg-navy-900 text-white">
-        <div className="mx-auto flex max-w-lg items-center justify-between px-5 py-4">
-          <Logo invert markClassName="h-11 w-11" />
-          <div className="text-right text-[10px] uppercase tracking-[0.22em] text-teal-300">
-            Certificate
-            <br />
-            Verification
+    <div className={styles.page} lang={locale}>
+      <header className={styles.masthead}>
+        <div className={styles.mastheadInner}>
+          <a href={COMPANY.website} className={styles.brand} aria-label={t("home")}>
+            <span className={styles.brandMark}><ShieldCheck size={24} strokeWidth={1.6} aria-hidden="true" /></span>
+            <span>VEXIM <span className={styles.brandLight}>GLOBAL</span><small>CERTIFICATE VERIFICATION</small></span>
+          </a>
+          <div className={styles.headerTools}>
+            <span className={styles.mastheadNote}><Globe2 size={15} aria-hidden="true" /> {t("lookup")}</span>
+            <div className={styles.languageSwitch} role="group" aria-label={t("language")} aria-busy={switchingLanguage}>
+              <button type="button" lang="vi" aria-label="Tiếng Việt" aria-pressed={locale === "vi"} disabled={switchingLanguage} onClick={() => switchLanguage("vi")}>VI</button>
+              <span aria-hidden="true">|</span>
+              <button type="button" lang="en" aria-label="English" aria-pressed={locale === "en"} disabled={switchingLanguage} onClick={() => switchLanguage("en")}>EN</button>
+            </div>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-lg px-4 pb-16 pt-6">
-        <div className="paper-card relative overflow-hidden rounded-[32px] border border-white/80 p-6 shadow-lift">
-          <div className="pointer-events-none absolute inset-3 rounded-[24px] border border-gold-500/35" />
-          <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-100/80" />
-          <div className="pointer-events-none absolute -bottom-16 -left-10 h-44 w-44 rounded-full bg-gold-100/50" />
-
-          <div className="relative flex flex-col items-center text-center">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-teal-700">
-              Official record
-            </p>
-            <h1 className="mt-2 font-display text-[28px] font-extrabold leading-tight">
-              {cert.company_name}
-            </h1>
-            <p className="mt-1 text-sm text-navy-900/55">{cert.certificate_no}</p>
-            <div className="my-6">
-              <ValiditySeal valid={valid} confirmed={Boolean(cert.validity_confirmed)} size="lg" />
-            </div>
-            <p className="max-w-xs text-sm leading-relaxed text-navy-900/70">
-              {valid
-                ? "Chứng chỉ còn hiệu lực. Thời gian còn lại được đếm từ ngày hết hạn về ngày đăng ký."
-                : "Chứng chỉ đã hết hiệu lực. Vui lòng liên hệ Vexim Global để gia hạn."}
-            </p>
-          </div>
-
-          <div className="relative mt-6 grid grid-cols-2 gap-3">
-            <Info label="Standards" value={cert.standard} strong />
-            <Info label="Mã số" value={cert.registration_code} mono />
-            <Info label="Ngày đăng ký" value={formatDate(cert.registered_at)} />
-            <Info label="Ngày hết hạn" value={formatDate(cert.expires_at)} />
-            <Info
-              label="Số ngày còn lại"
-              value={left < 0 ? "0" : String(left)}
-              strong
-            />
-            <Info
-              label="Chu kỳ hiệu lực"
-              value={`${STANDARD_YEARS[cert.standard]} năm · ${total} ngày`}
-            />
-          </div>
-
-          <div className="relative mt-4 rounded-2xl bg-[#fff6df] p-4">
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-navy-900/45">
-              Scope
-            </div>
-            <p className="mt-1 text-sm leading-relaxed">{cert.scope || "—"}</p>
-          </div>
+      <main className={styles.main}>
+        <div className={styles.documentHeading}>
+          <span><span className={styles.goldLine} /> {t("documentHeading")}</span>
+          <span>{cert.standard} / {t("countryHeading")}</span>
         </div>
 
-        <div className="mt-4 rounded-[32px] bg-white p-6 shadow-card">
-          <CountdownRing
-            registeredAt={cert.registered_at}
-            expiresAt={cert.expires_at}
-            running={Boolean(cert.validity_confirmed)}
-          />
-        </div>
+        <article className={styles.document} aria-label={t("articleLabel")}>
+          <section className={styles.result} aria-labelledby="verification-title" data-state={result.state}>
+            <div className={styles.resultTop}>
+              <div className={styles.resultText}>
+                <p className={styles.eyebrow}>{t("resultHeading")}</p>
+                <h1 id="verification-title">{result.title}</h1>
+                <p className={styles.resultDescription}>{result.description}</p>
+                {badge}
+              </div>
+              <div className={styles.seal} data-state={result.state} aria-label={result.label}>
+                <div className={styles.sealInner}>
+                  <StateIcon size={42} strokeWidth={1.5} aria-hidden="true" />
+                  <span>{result.state === "valid" ? "VERIFIED" : result.state === "expired" ? "EXPIRED" : "UNCONFIRMED"}</span>
+                  <small>VEXIM GLOBAL</small>
+                </div>
+              </div>
+            </div>
+            <div className={styles.resultMeta}>
+              <div>
+                <span className={styles.metaLabel}>{t("verificationId")}</span>
+                <div className={styles.metaValue}>
+                  <strong className={styles.mono}>{cert.certificate_no}</strong>
+                  <button type="button" className={styles.iconButton} onClick={() => copy(cert.certificate_no)} aria-label={t("copyId")}><Copy size={15} /></button>
+                </div>
+              </div>
+              <div>
+                <span className={styles.metaLabel}>{t("lastChecked")} <span>· {t("checkedHint")}</span></span>
+                <div className={styles.metaValue}>
+                  <Clock3 size={15} className={styles.mutedIcon} aria-hidden="true" />
+                  <time dateTime={checkedAt}>{formatCheckedAt(checkedAt)}</time>
+                </div>
+              </div>
+            </div>
+            {result.state === "expired" && (
+              <div className={styles.renewCallout}>
+                <div className={styles.renewCalloutText}>
+                  <strong>{t("renewCalloutTitle")}</strong>
+                  <p>{t("renewCalloutText", { standard: cert.standard })}</p>
+                </div>
+                <div className={styles.renewCalloutActions}>
+                  <a href={COMPANY.phoneHref} className={styles.renewCallButton}>
+                    <Phone size={15} aria-hidden="true" /> {t("renewCallButton")} · {COMPANY.phone}
+                  </a>
+                  <a href="https://zalo.me/0373685634" target="_blank" rel="noreferrer" className={styles.renewZaloButton}>
+                    <MessageCircle size={15} aria-hidden="true" /> {t("renewZaloButton")}
+                  </a>
+                </div>
+              </div>
+            )}
+          </section>
 
-        <section className="mt-4 rounded-[32px] bg-navy-900 p-6 text-white shadow-card">
-          <div className="flex items-center gap-2 text-teal-300">
-            <ShieldCheck className="h-5 w-5" />
-            <span className="text-xs font-semibold uppercase tracking-[0.24em]">
-              Verified by Vexim Global
-            </span>
+          <div className={styles.documentBody}>
+            <section aria-labelledby="company-details">
+              <SectionHeading number="01" title={t("companyTitle")} subtitle={t("companySubtitle")} id="company-details" icon={<Building2 size={19} />} />
+              <table className={styles.table} aria-labelledby="company-details">
+                <tbody>
+                  <DetailRow label={t("company")}><strong className={styles.companyName}>{cert.company_name}</strong></DetailRow>
+                  <DetailRow label={t("companyAddress")}>
+                    {cert.company_address
+                      ? <span className={styles.preserveLines}>{cert.company_address}</span>
+                      : <span className={styles.muted}>{t("noAddress")}</span>}
+                  </DetailRow>
+                  <DetailRow label={t("certificateType")}><span className={styles.standardTag}>{cert.standard}</span><span>{t("registrationType", { standard: cert.standard })}</span></DetailRow>
+                  <DetailRow label={t("authority")}>{authority}</DetailRow>
+                  <DetailRow label={t("registrationCountry")}><span className={styles.countryCode}>VN</span> {t("country")}</DetailRow>
+                  <DetailRow label={t("verifier")}>{COMPANY.legal}</DetailRow>
+                </tbody>
+              </table>
+            </section>
+
+            <section aria-labelledby="registration-details" className={styles.registrationSection}>
+              <SectionHeading number="02" title={t("registrationTitle")} subtitle={t("registrationSubtitle", { standard: cert.standard })} id="registration-details" icon={<FileCheck2 size={19} />} />
+              <table className={styles.table} aria-labelledby="registration-details">
+                <tbody>
+                  <DetailRow label={t("registrationCode", { standard: cert.standard })}>
+                    <div className={styles.codeValue}>
+                      <strong className={styles.mono}>{cert.registration_code || "—"}</strong>
+                      {cert.registration_code && <button type="button" className={styles.iconButton} onClick={() => copy(cert.registration_code)} aria-label={t("copyRegistration", { standard: cert.standard })}><Copy size={15} /></button>}
+                    </div>
+                  </DetailRow>
+                  <DetailRow label={t(isGacc ? "gaccMarket" : "fdaMarket")}>{t(isGacc ? "china" : "usa")}</DetailRow>
+                  <DetailRow label={t(isGacc ? "gaccScope" : "fdaScope")}><span className={styles.preserveLines}>{cert.scope || t("noScope")}</span></DetailRow>
+                  {!isGacc && <DetailRow label={t("duns")}><span className={styles.mono}>{cert.duns_code ? formatDuns(cert.duns_code) : t("unavailable")}</span></DetailRow>}
+                  {!isGacc && <DetailRow label={t("usAgent")}>{cert.us_agent || t("unavailable")}</DetailRow>}
+                  <DetailRow label={t("registrationDate")}>{formatRegistrationDate(cert.registered_at, locale)}</DetailRow>
+                  <DetailRow label={t("expiryDate")}><strong className={result.state === "expired" ? styles.expiredDate : undefined}>{formatRegistrationDate(cert.expires_at, locale)}</strong></DetailRow>
+                  <DetailRow label={t("term")}>{t("termValue", { count: cert.validity_years })}</DetailRow>
+                  <DetailRow label={t("validity")}>
+                    <div className={styles.validityValue}>
+                      {badge}
+                      {result.state === "valid" && <span>{result.left === 0 ? t("lastValidDay") : t("daysLeft", { count: result.left ?? 0 })}</span>}
+                    </div>
+                  </DetailRow>
+                  {cert.renewal_count > 0 && <DetailRow label={t("lastRenewal")}>{formatRegistrationDate(cert.last_renewed_at, locale)} <span className={styles.inlineNote}>· {t("renewals", { count: cert.renewal_count })}</span></DetailRow>}
+                  <DetailRow label={t("qrCode")}><span className={styles.mono}>{cert.public_code}</span></DetailRow>
+                </tbody>
+              </table>
+            </section>
+
+            <aside className={styles.verificationNote} aria-label={t("scopeLabel")}>
+              <Info size={18} aria-hidden="true" />
+              <div>
+                <strong>{t("aboutResult")}</strong>
+                <p>{t("verificationNote", { standard: cert.standard })} {t(isGacc ? "gaccNote" : "fdaNote")}</p>
+              </div>
+            </aside>
           </div>
-          <h2 className="mt-3 font-display text-xl font-bold">{COMPANY.legal}</h2>
-          <ul className="mt-4 space-y-3 text-sm text-white/80">
-            <li className="flex gap-3">
-              <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-gold-400" />
-              {COMPANY.address}
-            </li>
-            <li className="flex gap-3">
-              <Phone className="mt-0.5 h-4 w-4 shrink-0 text-gold-400" />
-              <a href={COMPANY.phoneHref} className="underline-offset-2 hover:underline">
-                {COMPANY.phone}
-              </a>
-            </li>
-            <li className="flex gap-3">
-              <Mail className="mt-0.5 h-4 w-4 shrink-0 text-gold-400" />
-              <a href={`mailto:${COMPANY.email}`}>{COMPANY.email}</a>
-            </li>
-          </ul>
-          <a
-            href={COMPANY.website}
-            className="mt-5 block rounded-2xl bg-teal-500 py-3 text-center text-sm font-bold text-navy-950"
-          >
-            {COMPANY.websiteLabel}
-          </a>
-          <p className="mt-3 text-center text-[11px] text-white/45">
-            Trang xác thực công khai không hiển thị giá dịch vụ.
-          </p>
+
+          <footer className={styles.documentFooter}>
+            <div><ShieldCheck size={17} aria-hidden="true" /><span>{t("verifiedBy")} <strong>Vexim Global</strong></span></div>
+            <div className={styles.actions}>
+              <button type="button" className={styles.secondaryButton} disabled={refreshing} onClick={() => startRefresh(() => router.refresh())}>
+                <RefreshCw size={15} className={refreshing ? styles.spinning : undefined} aria-hidden="true" /> {refreshing ? t("checking") : t("refresh")}
+              </button>
+              <button type="button" className={styles.primaryButton} onClick={() => copy(verificationLanguageUrl(window.location.href, locale).href)}><Link2 size={15} aria-hidden="true" /> {t("share")}</button>
+            </div>
+          </footer>
+        </article>
+
+        <section className={styles.support} aria-label={t("supportLabel")}>
+          <div><p className={styles.supportLabel}>{t("supportTitle")}</p><p>{t("supportContact")}</p></div>
+          <a href={COMPANY.phoneHref}><Phone size={15} aria-hidden="true" />{COMPANY.phone}</a>
+          <a href={`mailto:${COMPANY.email}`}><Mail size={15} aria-hidden="true" />{COMPANY.email}</a>
         </section>
+
+
+        <footer className={styles.pageFooter}><span>© {new Date(checkedAt).getUTCFullYear()} Vexim Global</span><span>{t("footer")}</span></footer>
       </main>
+
+      {toast && <div className={styles.toast} role="status">{t(toast)}</div>}
     </div>
   );
 }
 
-function Info({
-  label,
-  value,
-  strong,
-  mono,
-}: {
-  label: string;
-  value: string;
-  strong?: boolean;
-  mono?: boolean;
-}) {
-  return (
-    <div className="rounded-2xl bg-[#fff6df] px-3 py-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wider text-navy-900/40">
-        {label}
-      </div>
-      <div
-        className={`mt-1 text-sm ${strong ? "font-extrabold" : "font-semibold"} ${
-          mono ? "font-mono text-[12px]" : ""
-        }`}
-      >
-        {value}
-      </div>
-    </div>
-  );
+function SectionHeading({ number, title, subtitle, id, icon }: { number: string; title: string; subtitle: string; id: string; icon: ReactNode }) {
+  return <div className={styles.sectionHeading}><span className={styles.sectionNumber}>{number}</span><div><h2 id={id}>{title}</h2><p>{subtitle}</p></div><span className={styles.sectionIcon} aria-hidden="true">{icon}</span></div>;
+}
+
+function DetailRow({ label, children }: { label: string; children: ReactNode }) {
+  return <tr><th scope="row">{label}</th><td>{children}</td></tr>;
 }

@@ -6,6 +6,7 @@ const nextConfig = {
     unoptimized: true,
   },
   experimental: {
+    outputFileTracingIncludes: { "/api/invoices/*/payment-request": ["./assets/fonts/*.ttf"] },
     serverComponentsExternalPackages: ["node:sqlite"],
   },
   webpack: (config) => {

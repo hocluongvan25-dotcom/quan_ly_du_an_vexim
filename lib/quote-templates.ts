@@ -1,0 +1,396 @@
+/* ============================================================================
+ * BẢNG BÁO GIÁ CHUẨN THEO DỊCH VỤ của Vexim Global
+ * Một nguồn duy nhất cho mẫu báo giá: nhân viên chỉ chọn dịch vụ + nhập thông
+ * tin khách hàng, toàn bộ hạng mục / đơn giá / điều khoản được điền sẵn.
+ *
+ * Các mẫu dưới đây là GIÁ MẶC ĐỊNH (fallback). Bảng giá thật được chỉnh ngay
+ * trong hệ thống tại /dashboard/bao-gia/bang-gia (Admin) và lưu ở bảng
+ * quote_templates; giá trị trong DB luôn được ưu tiên hơn giá trong file này.
+ *
+ * ⚠️ Số trong file vẫn là giá mẫu để chạy thử quy trình. Hãy chỉnh lại ở màn
+ * hình Bảng giá dịch vụ trước khi gửi khách thật.
+ * ========================================================================== */
+
+export type QuoteTemplateKey = "FDA" | "GACC";
+
+/** Một dòng hạng mục được lưu trong báo giá (snapshot, không phụ thuộc mẫu) */
+export type QuoteLine = {
+  name: string;
+  unit: string;
+  qty: number;
+  unit_price: number;
+  note: string;
+  /** true = hạng mục tùy chọn, chỉ tính tiền khi khách chọn */
+  optional: boolean;
+};
+
+/** Một hạng mục chính của mẫu (chưa phải dòng hàng trong báo giá) */
+export type QuoteTemplateItem = {
+  name: string;
+  unit: string;
+  qty: number;
+  unit_price: number;
+  note?: string;
+};
+
+/** Hạng mục tùy chọn gợi ý cho nhân viên tick chọn */
+export type QuoteOptionDef = {
+  key: string;
+  label: string;
+  unit: string;
+  qty: number;
+  unit_price: number;
+  note: string;
+  group: string;
+};
+
+export type QuoteTemplateDef = {
+  key: QuoteTemplateKey;
+  name: string;
+  short_name: string;
+  tagline: string;
+  title: string;
+  /** Dịch vụ gắn với CRM pipeline tương ứng */
+  crm_pipeline_key: QuoteTemplateKey;
+  validity_days: number;
+  vat_rate: number;
+  items: QuoteTemplateItem[];
+  options: QuoteOptionDef[];
+  scope: string[];
+  /** Hồ sơ/tài liệu khách hàng cần cung cấp để triển khai */
+  documents: string[];
+  timeline: string;
+  payment_terms: string;
+  terms: string[];
+};
+
+/** Vì sao chọn Vexim Global. Phần giới thiệu ngắn in kèm báo giá. */
+export const QUOTE_STRENGTHS = [
+  "Đội ngũ trực tiếp xử lý hồ sơ FDA/GACC, không qua trung gian",
+  "Theo dõi hiệu lực chứng nhận trên hệ thống riêng và chủ động nhắc gia hạn trước khi hết hạn",
+  "Một đầu mối phụ trách xuyên suốt: báo cáo tiến độ định kỳ, phản hồi trong 24 giờ làm việc",
+  "Tra cứu hồ sơ đã đăng ký bằng mã QR, minh bạch phạm vi công việc và chi phí ngay từ báo giá",
+];
+
+export const QUOTE_PRICE_NOTE =
+  "Giá mẫu trong hệ thống. Kiểm tra lại với bảng giá hiện hành trước khi gửi khách.";
+
+/* ------------------------- Giới hạn của bảng giá -------------------------- */
+
+export const MAX_TEMPLATE_ITEMS = 40;
+export const MAX_TEMPLATE_OPTIONS = 40;
+export const MAX_TEMPLATE_LINES = 30;
+export const MAX_TEMPLATE_TEXT = 500;
+
+export const QUOTE_TEMPLATES: QuoteTemplateDef[] = [
+  {
+    key: "FDA",
+    name: "Đăng ký FDA (Hoa Kỳ)",
+    short_name: "FDA",
+    tagline: "Đăng ký cơ sở & sản phẩm xuất khẩu sang Hoa Kỳ",
+    title: "BÁO GIÁ DỊCH VỤ ĐĂNG KÝ FDA (HOA KỲ)",
+    crm_pipeline_key: "FDA",
+    validity_days: 15,
+    vat_rate: 8,
+    items: [
+      { name: "Phí dịch vụ đăng ký FDA cho 01 cơ sở/nhà máy sản xuất", unit: "Hồ sơ", qty: 1, unit_price: 38_000_000 },
+      { name: "Rà soát & chuẩn hóa hồ sơ cho 01 nhóm sản phẩm xuất khẩu sang Mỹ", unit: "Nhóm SP", qty: 1, unit_price: 7_000_000 },
+      { name: "Lập bộ chứng từ pháp lý, dịch thuật và công chứng hồ sơ gửi FDA", unit: "Bộ", qty: 1, unit_price: 5_000_000 },
+    ],
+    options: [
+      {
+        key: "us_agent",
+        label: "Đăng ký & duy trì US Agent (đại diện pháp lý tại Mỹ), 12 tháng",
+        unit: "Năm", qty: 1, unit_price: 8_500_000,
+        note: "Bắt buộc theo quy định FDA đối với cơ sở nước ngoài",
+        group: "Bắt buộc theo quy định",
+      },
+      {
+        key: "duns",
+        label: "Đăng ký mã DUNS (Dun & Bradstreet) cho doanh nghiệp",
+        unit: "Mã", qty: 1, unit_price: 2_500_000, note: "", group: "Hồ sơ & mã số",
+      },
+      {
+        key: "extra_product",
+        label: "Bổ sung 01 nhóm sản phẩm/ngành hàng được phép lưu hành",
+        unit: "Nhóm SP", qty: 1, unit_price: 6_000_000, note: "", group: "Mở rộng phạm vi",
+      },
+      {
+        key: "extra_facility",
+        label: "Đăng ký bổ sung 01 cơ sở/nhà máy khác của cùng doanh nghiệp",
+        unit: "Cơ sở", qty: 1, unit_price: 28_000_000, note: "", group: "Mở rộng phạm vi",
+      },
+      {
+        key: "renewal",
+        label: "Dịch vụ gia hạn đăng ký FDA kỳ tiếp theo (02 năm)",
+        unit: "Kỳ", qty: 1, unit_price: 32_000_000,
+        note: "Gia hạn theo chu kỳ 2 năm/lần của FDA", group: "Duy trì hiệu lực",
+      },
+      {
+        key: "label_review",
+        label: "Rà soát nhãn mác, thành phần theo quy định 21 CFR",
+        unit: "Bộ nhãn", qty: 1, unit_price: 4_500_000, note: "", group: "Hồ sơ & mã số",
+      },
+    ],
+    scope: [
+      "Rà soát điều kiện công bố, mã ngành (FDA Industry Code) và mã sản phẩm theo quy định FDA",
+      "Lập và nộp hồ sơ đăng ký cơ sở theo 21 CFR Part 1 (Food Facility Registration)",
+      "Đăng ký, cập nhật và duy trì US Agent theo yêu cầu của FDA",
+      "Chuẩn hóa hồ sơ nhà máy, mã DUNS và tài liệu chứng minh năng lực sản xuất",
+      "Bàn giao mã đăng ký, hướng dẫn tra cứu và theo dõi hiệu lực trên hệ thống Vexim Global",
+    ],
+    documents: [
+      "Giấy chứng nhận đăng ký doanh nghiệp (bản scan có dấu)",
+      "Sơ đồ mặt bằng nhà máy và quy trình sản xuất tóm tắt",
+      "Danh mục sản phẩm xuất khẩu kèm thành phần, mã HS (nếu có)",
+      "Mã DUNS của doanh nghiệp (nếu đã có) và thông tin người đại diện pháp luật",
+      "Thông tin US Agent hiện hành (nếu đã từng đăng ký FDA)",
+    ],
+    timeline:
+      "07–15 ngày làm việc kể từ khi nhận đủ hồ sơ và tạm ứng. Thời gian FDA thẩm định/phê duyệt không tính vào tiến độ trên.",
+    payment_terms:
+      "Tạm ứng 50% giá trị hợp đồng khi ký kết; thanh toán 50% còn lại khi bàn giao mã đăng ký.",
+    terms: [
+      "Hiệu lực đăng ký FDA là 02 năm/lần theo quy định; Vexim Global chủ động thông báo trước 60 ngày khi đến kỳ gia hạn.",
+      "Giá chưa bao gồm thuế/phí nộp cho cơ quan FDA, phí công chứng lãnh sự và các chi phí phát sinh ngoài phạm vi công việc (nếu có).",
+      "Báo giá áp dụng cho hồ sơ thông tin chuẩn. Trường hợp hồ sơ có sai lệch, vi phạm hoặc vướng mắc cần xử lý bổ sung, Vexim Global sẽ thông báo và báo giá riêng.",
+      "Khách hàng cung cấp đầy đủ giấy tờ pháp lý (bản scan) và chịu trách nhiệm về tính chính xác của thông tin đã cung cấp.",
+      "Vexim Global bảo mật toàn bộ tài liệu, dữ liệu của khách hàng và không sử dụng cho mục đích khác ngoài việc thực hiện dịch vụ.",
+    ],
+  },
+  {
+    key: "GACC",
+    name: "Đăng ký GACC (Trung Quốc)",
+    short_name: "GACC",
+    tagline: "Đăng ký cơ sở sản xuất xuất khẩu sang Trung Quốc theo CIFER",
+    title: "BÁO GIÁ DỊCH VỤ ĐĂNG KÝ GACC / CIFER (TRUNG QUỐC)",
+    crm_pipeline_key: "GACC",
+    validity_days: 15,
+    vat_rate: 8,
+    items: [
+      { name: "Phí dịch vụ đăng ký cơ sở xuất khẩu sang Trung Quốc (hệ thống CIFER - GACC)", unit: "Hồ sơ", qty: 1, unit_price: 45_000_000 },
+      { name: "Đăng ký 01 nhóm sản phẩm/ngành hàng trên hệ thống CIFER", unit: "Nhóm SP", qty: 1, unit_price: 10_000_000 },
+      { name: "Rà soát, xây dựng hồ sơ truy xuất nguồn gốc và nhãn mác xuất khẩu", unit: "Bộ", qty: 1, unit_price: 8_000_000 },
+    ],
+    options: [
+      {
+        key: "extra_category",
+        label: "Bổ sung 01 ngành hàng/nhóm sản phẩm khác",
+        unit: "Nhóm SP", qty: 1, unit_price: 12_000_000, note: "", group: "Mở rộng phạm vi",
+      },
+      {
+        key: "extra_facility",
+        label: "Đăng ký bổ sung 01 cơ sở/nhà máy khác",
+        unit: "Cơ sở", qty: 1, unit_price: 35_000_000, note: "", group: "Mở rộng phạm vi",
+      },
+      {
+        key: "info_update",
+        label: "Cập nhật/thay đổi thông tin đã đăng ký (tên, địa chỉ, sản phẩm)",
+        unit: "Lần", qty: 1, unit_price: 5_000_000, note: "", group: "Duy trì hiệu lực",
+      },
+      {
+        key: "inspection",
+        label: "Hỗ trợ chuẩn bị và tham gia kiểm tra/thanh tra định kỳ của GACC",
+        unit: "Lần", qty: 1, unit_price: 15_000_000, note: "", group: "Duy trì hiệu lực",
+      },
+      {
+        key: "training",
+        label: "Tập huấn nội bộ về tiêu chuẩn, nhãn mác và truy xuất nguồn gốc",
+        unit: "Buổi", qty: 1, unit_price: 6_000_000, note: "", group: "Hỗ trợ thêm",
+      },
+    ],
+    scope: [
+      "Đánh giá điều kiện đăng ký theo Nghị định 248/249 của Hải quan Trung Quốc (GACC)",
+      "Tạo tài khoản và lập hồ sơ đăng ký cơ sở trên hệ thống CIFER",
+      "Chuẩn hóa hồ sơ truy xuất nguồn gốc, quy trình kiểm soát chất lượng và nhãn mác tiếng Trung",
+      "Theo dõi tiến trình thẩm định, bổ sung hồ sơ theo yêu cầu của GACC",
+      "Bàn giao mã đăng ký CIFER, hướng dẫn tra cứu và theo dõi hiệu lực trên hệ thống Vexim Global",
+    ],
+    documents: [
+      "Giấy chứng nhận đăng ký doanh nghiệp và giấy phép kinh doanh ngành hàng",
+      "Sơ đồ nhà xưởng, quy trình sản xuất và quy trình kiểm soát chất lượng",
+      "Giấy chứng nhận an toàn thực phẩm / HACCP / ISO (nếu có)",
+      "Danh mục sản phẩm, mã HS và quy cách đóng gói xuất khẩu",
+      "Bản dịch tiếng Trung/Anh của tài liệu công bố (Vexim Global hỗ trợ rà soát)",
+    ],
+    timeline:
+      "20–45 ngày làm việc kể từ khi nhận đủ hồ sơ. Thời gian GACC thẩm định và yêu cầu bổ sung không tính vào tiến độ trên.",
+    payment_terms:
+      "Tạm ứng 50% khi ký kết; thanh toán 30% khi hồ sơ được tiếp nhận trên CIFER; thanh toán 20% khi bàn giao mã đăng ký.",
+    terms: [
+      "Hiệu lực đăng ký GACC là 05 năm (theo quy định hiện hành); Vexim Global hỗ trợ cập nhật khi có thay đổi thông tin.",
+      "Giá chưa bao gồm phí nộp cơ quan chức năng, dịch thuật công chứng và chi phí lấy mẫu/kiểm nghiệm (nếu có).",
+      "Khách hàng đảm bảo cơ sở đáp ứng điều kiện vệ sinh, an toàn thực phẩm và cung cấp đầy đủ tài liệu theo yêu cầu.",
+      "Trường hợp GACC yêu cầu nội dung ngoài phạm vi báo giá, hai bên thống nhất khối lượng và chi phí bổ sung bằng phụ lục.",
+      "Vexim Global bảo mật toàn bộ tài liệu của khách hàng trong và sau thời gian thực hiện dịch vụ.",
+    ],
+  },
+];
+
+export const QUOTE_TEMPLATE_KEYS = QUOTE_TEMPLATES.map((t) => t.key);
+
+export function getQuoteTemplate(key: string): QuoteTemplateDef | undefined {
+  return QUOTE_TEMPLATES.find((t) => t.key === key);
+}
+
+export function isQuoteTemplateKey(value: unknown): value is QuoteTemplateKey {
+  return typeof value === "string" && QUOTE_TEMPLATE_KEYS.includes(value as QuoteTemplateKey);
+}
+
+/** Hạng mục mặc định của mẫu → dòng hàng lưu trong báo giá */
+export function templateItems(key: QuoteTemplateKey): QuoteLine[] {
+  const template = getQuoteTemplate(key);
+  return template ? itemsFromTemplate(template) : [];
+}
+
+/** Hạng mục của một mẫu (đã resolve từ bảng giá) → dòng hàng lưu trong báo giá */
+export function itemsFromTemplate(template: QuoteTemplateDef): QuoteLine[] {
+  return template.items.map((item) => ({
+    name: item.name,
+    unit: item.unit,
+    qty: item.qty,
+    unit_price: item.unit_price,
+    note: item.note || "",
+    optional: false,
+  }));
+}
+
+/** Hạng mục tùy chọn của mẫu → dòng hàng (đánh dấu optional, không cộng vào tổng) */
+export function optionLine(option: QuoteOptionDef): QuoteLine {
+  return {
+    name: option.label,
+    unit: option.unit,
+    qty: option.qty,
+    unit_price: option.unit_price,
+    note: option.note || "",
+    optional: true,
+  };
+}
+
+/* ------------------------ Chuẩn hoá nội dung mẫu ------------------------- */
+
+function clean(value: unknown, label: string, max: number, required = false): string {
+  if (value === undefined || value === null) {
+    if (required) throw new Error(`${label} không được để trống.`);
+    return "";
+  }
+  const text = String(value).normalize("NFC").replace(/\s+/g, " ").trim();
+  if (required && !text) throw new Error(`${label} không được để trống.`);
+  if (text.length > max) throw new Error(`${label} tối đa ${max} ký tự.`);
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) throw new Error(`${label} không hợp lệ.`);
+  return text;
+}
+
+function cleanMoney(value: unknown, label: string): number {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n) || n < 0 || n > 1e12) {
+    throw new Error(`${label} phải là số nguyên từ 0 đến 1.000 tỷ đồng.`);
+  }
+  return n;
+}
+
+function cleanQty(value: unknown, label: string): number {
+  const n = Number(value);
+  if (!Number.isSafeInteger(n) || n < 1 || n > 9999) {
+    throw new Error(`${label} phải là số nguyên từ 1 đến 9999.`);
+  }
+  return n;
+}
+
+function cleanLines(value: unknown, label: string): string[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error(`${label} không hợp lệ.`);
+  if (value.length > MAX_TEMPLATE_LINES) throw new Error(`${label} tối đa ${MAX_TEMPLATE_LINES} mục.`);
+  return value.map((row) => clean(row, label, 300)).filter(Boolean);
+}
+
+/**
+ * Kiểm tra & chuẩn hoá một mẫu báo giá do Admin gửi lên (bảng giá dịch vụ).
+ * Dùng chung cho cả lưu DB và đọc lại, nên dữ liệu bẩn không vào được hệ thống.
+ */
+export function normalizeQuoteTemplate(raw: unknown, key: QuoteTemplateKey): QuoteTemplateDef {
+  const base = getQuoteTemplate(key);
+  if (!base) throw new Error("Dịch vụ không hợp lệ.");
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("Nội dung bảng giá không hợp lệ.");
+  const input = raw as Record<string, unknown>;
+
+  const itemsRaw = input.items === undefined ? base.items : input.items;
+  if (!Array.isArray(itemsRaw)) throw new Error("Danh sách hạng mục chính không hợp lệ.");
+  if (itemsRaw.length === 0) throw new Error("Bảng giá cần ít nhất 01 hạng mục chính.");
+  if (itemsRaw.length > MAX_TEMPLATE_ITEMS) throw new Error(`Bảng giá tối đa ${MAX_TEMPLATE_ITEMS} hạng mục chính.`);
+  const items: QuoteTemplateItem[] = itemsRaw.map((row, index) => {
+    const item = (row || {}) as Record<string, unknown>;
+    const label = `Hạng mục ${index + 1}`;
+    return {
+      name: clean(item.name, `${label}: nội dung`, 300, true),
+      unit: clean(item.unit, `${label}: đơn vị tính`, 30),
+      qty: cleanQty(item.qty, `${label}: số lượng`),
+      unit_price: cleanMoney(item.unit_price, `${label}: đơn giá`),
+      note: clean(item.note, `${label}: ghi chú`, 200),
+    };
+  });
+
+  const optionsRaw = input.options === undefined ? base.options : input.options;
+  if (!Array.isArray(optionsRaw)) throw new Error("Danh sách hạng mục tùy chọn không hợp lệ.");
+  if (optionsRaw.length > MAX_TEMPLATE_OPTIONS) throw new Error(`Bảng giá tối đa ${MAX_TEMPLATE_OPTIONS} hạng mục tùy chọn.`);
+  const options: QuoteOptionDef[] = optionsRaw.map((row, index) => {
+    const option = (row || {}) as Record<string, unknown>;
+    const label = `Tùy chọn ${index + 1}`;
+    const optionKey = clean(option.key, `${label}: mã`, 60, true);
+    if (!/^[a-z0-9_]+$/.test(optionKey)) throw new Error(`${label}: mã chỉ gồm chữ thường, số và dấu gạch dưới.`);
+    return {
+      key: optionKey,
+      label: clean(option.label, `${label}: tên hiển thị`, 300, true),
+      unit: clean(option.unit, `${label}: đơn vị tính`, 30),
+      qty: cleanQty(option.qty, `${label}: số lượng`),
+      unit_price: cleanMoney(option.unit_price, `${label}: đơn giá`),
+      note: clean(option.note, `${label}: ghi chú`, 200),
+      group: clean(option.group, `${label}: nhóm`, 60),
+    };
+  });
+  const optionKeys = new Set(options.map((o) => o.key));
+  if (optionKeys.size !== options.length) throw new Error("Mã hạng mục tùy chọn bị trùng.");
+
+  const vatRate = Number(input.vat_rate === undefined ? base.vat_rate : input.vat_rate);
+  if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) throw new Error("VAT phải từ 0 đến 100%.");
+  const validityDays = Number(input.validity_days === undefined ? base.validity_days : input.validity_days);
+  if (!Number.isSafeInteger(validityDays) || validityDays < 1 || validityDays > 180) {
+    throw new Error("Hiệu lực mặc định phải là số ngày từ 1 đến 180.");
+  }
+
+  return {
+    key,
+    name: clean(input.name, "Tên dịch vụ", 120, true),
+    short_name: clean(input.short_name, "Tên ngắn", 40, true),
+    tagline: clean(input.tagline, "Mô tả ngắn", 200),
+    title: clean(input.title, "Tiêu đề báo giá", 200, true),
+    crm_pipeline_key: key,
+    validity_days: validityDays,
+    vat_rate: vatRate,
+    items,
+    options,
+    scope: input.scope === undefined ? base.scope : cleanLines(input.scope, "Phạm vi công việc"),
+    documents: input.documents === undefined ? base.documents : cleanLines(input.documents, "Hồ sơ cần cung cấp"),
+    timeline: clean(input.timeline === undefined ? base.timeline : input.timeline, "Tiến độ thực hiện", MAX_TEMPLATE_TEXT),
+    payment_terms: clean(input.payment_terms === undefined ? base.payment_terms : input.payment_terms, "Điều khoản thanh toán", MAX_TEMPLATE_TEXT),
+    terms: input.terms === undefined ? base.terms : cleanLines(input.terms, "Điều khoản chung"),
+  };
+}
+
+/**
+ * Ghép bảng giá trong DB lên giá mặc định.
+ * Dòng trong DB luôn thắng; dòng hỏng bị bỏ qua để không làm sập trang báo giá.
+ */
+export function mergeQuoteTemplateRows(rows: Array<{ template_key: string; payload: unknown }>): QuoteTemplateDef[] {
+  const byKey = new Map(rows.map((row) => [String(row.template_key), row.payload]));
+  return QUOTE_TEMPLATES.map((fallback) => {
+    const payload = byKey.get(fallback.key);
+    if (payload === undefined || payload === null) return fallback;
+    try {
+      return normalizeQuoteTemplate(typeof payload === "string" ? JSON.parse(payload) : payload, fallback.key);
+    } catch (e) {
+      console.error(`[quote-templates] Bảng giá ${fallback.key} trong DB không hợp lệ, dùng giá mặc định:`, e);
+      return fallback;
+    }
+  });
+}
