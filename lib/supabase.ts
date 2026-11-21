@@ -11,7 +11,7 @@ let cached: SupabaseClient | null = null;
 
 export function supabaseAdmin() {
   if (!isSupabaseEnabled()) {
-    throw new Error("Supabase chưa được cấu hình.");
+    throw new Error("Supabase is not configured.");
   }
   if (cached) return cached;
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;

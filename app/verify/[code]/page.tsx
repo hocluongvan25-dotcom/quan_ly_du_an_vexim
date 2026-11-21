@@ -11,8 +11,8 @@ export async function generateMetadata({ params }: { params: { code: string } })
   return {
     title: item
       ? `${item.certificate_no} · ${item.company_name} | Vexim Global`
-      : "Xác thực chứng chỉ | Vexim Global",
-    description: "Xác thực hiệu lực hồ sơ FDA / GACC do Vexim Global cấp.",
+      : "Certificate Verification | Vexim Global",
+    description: "Verify validity of FDA / GACC records issued by Vexim Global.",
   };
 }
 

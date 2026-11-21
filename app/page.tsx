@@ -1,37 +1,44 @@
+"use client";
+
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { COMPANY } from "@/lib/types";
 import { ArrowRight, QrCode, ShieldCheck } from "lucide-react";
+import { useI18n } from "@/lib/i18n/context";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 export default function HomePage() {
+  const { t } = useI18n();
   return (
     <div className="mesh min-h-screen text-navy-900">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-5 py-6">
         <Logo />
-        <Link
-          href="/login"
-          className="rounded-full bg-navy-900 px-4 py-2 text-sm font-semibold text-gold-400 hover:bg-navy-800"
-        >
-          Đăng nhập nội bộ
-        </Link>
+        <div className="flex items-center gap-3">
+          <LanguageSwitcher />
+          <Link
+            href="/login"
+            className="rounded-full bg-navy-900 px-4 py-2 text-sm font-semibold text-gold-400 hover:bg-navy-800"
+          >
+            {t("home.internalLogin")}
+          </Link>
+        </div>
       </header>
       <main className="mx-auto max-w-6xl px-5 pb-20 pt-8">
         <p className="text-xs font-semibold uppercase tracking-[0.32em] text-teal-700">
-          Vexim Certificate Network
+          {t("home.network")}
         </p>
         <h1 className="mt-4 max-w-3xl font-display text-4xl font-extrabold leading-tight md:text-6xl">
-          Xác thực hồ sơ FDA & GACC do Vexim Global cấp
+          {t("home.title")}
         </h1>
         <p className="mt-5 max-w-xl text-base text-navy-900/70 md:text-lg">
-          Quét mã QR trên chứng chỉ để xem hiệu lực, phạm vi và thời hạn còn lại. Giá dịch vụ
-          không công khai trên trang xác thực.
+          {t("home.description")}
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
           <Link
             href="/login"
             className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-gold-400 to-teal-500 px-5 py-3 text-sm font-bold text-navy-950 shadow-lift"
           >
-            Vào hệ thống quản lý <ArrowRight className="h-4 w-4" />
+            {t("home.goToSystem")} <ArrowRight className="h-4 w-4" />
           </Link>
           <a
             href={COMPANY.website}
@@ -44,27 +51,27 @@ export default function HomePage() {
           {[
             {
               icon: ShieldCheck,
-              title: "Hiệu lực chuẩn",
-              desc: "FDA 2 năm / GACC 5 năm. Đồng hồ đếm ngược từ ngày hết hạn.",
+              titleKey: "home.features.validity.title",
+              descKey: "home.features.validity.desc",
             },
             {
               icon: QrCode,
-              title: "QR in trên chứng chỉ",
-              desc: "Mỗi hồ sơ xuất bản có mã QR riêng, khách hàng tự xác thực.",
+              titleKey: "home.features.qr.title",
+              descKey: "home.features.qr.desc",
             },
             {
               icon: ArrowRight,
-              title: "Hai vai trò",
-              desc: "Admin điều hành hệ thống. Bộ phận chuyên môn điền hồ sơ sau đăng ký.",
+              titleKey: "home.features.roles.title",
+              descKey: "home.features.roles.desc",
             },
           ].map((c) => (
             <div
-              key={c.title}
+              key={c.titleKey}
               className="rounded-3xl border border-gold-400/40 bg-white/80 p-6 shadow-card"
             >
               <c.icon className="h-6 w-6 text-teal-600" />
-              <h3 className="mt-4 font-display text-lg font-bold">{c.title}</h3>
-              <p className="mt-2 text-sm text-navy-900/65">{c.desc}</p>
+              <h3 className="mt-4 font-display text-lg font-bold">{t(c.titleKey)}</h3>
+              <p className="mt-2 text-sm text-navy-900/65">{t(c.descKey)}</p>
             </div>
           ))}
         </div>

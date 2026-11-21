@@ -39,18 +39,18 @@ export function QrArtwork({
     ctx.fillText("VEXIM GLOBAL", 700, 160);
     ctx.fillStyle = "#C48912";
     ctx.font = "600 20px Be Vietnam Pro, sans-serif";
-    ctx.fillText("XÁC THỰC CHỨNG CHỈ FDA / GACC", 700, 198);
+    ctx.fillText("FDA / GACC CERTIFICATE VERIFICATION", 700, 198);
 
     const img = new Image();
     img.onload = () => {
       ctx.drawImage(img, 250, 250, 900, 900);
       ctx.fillStyle = "#24180C";
       ctx.font = "600 22px Be Vietnam Pro, sans-serif";
-      ctx.fillText(label || "Quét mã để xác thực hiệu lực", 700, 1240);
+      ctx.fillText(label || "Scan to verify validity", 700, 1240);
       ctx.fillStyle = "#8a7040";
       ctx.font = "500 16px Be Vietnam Pro, sans-serif";
       ctx.fillText("www.veximglobal.com  ·  0373 685 634", 700, 1288);
-      ctx.fillText("Số 25/6/51 Ngọa Long, Bắc Từ Liêm, Hà Nội", 700, 1320);
+      ctx.fillText("No. 25/6/51 Ngoa Long, Bac Tu Liem, Hanoi", 700, 1320);
 
       const a = document.createElement("a");
       a.href = out.toDataURL("image/png");
@@ -74,10 +74,10 @@ export function QrArtwork({
     <div className="rounded-[28px] border border-navy-900/10 bg-white p-5 shadow-card">
       <div className="mb-4 text-center">
         <div className="font-display text-sm font-bold tracking-[0.18em] text-navy-900">
-          MÃ QR CHỨNG CHỈ
+          CERTIFICATE QR CODE
         </div>
         <p className="mt-1 text-xs text-navy-900/55">
-          Tải về in trên chứng chỉ do Vexim phát hành
+          Download to print on certificates issued by Vexim
         </p>
       </div>
       <div className="mx-auto w-fit rounded-3xl bg-gradient-to-b from-navy-900 to-navy-800 p-4 shadow-lift">
@@ -90,7 +90,7 @@ export function QrArtwork({
             bgColor="#ffffff"
             fgColor="#24180C"
             imageSettings={{
-              src: "/logo-mark.png",
+              src: "/logo-mark-new.png",
               height: 44,
               width: 44,
               excavate: true,
@@ -107,7 +107,7 @@ export function QrArtwork({
           fgColor="#24180C"
           includeMargin
           imageSettings={{
-            src: "/logo-mark.png",
+            src: "/logo-mark-new.png",
             height: 160,
             width: 160,
             excavate: true,
@@ -121,7 +121,7 @@ export function QrArtwork({
           onClick={downloadPng}
           className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-navy-900 px-3 py-2.5 text-xs font-semibold text-white hover:bg-navy-800"
         >
-          <Download className="h-3.5 w-3.5" /> PNG in ấn
+          <Download className="h-3.5 w-3.5" /> PNG Print
         </button>
         <button
           type="button"

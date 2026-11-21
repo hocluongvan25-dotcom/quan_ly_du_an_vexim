@@ -12,6 +12,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { useI18n } from "@/lib/i18n/context";
 
 type Stats = {
   total: number;
@@ -31,6 +32,7 @@ type Stats = {
 };
 
 export default function RevenuePage() {
+  const { t } = useI18n();
   const [stats, setStats] = useState<Stats | null>(null);
   const [tab, setTab] = useState<"month" | "quarter" | "year">("month");
   const [err, setErr] = useState("");
@@ -38,7 +40,7 @@ export default function RevenuePage() {
   useEffect(() => {
     fetch("/api/revenue").then(async (r) => {
       if (!r.ok) {
-        setErr("Chỉ quản trị viên được xem doanh thu.");
+        setErr("Only administrators can view revenue.");
         return;
       }
       setStats(await r.json());
@@ -48,7 +50,7 @@ export default function RevenuePage() {
   if (err) {
     return <div className="rounded-3xl bg-white p-8 text-navy-900/60">{err}</div>;
   }
-  if (!stats) return <div className="text-sm text-navy-900/50">Đang tải thống kê...</div>;
+  if (!stats) return <div className="text-sm text-navy-900/50">{t("common.loading")}</div>;
 
   const data =
     tab === "month" ? stats.months : tab === "quarter" ? stats.quarters : stats.years;
@@ -57,23 +59,21 @@ export default function RevenuePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-display text-3xl font-extrabold text-navy-900">Doanh thu FDA & GACC</h1>
-        <p className="mt-1 text-sm text-navy-900/55">
-          Chi phí được cộng vào hệ thống ngay khi hồ sơ xuất bản. Không hiển thị trên landing page khách hàng.
-        </p>
+        <h1 className="font-display text-3xl font-extrabold text-navy-900">{t("revenue.title")}</h1>
+        <p className="mt-1 text-sm text-navy-900/55">{t("revenue.subtitle")}</p>
       </div>
       <div className="grid gap-4 md:grid-cols-3">
-        <Card label="Tổng doanh thu" value={formatVnd(stats.total)} hint={`${stats.count} hồ sơ xuất bản`} />
-        <Card label="FDA" value={formatVnd(stats.fda)} hint="Chu kỳ 2 năm" />
-        <Card label="GACC" value={formatVnd(stats.gacc)} hint="Chu kỳ 5 năm" />
+        <Card label={t("revenue.totalRevenue")} value={formatVnd(stats.total)} hint={`${stats.count} ${t("revenue.publishedCount")}`} />
+        <Card label={t("revenue.fdaRevenue")} value={formatVnd(stats.fda)} hint="Flexible 1-10 years" />
+        <Card label={t("revenue.gaccRevenue")} value={formatVnd(stats.gacc)} hint="Flexible 1-10 years" />
       </div>
       <section className="rounded-3xl bg-white p-5 shadow-card">
         <div className="mb-4 flex flex-wrap gap-2">
           {(
             [
-              ["month", "Theo tháng"],
-              ["quarter", "Theo quý"],
-              ["year", "Theo năm"],
+              ["month", t("revenue.monthly")],
+              ["quarter", t("revenue.quarterly")],
+              ["year", t("revenue.yearly")],
             ] as const
           ).map(([k, label]) => (
             <button
@@ -92,7 +92,7 @@ export default function RevenuePage() {
             <BarChart data={data}>
               <CartesianGrid strokeDasharray="3 3" stroke="#e6eef2" />
               <XAxis dataKey={key} tick={{ fontSize: 12 }} />
-              <YAxis tickFormatter={(v) => `${Math.round(v / 1e6)}tr`} tick={{ fontSize: 12 }} />
+              <YAxis tickFormatter={(v) => `${Math.round(v / 1e6)}M`} tick={{ fontSize: 12 }} />
               <Tooltip formatter={(v: number) => formatVnd(v)} />
               <Legend />
               <Bar dataKey="FDA" fill="#24180C" radius={[6, 6, 0, 0]} />
@@ -102,7 +102,7 @@ export default function RevenuePage() {
         </div>
       </section>
       <section className="rounded-3xl bg-white p-5 shadow-card">
-        <h2 className="font-display text-lg font-bold">Hồ sơ đã ghi doanh thu</h2>
+        <h2 className="font-display text-lg font-bold">{t("revenue.recent")}</h2>
         <div className="mt-3 divide-y divide-navy-900/5">
           {stats.recent.map((r) => (
             <div key={r.certificate_no} className="flex items-center justify-between py-3 text-sm">

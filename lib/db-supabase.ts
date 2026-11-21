@@ -1,7 +1,8 @@
 import { hashPassword } from "./auth";
 import { supabaseAdmin } from "./supabase";
-import { expiryFromStandard, randomCode, remainingDays } from "./utils";
+import { expiryFromStandard, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
+import { DEFAULT_VALIDITY, isValidValidityYears, GACC_FIXED_YEARS, isValidValidityYearsForStandard } from "./types";
 
 function mapUser(row: Record<string, unknown>): User {
   return {
@@ -16,17 +17,23 @@ function mapUser(row: Record<string, unknown>): User {
 function mapCert(row: Record<string, unknown>): Certificate {
   const joined = row.staff_users as { name?: string } | { name?: string }[] | null;
   const name = Array.isArray(joined) ? joined[0]?.name : joined?.name;
+  const validity = Number(row.validity_years || 0);
+  const std = row.standard as Standard;
   const item: Certificate = {
     id: Number(row.id),
     public_code: String(row.public_code),
     certificate_no: String(row.certificate_no),
-    standard: row.standard as Standard,
+    standard: std,
     registration_code: String(row.registration_code || ""),
+    duns_code: std === "GACC" ? "" : String(row.duns_code || ""),
+    us_agent: std === "GACC" ? "" : String(row.us_agent || ""),
     service_price: Number(row.service_price || 0),
     company_name: String(row.company_name || ""),
+    company_email: String(row.company_email || ""),
     scope: String(row.scope || ""),
     registered_at: String(row.registered_at).slice(0, 10),
     expires_at: String(row.expires_at).slice(0, 10),
+    validity_years: isValidValidityYears(validity) ? validity : DEFAULT_VALIDITY[std] ?? 2,
     validity_confirmed: row.validity_confirmed ? 1 : 0,
     status: row.status as Certificate["status"],
     published_at: row.published_at ? String(row.published_at) : null,
@@ -44,65 +51,123 @@ function mapCert(row: Record<string, unknown>): Certificate {
   return item;
 }
 
+function assertNoSupabaseError(error: any, context: string) {
+  if (!error) return;
+  if (error.code === "PGRST205" || String(error.message || "").includes("PGRST205") || String(error.message || "").includes("schema cache")) {
+    console.error(`[Supabase] ${context} - PGRST205:`, error);
+    if (context === "consultation_leads") {
+      const e = new Error(
+        `SUPABASE_SCHEMA_MISSING: Table '${context}' does not exist or is not exposed in Supabase. ` +
+          `Please go to Supabase Dashboard > SQL Editor and run the entire supabase/schema.sql file, ` +
+          `then run: NOTIFY pgrst, 'reload schema'; ` +
+          `Original details: ${error.message}`
+      );
+      (e as any).code = "PGRST205";
+      (e as any).isConsultationLeadsMissing = true;
+      throw e;
+    }
+    throw new Error(
+      `SUPABASE_SCHEMA_MISSING: Table '${context}' does not exist or is not exposed in Supabase. ` +
+        `Please go to Supabase Dashboard > SQL Editor and run the entire supabase/schema.sql file, ` +
+        `then run: NOTIFY pgrst, 'reload schema'; ` +
+        `Original details: ${error.message}`
+    );
+  }
+  throw error;
+}
+
+function isMissingConsultationTableError(e: any): boolean {
+  if (!e) return false;
+  if (e.isConsultationLeadsMissing) return true;
+  const msg = String(e.message || "");
+  if (msg.includes("SUPABASE_SCHEMA_MISSING") && msg.includes("consultation_leads")) return true;
+  if (e.code === "PGRST205" && msg.includes("consultation_leads")) return true;
+  return false;
+}
+
+function normalizeValidityYears(input: number | undefined, standard: Standard): number {
+  if (standard === "GACC") return GACC_FIXED_YEARS;
+  if (input && isValidValidityYears(input)) return Math.round(input);
+  return DEFAULT_VALIDITY[standard] ?? 2;
+}
+
 const SAMPLE_CERTS: Array<{
   no: string;
   standard: Standard;
   code: string;
+  duns: string;
+  us_agent: string;
   price: number;
   company: string;
   scope: string;
   registered: string;
   published: string;
+  validity: number;
 }> = [
   {
     no: "VXM-FDA-2025-0001",
     standard: "FDA",
     code: "17823456789",
+    duns: "123456789",
+    us_agent: "Vexim Global LLC",
     price: 18500000,
-    company: "Công ty CP Thực phẩm An Phát",
-    scope: "Food Facility Registration — chế biến thủy sản đông lạnh xuất khẩu sang Hoa Kỳ",
+    company: "An Phat Food JSC",
+    scope: "Food Facility Registration — frozen seafood processing for export to USA",
     registered: "2025-01-15",
     published: "2025-01-16T09:30:00Z",
+    validity: 2,
   },
   {
     no: "VXM-GACC-2024-0008",
     standard: "GACC",
     code: "VN-GACC-44012345678",
+    duns: "",
+    us_agent: "",
     price: 42000000,
-    company: "Công ty TNHH Nông sản Mekong",
-    scope: "Đăng ký doanh nghiệp sản xuất thực phẩm xuất khẩu vào Trung Quốc (GACC Decree 248)",
+    company: "Mekong Agri Products Co., Ltd",
+    scope: "Food enterprise registration for export to China (GACC Decree 248)",
     registered: "2024-03-20",
     published: "2024-03-22T09:30:00Z",
+    validity: 5,
   },
   {
     no: "VXM-FDA-2026-0004",
     standard: "FDA",
     code: "18900123456",
+    duns: "112223333",
+    us_agent: "Vexim Global LLC",
     price: 21000000,
     company: "Green Leaf Cosmetics JSC",
     scope: "MoCRA facility registration & cosmetic product listing",
     registered: "2026-02-10",
     published: "2026-02-12T09:30:00Z",
+    validity: 3,
   },
   {
     no: "VXM-GACC-2026-0002",
     standard: "GACC",
     code: "VN-GACC-33098765432",
+    duns: "",
+    us_agent: "",
     price: 38500000,
-    company: "Công ty CP Gạo Việt Phát",
-    scope: "Cơ sở xay xát, đóng gói gạo xuất khẩu sang thị trường Trung Quốc",
+    company: "Viet Phat Rice JSC",
+    scope: "Rice milling and packaging facility for export to China market",
     registered: "2026-06-01",
     published: "2026-06-03T09:30:00Z",
+    validity: 5,
   },
   {
     no: "VXM-FDA-2026-0012",
     standard: "FDA",
     code: "17200998877",
+    duns: "778889999",
+    us_agent: "Vexim Global LLC",
     price: 16500000,
-    company: "Công ty TNHH Hải sản Bình Minh",
-    scope: "FDA Food Facility Registration — thủy sản tươi sống và đông lạnh",
+    company: "Binh Minh Seafood Co., Ltd",
+    scope: "FDA Food Facility Registration — fresh and frozen seafood",
     registered: "2026-08-18",
     published: "2026-08-20T09:30:00Z",
+    validity: 2,
   },
 ];
 
@@ -111,56 +176,71 @@ let seeded = false;
 export async function ensureSeed() {
   if (seeded) return;
   const sb = supabaseAdmin();
-  const { count, error } = await sb.from("staff_users").select("id", { count: "exact", head: true });
-  if (error) throw error;
-  if ((count || 0) > 0) {
+  try {
+    const { count, error } = await sb.from("staff_users").select("id", { count: "exact", head: true });
+    if (error) {
+      assertNoSupabaseError(error, "staff_users");
+    }
+    if ((count || 0) > 0) {
+      seeded = true;
+      return;
+    }
+
+    const { data: users, error: userErr } = await sb
+      .from("staff_users")
+      .insert([
+        {
+          email: "admin@veximglobal.com",
+          name: "Administrator",
+          password_hash: hashPassword("Vexim@Admin2026"),
+          role: "admin",
+        },
+        {
+          email: "chuyenmon@veximglobal.com",
+          name: "Documentation Specialist",
+          password_hash: hashPassword("Vexim@CM2026"),
+          role: "specialist",
+        },
+      ])
+      .select("id, email");
+    if (userErr) {
+      assertNoSupabaseError(userErr, "staff_users");
+    }
+    const spec = users?.find((u) => u.email === "chuyenmon@veximglobal.com");
+    const admin = users?.find((u) => u.email === "admin@veximglobal.com");
+
+    const { error: certErr } = await sb.from("certificates").insert(
+      SAMPLE_CERTS.map((s) => ({
+        public_code: randomCode(12),
+        certificate_no: s.no,
+        standard: s.standard,
+        registration_code: s.code,
+        duns_code: s.standard === "GACC" ? "" : s.duns,
+        us_agent: s.standard === "GACC" ? "" : s.us_agent,
+        service_price: s.price,
+        company_name: s.company,
+        scope: s.scope,
+        registered_at: s.registered,
+        expires_at: expiryFromStandard(s.registered, s.standard, s.validity),
+        validity_years: s.validity,
+        validity_confirmed: true,
+        status: "published",
+        published_at: s.published,
+        revenue_recorded: true,
+        created_by: s.company.includes("Green") ? admin?.id : spec?.id || admin?.id,
+      }))
+    );
+    if (certErr) {
+      assertNoSupabaseError(certErr, "certificates");
+    }
     seeded = true;
-    return;
+  } catch (e: any) {
+    if (e?.message?.includes("SUPABASE_SCHEMA_MISSING")) throw e;
+    if (e?.code === "PGRST205" || String(e?.message || "").includes("PGRST205")) {
+      assertNoSupabaseError(e, "staff_users");
+    }
+    throw e;
   }
-
-  const { data: users, error: userErr } = await sb
-    .from("staff_users")
-    .insert([
-      {
-        email: "admin@veximglobal.com",
-        name: "Quản trị viên",
-        password_hash: hashPassword("Vexim@Admin2026"),
-        role: "admin",
-      },
-      {
-        email: "chuyenmon@veximglobal.com",
-        name: "Chuyên viên hồ sơ",
-        password_hash: hashPassword("Vexim@CM2026"),
-        role: "specialist",
-      },
-    ])
-    .select("id, email");
-  if (userErr) throw userErr;
-  const spec = users?.find((u) => u.email === "chuyenmon@veximglobal.com");
-  const admin = users?.find((u) => u.email === "admin@veximglobal.com");
-  const by = (email: string) =>
-    email.includes("Green") ? admin?.id : spec?.id || admin?.id;
-
-  await sb.from("certificates").insert(
-    SAMPLE_CERTS.map((s) => ({
-      public_code: randomCode(12),
-      certificate_no: s.no,
-      standard: s.standard,
-      registration_code: s.code,
-      service_price: s.price,
-      company_name: s.company,
-      scope: s.scope,
-      registered_at: s.registered,
-      expires_at: expiryFromStandard(s.registered, s.standard),
-      validity_confirmed: true,
-      status: "published",
-      published_at: s.published,
-      revenue_recorded: true,
-      created_by: s.company.includes("Green") ? admin?.id : spec?.id || admin?.id,
-    }))
-  );
-  void by;
-  seeded = true;
 }
 
 export async function findUserByEmail(email: string) {
@@ -170,7 +250,7 @@ export async function findUserByEmail(email: string) {
     .select("*")
     .eq("email", email.toLowerCase().trim())
     .maybeSingle();
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "staff_users");
   if (!data) return undefined;
   return { ...mapUser(data), password_hash: String(data.password_hash) };
 }
@@ -181,16 +261,11 @@ export async function listUsers(): Promise<User[]> {
     .from("staff_users")
     .select("id, email, name, role, created_at")
     .order("id");
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "staff_users");
   return (data || []).map(mapUser);
 }
 
-export async function createUser(input: {
-  email: string;
-  name: string;
-  password: string;
-  role: Role;
-}) {
+export async function createUser(input: { email: string; name: string; password: string; role: Role }) {
   const { data, error } = await supabaseAdmin()
     .from("staff_users")
     .insert({
@@ -201,19 +276,20 @@ export async function createUser(input: {
     })
     .select("id")
     .single();
-  if (error) throw error;
-  return Number(data.id);
+  if (error) assertNoSupabaseError(error, "staff_users");
+  return Number((data as any)?.id ?? 0);
 }
 
 export async function nextCertificateNo(standard: Standard) {
   const year = new Date().getFullYear();
   const prefix = `VXM-${standard}-${year}-`;
-  const { data } = await supabaseAdmin()
+  const { data, error } = await supabaseAdmin()
     .from("certificates")
     .select("certificate_no")
     .like("certificate_no", `${prefix}%`)
     .order("certificate_no", { ascending: false })
     .limit(1);
+  if (error) assertNoSupabaseError(error, "certificates");
   let seq = 1;
   const no = data?.[0]?.certificate_no;
   if (no) {
@@ -229,7 +305,7 @@ export async function listCertificates(): Promise<Certificate[]> {
     .from("certificates")
     .select("*, staff_users(name)")
     .order("updated_at", { ascending: false });
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   return (data || []).map(mapCert);
 }
 
@@ -239,7 +315,7 @@ export async function getCertificate(id: number) {
     .select("*, staff_users(name)")
     .eq("id", id)
     .maybeSingle();
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   return data ? mapCert(data) : undefined;
 }
 
@@ -249,21 +325,29 @@ export async function getCertificateByPublicCode(code: string) {
     .select("*")
     .eq("public_code", code.toUpperCase())
     .maybeSingle();
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   return data ? mapCert(data) : undefined;
 }
 
 export async function createCertificate(input: {
   standard: Standard;
   registration_code: string;
+  duns_code?: string;
+  us_agent?: string;
   service_price: number;
   company_name: string;
+  company_email?: string;
   scope: string;
   registered_at: string;
+  validity_years?: number;
   created_by: number;
 }) {
-  const expires = expiryFromStandard(input.registered_at, input.standard);
+  const validity = normalizeValidityYears(input.validity_years, input.standard);
+  const expires = expiryFromStandard(input.registered_at, input.standard, validity);
   const no = await nextCertificateNo(input.standard);
+  const isGacc = input.standard === "GACC";
+  const duns = isGacc ? "" : (input.duns_code || "").replace(/\D/g, "").slice(0, 9);
+  const usAgent = isGacc ? "" : (input.us_agent || "").trim().slice(0, 200);
   const { data, error } = await supabaseAdmin()
     .from("certificates")
     .insert({
@@ -271,17 +355,38 @@ export async function createCertificate(input: {
       certificate_no: no,
       standard: input.standard,
       registration_code: input.registration_code.trim(),
+      duns_code: duns,
+      us_agent: usAgent,
       service_price: Math.max(0, Math.round(input.service_price || 0)),
       company_name: input.company_name.trim(),
+      company_email: (input.company_email || "").trim(),
       scope: input.scope.trim(),
       registered_at: input.registered_at,
       expires_at: expires,
+      validity_years: validity,
       created_by: input.created_by,
     })
     .select("id")
     .single();
-  if (error) throw error;
-  return Number(data.id);
+  if (error) assertNoSupabaseError(error, "certificates");
+  // Sync to companies
+  try {
+    const existing = await getCompanyByName(input.company_name.trim());
+    if (!existing && input.company_name.trim()) {
+      await createCompany({ company_name: input.company_name.trim(), email: (input.company_email || "").trim() });
+    } else if (existing && input.company_email?.trim()) {
+      await updateCompany(existing.id, {
+        company_name: existing.company_name,
+        email: input.company_email.trim() || existing.email,
+        phone: existing.phone,
+        tax_code: existing.tax_code,
+        address: existing.address,
+        contact_person: existing.contact_person,
+        notes: existing.notes,
+      });
+    }
+  } catch {}
+  return Number((data as any)?.id ?? 0);
 }
 
 export async function updateCertificate(
@@ -289,32 +394,63 @@ export async function updateCertificate(
   input: {
     standard: Standard;
     registration_code: string;
+    duns_code?: string;
+    us_agent?: string;
     service_price: number;
     company_name: string;
+    company_email?: string;
     scope: string;
     registered_at: string;
+    validity_years?: number;
   }
 ) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  const expires = expiryFromStandard(input.registered_at, input.standard);
+  const validity = normalizeValidityYears(input.validity_years ?? current.validity_years, input.standard);
+  const expires = expiryFromStandard(input.registered_at, input.standard, validity);
   const reset =
-    current.registered_at !== input.registered_at || current.standard !== input.standard;
+    current.registered_at !== input.registered_at ||
+    current.standard !== input.standard ||
+    current.validity_years !== validity;
+  const isGacc = input.standard === "GACC";
+  const duns = isGacc ? "" : input.duns_code !== undefined ? input.duns_code.replace(/\D/g, "").slice(0, 9) : current.duns_code;
+  const usAgent = isGacc ? "" : input.us_agent !== undefined ? input.us_agent.trim().slice(0, 200) : current.us_agent;
+  const companyEmail = input.company_email !== undefined ? input.company_email.trim() : (current as any).company_email || "";
   const { error } = await supabaseAdmin()
     .from("certificates")
     .update({
       standard: input.standard,
       registration_code: input.registration_code.trim(),
+      duns_code: duns,
+      us_agent: usAgent,
       service_price: Math.max(0, Math.round(input.service_price || 0)),
       company_name: input.company_name.trim(),
+      company_email: companyEmail,
       scope: input.scope.trim(),
       registered_at: input.registered_at,
       expires_at: expires,
+      validity_years: validity,
       validity_confirmed: reset ? false : Boolean(current.validity_confirmed),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
+  try {
+    const existing = await getCompanyByName(input.company_name.trim());
+    if (!existing && input.company_name.trim()) {
+      await createCompany({ company_name: input.company_name.trim(), email: companyEmail });
+    } else if (existing && companyEmail) {
+      await updateCompany(existing.id, {
+        company_name: existing.company_name,
+        email: companyEmail || existing.email,
+        phone: existing.phone,
+        tax_code: existing.tax_code,
+        address: existing.address,
+        contact_person: existing.contact_person,
+        notes: existing.notes,
+      });
+    }
+  } catch {}
 }
 
 export async function confirmValidity(id: number) {
@@ -325,41 +461,52 @@ export async function confirmValidity(id: number) {
     .from("certificates")
     .update({ validity_confirmed: true, updated_at: new Date().toISOString() })
     .eq("id", id);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
 }
 
 export async function publishCertificate(id: number) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  if (!current.validity_confirmed) throw new Error("NOT_CONFIRMED");
   if (!current.company_name || !current.registration_code) throw new Error("INCOMPLETE");
+  const fixedExpiry = expiryFromStandard(current.registered_at, current.standard, current.validity_years);
   const { error } = await supabaseAdmin()
     .from("certificates")
     .update({
       status: "published",
+      validity_confirmed: true,
+      expires_at: fixedExpiry,
       published_at: current.published_at || new Date().toISOString(),
       revenue_recorded: true,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   return (await getCertificate(id))!;
 }
 
-export async function renewCertificate(id: number, extraFee = 0) {
+export async function renewCertificate(id: number, extraFee = 0, renewalYears?: number) {
   const current = await getCertificate(id);
   if (!current) throw new Error("NOT_FOUND");
-  const nextExpiry = expiryFromStandard(
+  // FDA flexible 1-10, GACC fixed 5
+  let validity: number;
+  if (current.standard === "GACC") {
+    validity = GACC_FIXED_YEARS;
+  } else if (renewalYears && isValidValidityYearsForStandard(renewalYears, current.standard)) {
+    validity = Math.round(renewalYears);
+  } else {
+    validity = getValidityYears(current);
+  }
+  const baseDate =
     remainingDays(current.expires_at) >= 0
       ? current.expires_at
-      : new Date().toISOString().slice(0, 10),
-    current.standard
-  );
+      : todayUtcIso();
+  const nextExpiry = expiryFromStandard(baseDate, current.standard, validity);
   const extra = Math.max(0, Math.round(extraFee || 0));
   const { error } = await supabaseAdmin()
     .from("certificates")
     .update({
       expires_at: nextExpiry,
+      validity_years: validity,
       renewal_count: current.renewal_count + 1,
       last_renewed_at: new Date().toISOString(),
       service_price: current.service_price + extra,
@@ -368,7 +515,7 @@ export async function renewCertificate(id: number, extraFee = 0) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   return (await getCertificate(id))!;
 }
 
@@ -379,7 +526,442 @@ export async function deleteCertificate(id: number) {
     throw new Error("PUBLISHED");
   }
   const { error } = await supabaseAdmin().from("certificates").delete().eq("id", id);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
+}
+
+export type ConsultationLead = {
+  id: number;
+  service_type: "sales" | "amazon";
+  name: string;
+  phone: string;
+  email: string;
+  company_name: string;
+  certificate_no: string;
+  public_code: string;
+  message: string;
+  source_url: string;
+  ip: string;
+  status: "new" | "contacted" | "converted" | "closed";
+  created_at: string;
+  updated_at: string;
+};
+
+function mapLead(row: Record<string, unknown>): ConsultationLead {
+  return {
+    id: Number(row.id),
+    service_type: row.service_type as ConsultationLead["service_type"],
+    name: String(row.name || ""),
+    phone: String(row.phone || ""),
+    email: String(row.email || ""),
+    company_name: String(row.company_name || ""),
+    certificate_no: String(row.certificate_no || ""),
+    public_code: String(row.public_code || ""),
+    message: String(row.message || ""),
+    source_url: String(row.source_url || ""),
+    ip: String(row.ip || ""),
+    status: (row.status as ConsultationLead["status"]) || "new",
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  };
+}
+
+export async function createLead(input: {
+  service_type: "sales" | "amazon";
+  name: string;
+  phone: string;
+  email?: string;
+  company_name?: string;
+  certificate_no?: string;
+  public_code?: string;
+  message?: string;
+  source_url?: string;
+  ip?: string;
+}) {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("consultation_leads")
+      .insert({
+        service_type: input.service_type,
+        name: input.name.trim(),
+        phone: input.phone.trim(),
+        email: (input.email || "").trim(),
+        company_name: (input.company_name || "").trim(),
+        certificate_no: (input.certificate_no || "").trim(),
+        public_code: (input.public_code || "").trim(),
+        message: (input.message || "").trim(),
+        source_url: (input.source_url || "").trim(),
+        ip: (input.ip || "").trim(),
+      })
+      .select("id")
+      .single();
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+    return Number((data as any)?.id ?? 0);
+  } catch (e: any) {
+    if (isMissingConsultationTableError(e)) {
+      console.warn("[Supabase] consultation_leads table missing - lead will be emailed only, not stored in DB. Please run supabase/schema.sql");
+      return 0;
+    }
+    throw e;
+  }
+}
+
+export async function listLeads(): Promise<ConsultationLead[]> {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("consultation_leads")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+    return (data || []).map(mapLead);
+  } catch (e: any) {
+    if (isMissingConsultationTableError(e)) {
+      console.warn("[Supabase] consultation_leads table missing - returning empty list");
+      return [];
+    }
+    throw e;
+  }
+}
+
+export async function getLead(id: number) {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("consultation_leads")
+      .select("*")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+    return data ? mapLead(data) : undefined;
+  } catch (e: any) {
+    if (isMissingConsultationTableError(e)) return undefined;
+    throw e;
+  }
+}
+
+export async function updateLeadStatus(id: number, status: ConsultationLead["status"]) {
+  try {
+    const { error } = await supabaseAdmin()
+      .from("consultation_leads")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", id);
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+  } catch (e: any) {
+    if (isMissingConsultationTableError(e)) {
+      console.warn("[Supabase] consultation_leads table missing - updateLeadStatus skipped");
+      return;
+    }
+    throw e;
+  }
+}
+
+export async function deleteLead(id: number) {
+  try {
+    const { error } = await supabaseAdmin().from("consultation_leads").delete().eq("id", id);
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+  } catch (e: any) {
+    if (isMissingConsultationTableError(e)) {
+      console.warn("[Supabase] consultation_leads table missing - deleteLead skipped");
+      return;
+    }
+    throw e;
+  }
+}
+
+export type Company = {
+  id: number;
+  company_name: string;
+  email: string;
+  phone: string;
+  tax_code: string;
+  address: string;
+  contact_person: string;
+  notes: string;
+  created_at: string;
+  updated_at: string;
+};
+
+function mapCompany(row: Record<string, unknown>): Company {
+  return {
+    id: Number(row.id),
+    company_name: String(row.company_name || ""),
+    email: String(row.email || ""),
+    phone: String(row.phone || ""),
+    tax_code: String(row.tax_code || ""),
+    address: String(row.address || ""),
+    contact_person: String(row.contact_person || ""),
+    notes: String(row.notes || ""),
+    created_at: String(row.created_at),
+    updated_at: String(row.updated_at),
+  };
+}
+
+function isMissingCompaniesTableError(e: any): boolean {
+  if (!e) return false;
+  const msg = String(e.message || "");
+  if (msg.includes("companies") && (msg.includes("PGRST205") || msg.includes("schema cache") || msg.includes("does not exist"))) return true;
+  if (e.code === "PGRST205" && msg.includes("companies")) return true;
+  return false;
+}
+
+export async function listCompanies(): Promise<Company[]> {
+  try {
+    const { data, error } = await supabaseAdmin().from("companies").select("*").order("updated_at", { ascending: false });
+    if (error) assertNoSupabaseError(error, "companies");
+    const companies = (data || []).map(mapCompany);
+
+    // Merge with distinct company names from certificates (official DB)
+    try {
+      const { data: certData, error: certErr } = await supabaseAdmin()
+        .from("certificates")
+        .select("company_name")
+        .neq("company_name", "");
+      if (!certErr && certData) {
+        const existing = new Set(companies.map((c) => c.company_name.toLowerCase()));
+        const distinct = new Map<string, string>();
+        certData.forEach((r: any) => {
+          const name = String(r.company_name || "").trim();
+          if (name && !existing.has(name.toLowerCase())) {
+            distinct.set(name.toLowerCase(), name);
+          }
+        });
+        let idx = 0;
+        for (const name of Array.from(distinct.values())) {
+          companies.push({
+            id: -1000 - idx,
+            company_name: name,
+            email: "",
+            phone: "",
+            tax_code: "",
+            address: "",
+            contact_person: "",
+            notes: "Tự động từ chứng nhận",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+          idx++;
+        }
+      }
+    } catch {}
+
+    return companies;
+  } catch (e: any) {
+    if (isMissingCompaniesTableError(e)) {
+      console.warn("[Supabase] companies table missing - returning empty, please run schema.sql");
+      return [];
+    }
+    throw e;
+  }
+}
+
+export async function getCompany(id: number): Promise<Company | undefined> {
+  try {
+    const { data, error } = await supabaseAdmin().from("companies").select("*").eq("id", id).maybeSingle();
+    if (error) assertNoSupabaseError(error, "companies");
+    return data ? mapCompany(data) : undefined;
+  } catch (e: any) {
+    if (isMissingCompaniesTableError(e)) return undefined;
+    throw e;
+  }
+}
+
+export async function getCompanyByName(name: string): Promise<Company | undefined> {
+  try {
+    const { data, error } = await supabaseAdmin().from("companies").select("*").eq("company_name", name.trim()).maybeSingle();
+    if (error) assertNoSupabaseError(error, "companies");
+    return data ? mapCompany(data) : undefined;
+  } catch (e: any) {
+    if (isMissingCompaniesTableError(e)) return undefined;
+    throw e;
+  }
+}
+
+export async function createCompany(input: {
+  company_name: string;
+  email?: string;
+  phone?: string;
+  tax_code?: string;
+  address?: string;
+  contact_person?: string;
+  notes?: string;
+}): Promise<number> {
+  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+  const { data, error } = await supabaseAdmin()
+    .from("companies")
+    .insert({
+      company_name: input.company_name.trim(),
+      email: (input.email || "").trim(),
+      phone: (input.phone || "").trim(),
+      tax_code: (input.tax_code || "").trim(),
+      address: (input.address || "").trim(),
+      contact_person: (input.contact_person || "").trim(),
+      notes: (input.notes || "").trim(),
+    })
+    .select("id")
+    .single();
+  if (error) assertNoSupabaseError(error, "companies");
+  return Number((data as any)?.id ?? 0);
+}
+
+export async function updateCompany(
+  id: number,
+  input: {
+    company_name: string;
+    email?: string;
+    phone?: string;
+    tax_code?: string;
+    address?: string;
+    contact_person?: string;
+    notes?: string;
+  }
+) {
+  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
+  const { error } = await supabaseAdmin()
+    .from("companies")
+    .update({
+      company_name: input.company_name.trim(),
+      email: (input.email || "").trim(),
+      phone: (input.phone || "").trim(),
+      tax_code: (input.tax_code || "").trim(),
+      address: (input.address || "").trim(),
+      contact_person: (input.contact_person || "").trim(),
+      notes: (input.notes || "").trim(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) assertNoSupabaseError(error, "companies");
+}
+
+export async function deleteCompany(id: number) {
+  const { error } = await supabaseAdmin().from("companies").delete().eq("id", id);
+  if (error) assertNoSupabaseError(error, "companies");
+}
+
+export async function getCompanyStats(companyName: string) {
+  const sb = supabaseAdmin();
+  const { data: certsData, error: certErr } = await sb
+    .from("certificates")
+    .select("*")
+    .eq("company_name", companyName)
+    .order("updated_at", { ascending: false });
+  if (certErr) assertNoSupabaseError(certErr, "certificates");
+
+  let leadsData: any[] = [];
+  try {
+    const { data, error } = await sb
+      .from("consultation_leads")
+      .select("*")
+      .eq("company_name", companyName)
+      .order("created_at", { ascending: false });
+    if (error) assertNoSupabaseError(error, "consultation_leads");
+    leadsData = data || [];
+  } catch (e: any) {
+    if (!isMissingConsultationTableError(e)) throw e;
+  }
+
+  const certs = (certsData || []).map(mapCert);
+  const leads = leadsData.map(mapLead);
+  const services = new Set<string>();
+  certs.forEach((c) => services.add(c.standard));
+  leads.forEach((l) => services.add(l.service_type === "sales" ? "SALE_EXPORT" : "AMAZON_OPS"));
+
+  return {
+    certificates: certs,
+    leads,
+    services: Array.from(services),
+    totalCertificates: certs.length,
+    totalLeads: leads.length,
+  };
+}
+
+
+export type ExpiryNotification = {
+  id: number;
+  certificate_id: number;
+  company_name: string;
+  notification_type: "90_days" | "60_days" | "30_days" | "14_days" | "7_days" | "3_days" | "1_day" | "expired" | "renewal_reminder";
+  recipient_email: string;
+  status: "sent" | "failed";
+  sent_at: string;
+  created_at: string;
+};
+
+function mapExpiryNotification(row: Record<string, unknown>): ExpiryNotification {
+  return {
+    id: Number(row.id),
+    certificate_id: Number(row.certificate_id),
+    company_name: String(row.company_name || ""),
+    notification_type: row.notification_type as ExpiryNotification["notification_type"],
+    recipient_email: String(row.recipient_email || ""),
+    status: (row.status as ExpiryNotification["status"]) || "sent",
+    sent_at: String(row.sent_at),
+    created_at: String(row.created_at),
+  };
+}
+
+export async function listExpiryNotifications(limit = 100): Promise<ExpiryNotification[]> {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("expiry_notifications")
+      .select("*")
+      .order("sent_at", { ascending: false })
+      .limit(limit);
+    if (error) assertNoSupabaseError(error, "expiry_notifications");
+    return (data || []).map(mapExpiryNotification);
+  } catch (e: any) {
+    if (String(e.message || "").includes("expiry_notifications")) return [];
+    throw e;
+  }
+}
+
+export async function getExpiryNotificationsForCertificate(certId: number): Promise<ExpiryNotification[]> {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("expiry_notifications")
+      .select("*")
+      .eq("certificate_id", certId)
+      .order("sent_at", { ascending: false });
+    if (error) assertNoSupabaseError(error, "expiry_notifications");
+    return (data || []).map(mapExpiryNotification);
+  } catch {
+    return [];
+  }
+}
+
+export async function hasNotificationBeenSent(certId: number, type: string): Promise<boolean> {
+  try {
+    const { data, error } = await supabaseAdmin()
+      .from("expiry_notifications")
+      .select("id")
+      .eq("certificate_id", certId)
+      .eq("notification_type", type)
+      .limit(1)
+      .maybeSingle();
+    if (error) return false;
+    return !!data;
+  } catch {
+    return false;
+  }
+}
+
+export async function createExpiryNotification(input: {
+  certificate_id: number;
+  company_name: string;
+  notification_type: ExpiryNotification["notification_type"];
+  recipient_email: string;
+  status?: "sent" | "failed";
+}): Promise<number> {
+  const { data, error } = await supabaseAdmin()
+    .from("expiry_notifications")
+    .insert({
+      certificate_id: input.certificate_id,
+      company_name: input.company_name,
+      notification_type: input.notification_type,
+      recipient_email: input.recipient_email,
+      status: input.status || "sent",
+    })
+    .select("id")
+    .single();
+  if (error) assertNoSupabaseError(error, "expiry_notifications");
+  return Number((data as any)?.id ?? 0);
 }
 
 export async function revenueStats() {
@@ -388,7 +970,7 @@ export async function revenueStats() {
     .select("id, standard, service_price, published_at, registered_at, company_name, certificate_no, status")
     .eq("revenue_recorded", true)
     .not("published_at", "is", null);
-  if (error) throw error;
+  if (error) assertNoSupabaseError(error, "certificates");
   const rows = data || [];
 
   const monthMap = new Map<string, { month: string; FDA: number; GACC: number; total: number }>();
@@ -408,19 +990,15 @@ export async function revenueStats() {
     total += amt;
     if (r.standard === "FDA") fda += amt;
     else gacc += amt;
-    const bump = (
-      map: Map<string, { FDA: number; GACC: number; total: number } & Record<string, string>>,
-      key: string,
-      labelKey: string
-    ) => {
+    const bump = (map: Map<string, any>, key: string, labelKey: string) => {
       const cur = map.get(key) || { [labelKey]: key, FDA: 0, GACC: 0, total: 0 };
-      cur[r.standard as Standard] += amt;
-      cur.total += amt;
+      cur[r.standard as Standard] = (cur[r.standard as Standard] || 0) + amt;
+      cur.total = (cur.total || 0) + amt;
       map.set(key, cur);
     };
-    bump(monthMap as never, `${y}-${String(m).padStart(2, "0")}`, "month");
-    bump(quarterMap as never, `${y}-Q${q}`, "quarter");
-    bump(yearMap as never, String(y), "year");
+    bump(monthMap, `${y}-${String(m).padStart(2, "0")}`, "month");
+    bump(quarterMap, `${y}-Q${q}`, "quarter");
+    bump(yearMap, String(y), "year");
   }
 
   return {
@@ -428,9 +1006,9 @@ export async function revenueStats() {
     fda,
     gacc,
     count: rows.length,
-    months: [...monthMap.values()].sort((a, b) => a.month.localeCompare(b.month)),
-    quarters: [...quarterMap.values()].sort((a, b) => a.quarter.localeCompare(b.quarter)),
-    years: [...yearMap.values()].sort((a, b) => a.year.localeCompare(b.year)),
+    months: Array.from(monthMap.values()).sort((a, b) => a.month.localeCompare(b.month)),
+    quarters: Array.from(quarterMap.values()).sort((a, b) => a.quarter.localeCompare(b.quarter)),
+    years: Array.from(yearMap.values()).sort((a, b) => a.year.localeCompare(b.year)),
     recent: rows
       .slice()
       .sort((a, b) => (String(a.published_at) < String(b.published_at) ? 1 : -1))
