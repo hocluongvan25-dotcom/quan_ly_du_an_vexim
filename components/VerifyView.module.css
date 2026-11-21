@@ -49,7 +49,7 @@
 .mutedIcon { color: var(--verify-muted); flex-shrink: 0; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; overflow-wrap: anywhere; letter-spacing: .02em; }
 .iconButton { width: 30px; height: 30px; border-radius: 4px; display: inline-grid; place-items: center; flex-shrink: 0; color: var(--verify-muted); border: 1px solid transparent; }
-.iconButton:hover { color: var(--verify-navy); background: #f2f5f8; border-color: var(--verify-border); }
+.iconButton:hover { color: var(--verify-navy); background: #f5f5f7; border-color: var(--verify-border); }
 .documentBody { padding: 28px 40px 32px; border-top: 1px solid var(--verify-border); }
 .sectionHeading { display: flex; align-items: center; gap: 13px; margin-bottom: 16px; }
 .sectionNumber { width: 35px; height: 35px; background: var(--verify-navy); color: #dcecff; display: grid; place-items: center; font-size: 12px; font-weight: 600; border-radius: 4px; }
@@ -100,33 +100,8 @@
 .support a { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; font-weight: 600; overflow-wrap: anywhere; }
 .support a svg { color: var(--verify-accent); flex-shrink: 0; }
 .support a:hover { text-decoration: underline; }
-.services { border-top: 1px solid var(--verify-border); border-bottom: 1px solid var(--verify-border); }
-.services summary { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 2px; font-size: 12px; font-weight: 600; cursor: pointer; list-style: none; }
-.services summary::-webkit-details-marker { display: none; }
-.services summary small { display: block; color: var(--verify-muted); font-size: 10px; font-weight: 400; margin-top: 3px; }
-.services summary svg { flex-shrink: 0; transition: transform .2s; }
-.services[open] summary svg { transform: rotate(180deg); }
-.serviceGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 0 0 20px; }
-.serviceCard { background: white; padding: 20px; border: 1px solid var(--verify-border); border-radius: 5px; }
-.serviceCard h3 { font-size: 13px; font-weight: 700; }
-.serviceCard p { color: var(--verify-muted); font-size: 12px; margin: 8px 0 16px; }
-.serviceCard > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.serviceCard a { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--verify-muted); }
 .pageFooter { display: flex; justify-content: space-between; gap: 16px; padding-top: 20px; color: var(--verify-muted); font-size: 9px; }
 .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 60; background: var(--verify-navy); color: white; padding: 14px 20px; border-radius: 6px; font-size: 12px; box-shadow: 0 4px 20px #1d1d1f33; width: max-content; max-width: calc(100vw - 32px); }
-.dialog { position: fixed; inset: 0; margin: auto; max-width: 440px; width: calc(100% - 32px); max-height: calc(100dvh - 40px); padding: 0; border: 1px solid var(--verify-border); border-radius: 10px; color: var(--verify-navy); box-shadow: 0 20px 100px #1d1d1f40; }
-.dialog::backdrop { background: #000000a8; }
-.dialogBody { padding: 32px; position: relative; background: white; }
-.dialog h2 { font-size: 22px; font-weight: 700; line-height: 1.4; margin: 12px 0; }
-.dialog h2 + p { color: var(--verify-muted); font-size: 13px; }
-.dialog .eyebrow { padding-right: 20px; }
-.closeButton { position: absolute; right: 12px; top: 12px; border-radius: 4px; padding: 6px; }
-.closeButton:hover { background: #f2f5f8; }
-.dialog form { margin-top: 20px; }
-.dialog label { display: block; margin: 14px 0 6px; font-size: 12px; font-weight: 600; }
-.dialog input { width: 100%; border: 1px solid var(--verify-border); border-radius: 5px; padding: 10px 12px; font-size: 16px; }
-.dialog form > button { margin-top: 22px; width: 100%; }
-.dialog .formError { color: #a8333d; font-size: 12px; margin-top: 12px; }
 .spinning { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinning { animation: none; } }
@@ -187,9 +162,7 @@
   .actions { flex-wrap: wrap; }
   .actions > button { min-width: 120px; font-size: 10px; padding: 10px; }
   .support { padding: 24px 6px; }
-  .serviceGrid { grid-template-columns: 1fr; }
   .pageFooter { flex-direction: column; align-items: center; gap: 4px; }
-  .dialogBody { padding: 26px 22px; }
 }
 
 /* Small language control in the existing header; document/table layout is unchanged. */

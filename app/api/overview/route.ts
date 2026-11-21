@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 // GET /api/overview — Toàn cảnh vận hành (CHỈ ADMIN)
-// Tổng hợp: CRM + doanh thu chứng nhận + leads → tăng trưởng + KPI nhân viên theo kỳ
+// Tổng hợp cơ hội CRM, doanh thu chứng nhận và KPI nhân viên theo kỳ
 export async function GET() {
   try {
     const user = getSession();

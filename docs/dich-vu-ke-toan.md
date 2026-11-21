@@ -1,43 +1,33 @@
-# Hợp đồng dịch vụ & Kế toán thu chi
+# Kế toán — hóa đơn chứng nhận và thu chi
 
-## 1. Hợp đồng dịch vụ (`/dashboard/dich-vu`)
+Hóa đơn và các đợt thu được quản lý trong khu vực **Kế toán**. Trang `/dashboard/ho-so/[id]` chỉ lưu và cập nhật hồ sơ chứng nhận; không tạo, sửa hay thu tiền hóa đơn tại đó.
 
-- 2 loại: **Sale xuất khẩu** (`VXM-SALE-YYYY-NNNN`), **Vận hành Amazon** (`VXM-AMZ-YYYY-NNNN`).
-- **Tự sinh khi chốt deal**: kéo thẻ vào "Chốt hợp đồng" → HĐ tạo sẵn với dữ liệu từ deal
-  (công ty, liên hệ, SĐT, email, giá trị). Sale chỉ xác nhận **ngày bắt đầu + chu kỳ** trong popup.
-- Chu kỳ **nhập tay 1–60 tháng** (gợi ý nhanh 3/6/12) — ngày hết hạn tự tính từ ngày bắt đầu.
-- Tạo tay chỉ dành cho khách ngoài CRM. Hết hạn → **Gia hạn** (giữ mã HĐ, nối từ ngày hết hạn cũ).
-- Chấm dứt sớm / kích hoạt lại bằng 1 nút. Xóa chỉ khi chưa có hóa đơn nào.
+## 1. Lập và quản lý hóa đơn
 
-## 2. Hóa đơn & thu tiền (chỉ Admin/kế toán)
+- Chỉ Admin/kế toán được xem và thao tác hóa đơn.
+- Vào `/dashboard/ke-toan/hoa-don/moi`, chọn hồ sơ FDA/GACC làm chứng từ gốc, sau đó lập hóa đơn cho từng đợt thu.
+- Danh sách tập trung tại `/dashboard/ke-toan/hoa-don`; từng hóa đơn có trang chi tiết và đường dẫn về khu vực quản lý hóa đơn của hồ sơ tương ứng.
+- Mỗi đợt thu là một hóa đơn (`VXM-INV-YYYY-NNNN`). Mỗi hóa đơn chỉ tham chiếu một hồ sơ chứng nhận (`ref_type = certificate`).
+- Nhập số tiền chưa VAT và VAT % (mặc định 8%); hệ thống tự tính tiền VAT và tổng.
+- Ghi nhận nhiều lần thu cho mỗi hóa đơn (ngày, hình thức, mã giao dịch, ghi chú).
+- Trạng thái được suy ra từ khoản đã thu và hạn thanh toán: Đã xuất, Sắp đến hạn, Quá hạn, Thu một phần, Đã thu đủ hoặc Đã hủy.
+- Khóa số tiền sau lần thu đầu tiên; chỉ được sửa nội dung/hạn/ghi chú. Hủy hoặc xóa theo các điều kiện hiện có.
+- Có thể tạo/in giấy đề nghị thanh toán A4 từ trang hóa đơn; giấy đề nghị không thay thế hóa đơn điện tử thuế.
 
-- Nằm trong trang chi tiết **Hồ sơ FDA/GACC** và **Hợp đồng dịch vụ**: mỗi **đợt thu = 1 hóa đơn** (`VXM-INV-YYYY-NNNN`).
-- Nhập số tiền **chưa VAT** + **VAT %** (mặc định **8%**) → hệ thống tự tính tiền VAT & tổng.
-- Mỗi hóa đơn ghi được **nhiều lần thu** (ngày, hình thức, mã giao dịch, ghi chú).
-- Trạng thái tự suy ra: Đã xuất → Sắp đến hạn (≤7 ngày) → Quá hạn / Thu một phần / Đã thu đủ.
-- **Khóa số tiền** sau khi đã thu đồng đầu tiên (chỉ sửa nội dung/hạn/ghi chú). Hủy/xóa chỉ khi chưa thu.
-- Nút **In** ra hóa đơn A4 (có số tiền bằng chữ) để gửi khách / lưu PDF.
+## 2. Tổng quan kế toán (`/dashboard/ke-toan`, chỉ Admin)
 
-## 3. Tổng quan kế toán (`/dashboard/ke-toan`, chỉ Admin)
+- KPI: tổng đã xuất hóa đơn / đã thu / còn phải thu / quá hạn.
+- Hai danh sách: quá hạn và đến hạn trong 7 ngày.
+- Biểu đồ dòng tiền 12 tháng: đã xuất và đã thu.
+- `/dashboard/ke-toan/hoa-don`: tra cứu mọi hóa đơn, lọc theo trạng thái và lập hóa đơn mới.
 
-- KPI: tổng đã xuất HĐ / đã thu / còn phải thu / quá hạn.
-- 2 bảng: **quá hạn** và **đến hạn trong 7 ngày** (bấm vào xem chi tiết).
-- Biểu đồ dòng tiền **12 tháng**: đã xuất vs đã thu.
-- `/dashboard/ke-toan/hoa-don`: tra cứu mọi hóa đơn, lọc theo trạng thái.
+## 3. Nhắc việc liên thông CRM
 
-## 4. Nhắc việc liên thông CRM
+- Cơ hội FDA/GACC đã tiếp nhận và chốt có thể liên kết với hồ sơ chứng nhận; hoàn tất hồ sơ thì nhắc việc tương ứng được đóng.
+- Hóa đơn và thông báo đến hạn được theo dõi trong khu vực Kế toán/chuông thông báo, độc lập với trang lưu hồ sơ.
 
-- Chốt deal **FDA/GACC** → màn hình ăn mừng + banner + chuông **📁 Hồ sơ** dẫn sang tạo hồ sơ
-  (điền sẵn công ty, email, giá trị deal). Tạo xong → tự hết nhắc.
-- Chốt deal **Sale/Amazon** → HĐ **tự sinh sẵn**, popup ăn mừng chỉ hỏi ngày bắt đầu + chu kỳ.
-  Banner trang deal chuyển thành "Xem hợp đồng". Chuông chỉ nhắc các deal cũ chưa có HĐ.
+## 4. Triển khai Supabase
 
-## 5. Triển khai Supabase
+Chạy `supabase/schema.sql` trên Supabase. Với cơ sở dữ liệu đã chạy trước khi loại bỏ hóa đơn hợp đồng dịch vụ, áp dụng migration `supabase/migrations/20261121_remove_sale_amazon.sql` theo kế hoạch triển khai đã kiểm tra; migration xóa dữ liệu hóa đơn dịch vụ cũ trước khi giới hạn `invoices.ref_type` còn `certificate`.
 
-Chạy toàn bộ `supabase/schema.sql` trên Supabase rồi:
-
-```sql
-NOTIFY pgrst, 'reload schema';
-```
-
-3 bảng mới: `service_contracts`, `invoices`, `invoice_payments` (RLS service-role full như các bảng cũ).
+Các bảng kế toán đang dùng: `invoices`, `invoice_payments`. SQLite tự di trú dữ liệu cũ khi khởi động ứng dụng.

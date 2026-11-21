@@ -54,12 +54,17 @@ export default function InvoicesPage() {
         <div>
           <h1 className="font-display text-3xl font-extrabold text-navy-900">Tất cả hóa đơn</h1>
           <p className="mt-1 text-sm text-navy-900/55">
-            Tạo hóa đơn từ trang chi tiết hồ sơ / hợp đồng — mỗi đợt thu 1 hóa đơn
+            Hóa đơn chứng nhận và các đợt thu được quản lý tập trung tại Kế toán.
           </p>
         </div>
-        <Link href="/dashboard/ke-toan" className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold shadow-sm">
-          ← Tổng quan kế toán
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/dashboard/ke-toan/hoa-don/moi" className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-teal-800">
+            + Lập hóa đơn
+          </Link>
+          <Link href="/dashboard/ke-toan" className="rounded-xl bg-white px-4 py-2.5 text-sm font-bold shadow-sm">
+            ← Tổng quan kế toán
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
@@ -113,11 +118,8 @@ export default function InvoicesPage() {
                     {i.contract_no && <div className="mt-1 break-all text-xs text-slate-500">Số hợp đồng: <span className="font-mono">{i.contract_no}</span></div>}
                   </td>
                   <td className="px-4 py-3 text-xs">
-                    <Link
-                      href={i.ref_type === "certificate" ? `/dashboard/ho-so/${i.ref_id}` : `/dashboard/dich-vu/${i.ref_id}`}
-                      className="font-bold text-teal-700"
-                    >
-                      {i.ref_type === "certificate" ? "Hồ sơ" : "Hợp đồng"} #{i.ref_id}
+                    <Link href={`/dashboard/ho-so/${i.ref_id}`} className="font-bold text-teal-700">
+                      Hồ sơ chứng nhận #{i.ref_id}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-xs">{i.issue_date}</td>

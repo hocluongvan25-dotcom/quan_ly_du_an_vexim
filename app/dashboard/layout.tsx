@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { cookies } from "next/headers";
 import { isSidebarCollapsed, SIDEBAR_COOKIE } from "@/lib/sidebar-preference";
 import { DashboardHeader } from "@/components/DashboardHeader";
+import "./ho-so/records.css";
 
 export const runtime = "nodejs";
 

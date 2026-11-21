@@ -1,8 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Building2, Mail, Phone, FileText, Search, Plus, Edit3, Trash2, Loader2, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  Building2,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  FileText,
+  Loader2,
+  Mail,
+  MapPin,
+  Pencil,
+  Phone,
+  Plus,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 
 type Company = {
   id: number;
@@ -21,17 +38,18 @@ type Company = {
   nearest_remaining?: number | null;
   nearest_cert_no?: string | null;
   nearest_standard?: string | null;
-  expiries?: Array<{ expires_at: string; remaining: number; certificate_no: string; standard: string; status: string }>;
 };
 
-type CompanyWithStats = Company & {
-  stats?: {
-    certificates: any[];
-    leads: any[];
-    services: string[];
-    totalCertificates: number;
-    totalLeads: number;
-  };
+type CompanyForm = Pick<Company, "company_name" | "email" | "phone" | "tax_code" | "address" | "contact_person" | "notes">;
+
+const emptyForm: CompanyForm = {
+  company_name: "",
+  email: "",
+  phone: "",
+  tax_code: "",
+  address: "",
+  contact_person: "",
+  notes: "",
 };
 
 export default function CompaniesPage() {
@@ -40,300 +58,250 @@ export default function CompaniesPage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<Company | null>(null);
-  const [form, setForm] = useState({
-    company_name: "",
-    email: "",
-    phone: "",
-    tax_code: "",
-    address: "",
-    contact_person: "",
-    notes: "",
-  });
+  const [form, setForm] = useState<CompanyForm>(emptyForm);
   const [busy, setBusy] = useState(false);
-  const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
 
-  const fetchCompanies = async () => {
+  const fetchCompanies = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/companies");
-      const data = await res.json();
-      if (res.ok) setCompanies(data.companies || []);
-    } catch {}
-    setLoading(false);
-  };
+      const response = await fetch("/api/companies");
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không tải được danh sách doanh nghiệp.");
+      setCompanies(data.companies || []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không tải được danh sách doanh nghiệp.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     fetchCompanies();
-  }, []);
+  }, [fetchCompanies]);
 
-  const filtered = companies.filter((c) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      c.company_name.toLowerCase().includes(q) ||
-      c.email.toLowerCase().includes(q) ||
-      c.phone.includes(q) ||
-      c.tax_code.toLowerCase().includes(q)
+  const filtered = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("vi");
+    if (!query) return companies;
+    return companies.filter((company) =>
+      [company.company_name, company.email, company.phone, company.tax_code, company.contact_person]
+        .join(" ")
+        .toLocaleLowerCase("vi")
+        .includes(query)
     );
-  });
+  }, [companies, search]);
 
-  const openCreate = () => {
+  const openCreate = (company?: Company) => {
     setEditing(null);
-    setForm({
-      company_name: "",
-      email: "",
-      phone: "",
-      tax_code: "",
-      address: "",
-      contact_person: "",
-      notes: "",
-    });
+    setForm(company ? { ...emptyForm, company_name: company.company_name } : emptyForm);
+    setError("");
     setShowForm(true);
-    setMsg("");
   };
 
-  const openEdit = (c: Company) => {
-    setEditing(c);
+  const openEdit = (company: Company) => {
+    setEditing(company);
     setForm({
-      company_name: c.company_name,
-      email: c.email,
-      phone: c.phone,
-      tax_code: c.tax_code,
-      address: c.address,
-      contact_person: c.contact_person,
-      notes: c.notes,
+      company_name: company.company_name,
+      email: company.email,
+      phone: company.phone,
+      tax_code: company.tax_code,
+      address: company.address,
+      contact_person: company.contact_person,
+      notes: company.notes,
     });
+    setError("");
     setShowForm(true);
-    setMsg("");
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const saveCompany = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     setBusy(true);
-    setMsg("");
+    setError("");
     try {
-      const url = editing ? `/api/companies/${editing.id}` : "/api/companies";
-      const method = editing ? "PUT" : "POST";
-      const res = await fetch(url, {
-        method,
+      const response = await fetch(editing ? `/api/companies/${editing.id}` : "/api/companies", {
+        method: editing ? "PUT" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setMsg(data.error || "Lỗi khi lưu");
-        setBusy(false);
-        return;
-      }
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không lưu được hồ sơ.");
       setShowForm(false);
       await fetchCompanies();
-    } catch (err: any) {
-      setMsg(err.message || "Lỗi");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Không lưu được hồ sơ.");
+    } finally {
+      setBusy(false);
     }
-    setBusy(false);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm("Bạn chắc chắn muốn xóa hồ sơ doanh nghiệp này?")) return;
+  const deleteCompany = async (company: Company) => {
+    if (!window.confirm(`Xóa hồ sơ của ${company.company_name}?`)) return;
     try {
-      const res = await fetch(`/api/companies/${id}`, { method: "DELETE" });
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.error || "Xóa thất bại");
-        return;
-      }
+      const response = await fetch(`/api/companies/${company.id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Không xóa được hồ sơ.");
       await fetchCompanies();
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Không xóa được hồ sơ.");
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-2xl font-extrabold text-navy-900 flex items-center gap-2">
-            <Building2 className="h-6 w-6 text-teal-600" /> Quản Lý Hồ Sơ Doanh Nghiệp
-          </h1>
-          <p className="mt-1 text-sm text-navy-900/60">
-            Dữ liệu chính thức từ database: tên công ty, email, SĐT, MST, dịch vụ đã đăng ký (FDA, GACC, Sale Export, Amazon)
-          </p>
-        </div>
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center gap-2 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white shadow-lift hover:bg-black"
-        >
-          <Plus className="h-4 w-4" /> Thêm Doanh Nghiệp
-        </button>
-      </div>
-
-      <div className="rounded-3xl bg-white p-5 shadow-card">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm theo tên, email, SĐT, MST..."
-              className="input pl-10"
-            />
+    <div className="records-page">
+      <div className="records-page__inner">
+        <header className="rec-head">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#6e6e73]">Vận hành</p>
+            <h1 className="rec-head__title mt-1">Doanh nghiệp</h1>
+            <p className="rec-head__sub">Theo dõi hồ sơ, báo giá, chứng nhận và bước tiếp theo tại một nơi.</p>
           </div>
-          <div className="text-sm text-slate-500">{filtered.length} doanh nghiệp</div>
-        </div>
+          <div className="rec-head__actions">
+            <button className="rec-btn-primary" onClick={() => openCreate()}>
+              <Plus className="h-4 w-4" /> Thêm doanh nghiệp
+            </button>
+          </div>
+        </header>
+
+        <section className="rec-toolbar" aria-label="Tìm doanh nghiệp">
+          <div className="rec-toolbar__row">
+            <div className="rec-search">
+              <Search className="rec-search__icon" />
+              <input
+                className="rec-search__input"
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Tìm tên, email, số điện thoại hoặc mã số thuế"
+                aria-label="Tìm doanh nghiệp"
+              />
+              {search && (
+                <button className="rec-search__clear" onClick={() => setSearch("")} aria-label="Xóa nội dung tìm kiếm">
+                  <X className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+            <span className="rec-count">{filtered.length} doanh nghiệp</span>
+          </div>
+        </section>
+
+        {error && !showForm && (
+          <div className="mt-4 rounded-2xl border border-red-200 bg-white px-4 py-3 text-sm text-red-700" role="alert">
+            {error}
+          </div>
+        )}
 
         {loading ? (
-          <div className="flex items-center justify-center py-12 text-slate-400">
-            <Loader2 className="h-5 w-5 animate-spin mr-2" /> Đang tải...
+          <div className="rec-fallback flex items-center justify-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" /> Đang tải doanh nghiệp
           </div>
         ) : filtered.length === 0 ? (
-          <div className="py-12 text-center text-slate-500">
-            <Building2 className="h-10 w-10 mx-auto mb-3 opacity-20" />
-            <div>Chưa có hồ sơ doanh nghiệp nào</div>
-            <div className="text-xs mt-1">Thêm mới hoặc hệ thống sẽ tự tạo khi có chứng nhận FDA/GACC</div>
+          <div className="rec-card mt-4">
+            <div className="rec-empty">
+              <div className="rec-empty__icon"><Building2 className="h-5 w-5" /></div>
+              <div className="rec-empty__title">{search ? "Không tìm thấy doanh nghiệp" : "Chưa có doanh nghiệp"}</div>
+              <div className="rec-empty__text">
+                {search ? "Thử tên công ty, email hoặc mã số thuế khác." : "Tạo hồ sơ để bắt đầu theo dõi công việc của khách hàng."}
+              </div>
+              {!search && <button className="rec-btn-primary mt-4" onClick={() => openCreate()}><Plus className="h-4 w-4" /> Thêm doanh nghiệp</button>}
+            </div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wider text-slate-400 border-b">
-                  <th className="py-3 px-3">Công Ty</th>
-                  <th className="py-3 px-3">Email / SĐT</th>
-                  <th className="py-3 px-3">MST</th>
-                  <th className="py-3 px-3">Dịch Vụ Đã ĐK</th>
-                  <th className="py-3 px-3">Đếm Ngược Hết Hạn</th>
-                  <th className="py-3 px-3">Hành Động</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((c) => (
-                  <tr key={c.id} className="border-b last:border-0 hover:bg-slate-50/70">
-                    <td className="py-3 px-3">
-                      <div className="font-semibold text-navy-900">{c.company_name}</div>
-                      <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                        {c.contact_person && <span>{c.contact_person} · </span>}
-                        {c.address && <span className="truncate max-w-[200px]">{c.address}</span>}
+          <div className="mt-4 grid gap-3">
+            {filtered.map((company) => (
+              <article key={company.id} className="rounded-[20px] border border-black/[0.08] bg-white p-4 shadow-[0_1px_2px_rgba(0,0,0,.04)] transition hover:border-black/[0.14] sm:p-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#f2f2f7] text-[#6e6e73]">
+                      <Building2 className="h-5 w-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Link
+                          href={company.id > 0 ? `/dashboard/doanh-nghiep/${company.id}` : `/dashboard/doanh-nghiep/${company.id}?name=${encodeURIComponent(company.company_name)}`}
+                          className="truncate text-base font-semibold tracking-tight text-[#1d1d1f] hover:text-[#0071e3]"
+                        >
+                          {company.company_name}
+                          <ArrowUpRight className="ml-1 inline h-3.5 w-3.5 text-[#86868b]" />
+                        </Link>
+                        {company.id < 0 && <span className="rec-badge rec-badge--draft">Chưa hoàn thiện</span>}
                       </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-1.5 text-xs">
-                        <Mail className="h-3 w-3 text-slate-400" /> {c.email || "—"}
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-xs text-[#6e6e73]">
+                        {company.contact_person && <span>{company.contact_person}</span>}
+                        {company.email && <span className="inline-flex items-center gap-1"><Mail className="h-3 w-3" />{company.email}</span>}
+                        {company.phone && <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" />{company.phone}</span>}
+                        {company.tax_code && <span>MST {company.tax_code}</span>}
+                        {company.address && <span className="inline-flex items-center gap-1"><MapPin className="h-3 w-3" />{company.address}</span>}
                       </div>
-                      <div className="flex items-center gap-1.5 text-xs mt-1">
-                        <Phone className="h-3 w-3 text-slate-400" /> {c.phone || "—"}
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        {(company.standards || []).length > 0 ? company.standards!.map((standard) => (
+                          <span key={standard} className={`rec-standard ${standard === "GACC" ? "rec-standard--gacc" : ""}`}>{standard}</span>
+                        )) : <span className="text-xs text-[#86868b]">Chưa có chứng nhận</span>}
+                        {company.certificate_count ? (
+                          <span className="rec-term"><FileText className="mr-1 h-3 w-3" />{company.certificate_count} chứng nhận</span>
+                        ) : null}
                       </div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="font-mono text-xs font-semibold">{c.tax_code || "—"}</div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <CompanyServices companyName={c.company_name} company={c} />
-                    </td>
-                    <td className="py-3 px-3">
-                      <ExpiryCountdown company={c} />
-                    </td>
-                    <td className="py-3 px-3">
-                      <div className="flex items-center gap-1.5">
-                        {c.id > 0 ? (
-                          <>
-                            <Link
-                              href={`/dashboard/doanh-nghiep/${c.id}`}
-                              className="p-2 rounded-lg border hover:bg-white"
-                              title="Xem chi tiết"
-                            >
-                              <FileText className="h-4 w-4" />
-                            </Link>
-                            <button onClick={() => openEdit(c)} className="p-2 rounded-lg border hover:bg-white" title="Sửa">
-                              <Edit3 className="h-4 w-4" />
-                            </button>
-                            <button onClick={() => handleDelete(c.id)} className="p-2 rounded-lg border hover:bg-rose-50 text-rose-600" title="Xóa">
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <span className="text-[11px] text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-full">Chưa có hồ sơ</span>
-                            <button
-                              onClick={() => {
-                                setEditing(null);
-                                setForm({
-                                  company_name: c.company_name,
-                                  email: "",
-                                  phone: "",
-                                  tax_code: "",
-                                  address: "",
-                                  contact_person: "",
-                                  notes: "",
-                                });
-                                setShowForm(true);
-                              }}
-                              className="p-2 rounded-lg bg-navy-900 text-white hover:bg-black"
-                              title="Tạo hồ sơ chính thức"
-                            >
-                              <Plus className="h-4 w-4" />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 border-t border-black/[0.06] pt-3 sm:w-[240px] sm:justify-end sm:border-0 sm:pt-0">
+                    <ExpiryBadge company={company} />
+                    <div className="flex shrink-0 items-center gap-1">
+                      {company.id < 0 ? (
+                        <button className="rec-btn-quiet" onClick={() => openCreate(company)}><Plus className="h-3.5 w-3.5" /> Hoàn thiện</button>
+                      ) : (
+                        <>
+                          <button className="rec-btn-quiet" onClick={() => openEdit(company)} title="Sửa hồ sơ" aria-label={`Sửa ${company.company_name}`}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button className="rec-btn-quiet text-[#b3261e]" onClick={() => deleteCompany(company)} title="Xóa hồ sơ" aria-label={`Xóa ${company.company_name}`}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                          <Link className="rec-btn-quiet" href={`/dashboard/doanh-nghiep/${company.id}`} aria-label={`Mở ${company.company_name}`}>
+                            <ChevronRight className="h-4 w-4" />
+                          </Link>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-          <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h3 className="font-display text-xl font-bold text-navy-900">
-              {editing ? "Sửa Hồ Sơ Doanh Nghiệp" : "Thêm Doanh Nghiệp Mới"}
-            </h3>
-            <p className="text-xs text-slate-500 mt-1">Dữ liệu lưu chính thức vào database (Supabase / SQLite)</p>
-
-            <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 p-4 backdrop-blur-[2px]" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowForm(false); }}>
+          <div className="w-full max-w-xl overflow-hidden rounded-[24px] bg-white shadow-2xl">
+            <div className="flex items-start justify-between border-b border-black/[0.08] px-6 py-5">
               <div>
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Tên Công Ty *</label>
-                <input className="input mt-1" required value={form.company_name} onChange={(e) => setForm({ ...form, company_name: e.target.value })} placeholder="VD: An Phat Food JSC" />
+                <h2 className="text-xl font-semibold tracking-tight text-[#1d1d1f]">{editing ? "Sửa hồ sơ doanh nghiệp" : "Thêm doanh nghiệp"}</h2>
+                <p className="mt-1 text-sm text-[#6e6e73]">Nhập thông tin để theo dõi mọi bước xử lý.</p>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Email</label>
-                  <input className="input mt-1" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="contact@company.com" />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">SĐT</label>
-                  <input className="input mt-1" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="09xxxxxxx" />
-                </div>
+              <button className="rounded-full bg-[#f2f2f7] p-2 text-[#6e6e73] hover:bg-[#e8e8ed]" onClick={() => setShowForm(false)} aria-label="Đóng">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={saveCompany} className="max-h-[75vh] space-y-4 overflow-y-auto px-6 py-5">
+              <Field label="Tên doanh nghiệp" required>
+                <input className="rec-form-input" required autoFocus value={form.company_name} onChange={(event) => setForm({ ...form, company_name: event.target.value })} placeholder="Tên công ty" />
+              </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Email"><input className="rec-form-input" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="ten@congty.vn" /></Field>
+                <Field label="Số điện thoại"><input className="rec-form-input" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} placeholder="09xx xxx xxx" /></Field>
               </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Mã Số Thuế</label>
-                  <input className="input mt-1 font-mono" value={form.tax_code} onChange={(e) => setForm({ ...form, tax_code: e.target.value })} placeholder="0101234567" />
-                </div>
-                <div>
-                  <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Người Liên Hệ</label>
-                  <input className="input mt-1" value={form.contact_person} onChange={(e) => setForm({ ...form, contact_person: e.target.value })} placeholder="Nguyễn Văn A" />
-                </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Mã số thuế"><input className="rec-form-input" value={form.tax_code} onChange={(event) => setForm({ ...form, tax_code: event.target.value })} placeholder="Mã số thuế" /></Field>
+                <Field label="Người liên hệ"><input className="rec-form-input" value={form.contact_person} onChange={(event) => setForm({ ...form, contact_person: event.target.value })} placeholder="Họ và tên" /></Field>
               </div>
-              <div>
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Địa Chỉ</label>
-                <input className="input mt-1" value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Số nhà, đường, quận, tỉnh" />
-              </div>
-              <div>
-                <label className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Ghi Chú</label>
-                <textarea className="input mt-1 min-h-[70px]" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Ghi chú nội bộ..." />
-              </div>
-
-              {msg && <div className="rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{msg}</div>}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="rounded-xl border px-4 py-2.5 text-sm font-semibold">
-                  Hủy
-                </button>
-                <button type="submit" disabled={busy} className="rounded-xl bg-navy-900 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
-                  {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : editing ? "Cập Nhật" : "Tạo Mới"}
+              <Field label="Địa chỉ"><input className="rec-form-input" value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} placeholder="Địa chỉ doanh nghiệp" /></Field>
+              <Field label="Ghi chú"><textarea className="rec-form-input min-h-20 resize-y" value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Thông tin cần nhớ" /></Field>
+              {error && <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">{error}</div>}
+              <div className="flex justify-end gap-2 border-t border-black/[0.08] pt-4">
+                <button type="button" className="rec-btn-quiet" onClick={() => setShowForm(false)}>Hủy</button>
+                <button type="submit" className="rec-btn-primary" disabled={busy}>
+                  {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+                  {editing ? "Lưu thay đổi" : "Tạo hồ sơ"}
                 </button>
               </div>
             </form>
@@ -344,127 +312,29 @@ export default function CompaniesPage() {
   );
 }
 
-function ExpiryCountdown({ company }: { company: Company }) {
-  const remaining = company.nearest_remaining;
-  const expiry = company.nearest_expiry;
-  const certNo = company.nearest_cert_no;
-  const standard = company.nearest_standard;
-
-  if (remaining == null || !expiry) {
-    return <span className="text-xs text-slate-400">Chưa có chứng nhận</span>;
-  }
-
-  const isExpired = remaining < 0;
-  const isUrgent = remaining >= 0 && remaining <= 30;
-  const isWarning = remaining > 30 && remaining <= 90;
-
-  const absDays = Math.abs(remaining);
-  const years = Math.floor(absDays / 365);
-  const days = absDays % 365;
-
-  let color = "bg-slate-50 text-slate-600 border-slate-200";
-  let icon = <Clock className="h-3.5 w-3.5" />;
-  let label = "";
-
-  if (isExpired) {
-    color = "bg-rose-50 text-rose-700 border-rose-200";
-    icon = <AlertTriangle className="h-3.5 w-3.5" />;
-    label = `Hết hạn ${absDays} ngày`;
-  } else if (isUrgent) {
-    color = "bg-rose-50 text-rose-700 border-rose-200";
-    icon = <AlertTriangle className="h-3.5 w-3.5" />;
-    if (remaining === 0) label = "Hết hạn hôm nay";
-    else if (remaining === 1) label = "Còn 1 ngày";
-    else label = `Còn ${remaining} ngày`;
-  } else if (isWarning) {
-    color = "bg-blue-50 text-blue-700 border-blue-200";
-    icon = <Clock className="h-3.5 w-3.5" />;
-    label = `Còn ${remaining} ngày`;
-  } else {
-    color = "bg-emerald-50 text-emerald-700 border-emerald-200";
-    icon = <CheckCircle2 className="h-3.5 w-3.5" />;
-    label = years > 0 ? `Còn ${years} năm ${days} ngày` : `Còn ${remaining} ngày`;
-  }
-
-  const formatDate = (iso: string) => {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return iso.slice(0, 10);
-    return d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric" });
-  };
-
+function Field({ children, label, required }: { children: React.ReactNode; label: string; required?: boolean }) {
   return (
-    <div className="min-w-[160px]">
-      <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${color}`}>
-        {icon}
-        <span>{label}</span>
-      </div>
-      <div className="mt-1 text-[11px] text-slate-500">
-        {standard && <span className="font-semibold mr-1">{standard}</span>}
-        {certNo && <span className="font-mono text-[10px]">{certNo}</span>}
-      </div>
-      <div className="text-[11px] text-slate-400">{formatDate(expiry)}</div>
-      {company.expiries && company.expiries.length > 1 && (
-        <div className="mt-1 text-[10px] text-slate-400">{company.expiries.length} chứng nhận • Sắp nhất hiển thị</div>
-      )}
-    </div>
+    <label className="block text-sm font-medium text-[#1d1d1f]">
+      {label}{required && <span className="ml-1 text-[#b3261e]">*</span>}
+      <div className="mt-1.5">{children}</div>
+    </label>
   );
 }
 
-function CompanyServices({ companyName, company }: { companyName: string; company?: Company }) {
-  const [services, setServices] = useState<string[]>(company?.standards || []);
-  const [loading, setLoading] = useState(!company?.standards);
-
-  useEffect(() => {
-    if (company?.standards && company.standards.length > 0) {
-      setServices(company.standards);
-      setLoading(false);
-      return;
-    }
-    const fetchStats = async () => {
-      try {
-        const res = await fetch("/api/certificates");
-        if (!res.ok) return;
-        const data = await res.json();
-        const certs = (data.items || data.certificates || []).filter((c: any) => c.company_name === companyName);
-        const svc = new Set<string>();
-        certs.forEach((c: any) => svc.add(c.standard));
-        try {
-          const res2 = await fetch("/api/consultation");
-          if (res2.ok) {
-            const data2 = await res2.json();
-            const leads = (data2.leads || []).filter((l: any) => l.company_name === companyName);
-            leads.forEach((l: any) => svc.add(l.service_type === "sales" ? "SALE" : "AMAZON"));
-          }
-        } catch {}
-        setServices(Array.from(svc));
-      } catch {}
-      setLoading(false);
-    };
-    fetchStats();
-  }, [companyName, company?.standards]);
-
-  if (loading) return <span className="text-xs text-slate-400">...</span>;
-  if (services.length === 0) return <span className="text-xs text-slate-400">Chưa có DV</span>;
-
+function ExpiryBadge({ company }: { company: Company }) {
+  const remaining = company.nearest_remaining;
+  if (remaining === undefined || remaining === null) {
+    return <span className="inline-flex items-center gap-1.5 text-xs text-[#86868b]"><Clock3 className="h-3.5 w-3.5" />Chưa có hạn</span>;
+  }
+  const expired = remaining < 0;
+  const urgent = !expired && remaining <= 30;
+  const warning = !expired && remaining <= 90;
+  const className = expired ? "rec-badge--expired" : urgent || warning ? "rec-badge--expiring" : "rec-badge--valid";
+  const text = expired ? `Hết hạn ${Math.abs(remaining)} ngày` : remaining === 0 ? "Hết hạn hôm nay" : `Còn ${remaining} ngày`;
+  const Icon = expired || urgent ? AlertTriangle : remaining <= 90 ? Clock3 : CheckCircle2;
   return (
-    <div className="flex flex-wrap gap-1">
-      {services.map((s) => (
-        <span
-          key={s}
-          className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-            s === "FDA"
-              ? "bg-blue-50 text-blue-700 border-blue-200"
-              : s === "GACC"
-              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-              : s === "SALE"
-              ? "bg-blue-50 text-blue-700 border-blue-200"
-              : "bg-slate-900 text-white border-slate-900"
-          }`}
-        >
-          {s}
-        </span>
-      ))}
-    </div>
+    <span className={`rec-badge ${className}`} title={company.nearest_cert_no ? `${company.nearest_standard || ""} ${company.nearest_cert_no}` : undefined}>
+      <Icon className="h-3 w-3" />{text}
+    </span>
   );
 }

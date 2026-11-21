@@ -1,6 +1,6 @@
 /**
  * Kiểm thử trang chủ công khai (dựng HTML thật bằng react-dom/server):
- * - Đúng đặc tả nội dung: H1, thứ tự H2/H3, bốn dịch vụ, bảy câu hỏi thường gặp.
+ * - Đúng đặc tả nội dung: H1, thứ tự H2/H3, hai dịch vụ FDA/GACC, bảy câu hỏi thường gặp.
  * - Thẻ SEO, hreflang, noindex cho /login.
  * - JSON-LD trùng khớp với phần hiển thị (câu hỏi, câu trả lời, dịch vụ).
  * - Nguyên tắc văn phong: câu ngắn, không biểu tượng cảm xúc, không hứa hẹn.
@@ -79,7 +79,7 @@ test('thẻ SEO của trang chủ đúng đặc tả', () => {
   assert.equal(viPage.metadata.title, 'Tra cứu mã FDA, đăng ký mã GACC | Vexim Global');
   assert.equal(
     viPage.metadata.description,
-    'Tra cứu mã FDA, mã GACC của doanh nghiệp bạn. Vexim Global hỗ trợ đăng ký FDA, đăng ký mã GACC, niêm yết miễn phí trên Vexim Trade và thiết kế website xuất khẩu.',
+    'Tra cứu mã FDA, mã GACC của doanh nghiệp bạn. Vexim Global hỗ trợ đăng ký, lưu trữ và theo dõi hồ sơ FDA, GACC.',
   );
   assert.deepEqual(viPage.metadata.alternates.languages, { vi: '/', en: '/en', 'x-default': '/' });
   assert.equal(viPage.metadata.alternates.canonical, '/');
@@ -110,8 +110,6 @@ test('cấu trúc tiêu đề theo đúng thứ tự đặc tả', () => {
   assert.deepEqual(h3, [
     'Đăng ký FDA',
     'Đăng ký mã GACC',
-    'Niêm yết miễn phí trên Vexim Trade',
-    'Thiết kế website xuất khẩu',
   ]);
 });
 
@@ -127,7 +125,7 @@ test('đầu trang có câu mô tả, hai nút và ô tra cứu đầy đủ', (
   assert.match(viText, /Kết quả áp dụng cho hồ sơ do Vexim Global quản lý\./);
 });
 
-test('bốn dịch vụ giữ nguyên nội dung và nút liên hệ', () => {
+test('hai dịch vụ FDA/GACC giữ nguyên nội dung và nút liên hệ', () => {
   const c = siteCopy('vi');
   for (const service of c.services_list) {
     assert.ok(viText.includes(service.title), `thiếu tiêu đề dịch vụ: ${service.title}`);
@@ -137,7 +135,7 @@ test('bốn dịch vụ giữ nguyên nội dung và nút liên hệ', () => {
     }
     assert.ok(viText.includes(service.cta), `thiếu nút: ${service.cta}`);
   }
-  assert.equal(c.services_list.length, 4);
+  assert.equal(c.services_list.length, 2);
 });
 
 test('bảy câu hỏi thường gặp hiển thị đúng nội dung', () => {
@@ -169,7 +167,7 @@ test('chân trang đủ thông tin doanh nghiệp và liên kết nội bộ nof
 
 /* ------------------------------- JSON-LD --------------------------------- */
 
-test('JSON-LD: doanh nghiệp, website, trang, bốn dịch vụ, bảy câu hỏi', () => {
+test('JSON-LD: doanh nghiệp, website, trang, hai dịch vụ, bảy câu hỏi', () => {
   const data = siteJsonLd('vi');
   assert.equal(data['@context'], 'https://schema.org');
   const graph = data['@graph'];
@@ -178,8 +176,6 @@ test('JSON-LD: doanh nghiệp, website, trang, bốn dịch vụ, bảy câu h�
     'Organization+ProfessionalService',
     'WebSite',
     'WebPage',
-    'Service',
-    'Service',
     'Service',
     'Service',
     'FAQPage',
@@ -211,14 +207,13 @@ test('JSON-LD: doanh nghiệp, website, trang, bốn dịch vụ, bảy câu h�
   assert.equal(graph[2].name, 'Tra cứu mã FDA, đăng ký mã GACC | Vexim Global');
   assert.equal(
     graph[2].description,
-    'Tra cứu mã FDA, mã GACC của doanh nghiệp bạn. Vexim Global hỗ trợ đăng ký FDA, đăng ký mã GACC, niêm yết miễn phí trên Vexim Trade và thiết kế website xuất khẩu.',
+    'Tra cứu mã FDA, mã GACC của doanh nghiệp bạn. Vexim Global hỗ trợ đăng ký, lưu trữ và theo dõi hồ sơ FDA, GACC.',
   );
 
-  const trade = graph[5];
-  assert.equal(trade.name, 'Niêm yết miễn phí trên Vexim Trade');
-  assert.deepEqual(trade.offers, { '@type': 'Offer', price: '0', priceCurrency: 'VND' });
+  assert.equal(graph[3].name, 'Đăng ký FDA');
+  assert.equal(graph[4].name, 'Đăng ký mã GACC');
 
-  const faq = graph[7];
+  const faq = graph[5];
   assert.equal(faq.mainEntity.length, 7);
 });
 
@@ -288,7 +283,7 @@ test('bản tiếng Anh ở /en cùng bố cục, cùng số mục', () => {
   const enHtml = render(React.createElement(require('../app/en/page.tsx').default));
   const enText = stripTags(enHtml);
   assert.match(enText, /FDA and GACC code lookup/);
-  assert.equal([...enHtml.matchAll(/<h3[^>]*>/g)].length, 4);
+  assert.equal([...enHtml.matchAll(/<h3[^>]*>/g)].length, 2);
   assert.equal([...enHtml.matchAll(/<details class="faq-item"/g)].length, 7);
   assert.match(enHtml, /hrefLang="vi"/);
   assert.match(enHtml, /hrefLang="en"/);

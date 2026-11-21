@@ -93,11 +93,9 @@ function groupTrend(
 }
 
 const PIPELINE_TABS = [
-  { key: "", label: "Tất cả dịch vụ" },
+  { key: "", label: "Tất cả" },
   { key: "FDA", label: "FDA" },
   { key: "GACC", label: "GACC" },
-  { key: "SALE_EXPORT", label: "Sale XK Mỹ" },
-  { key: "AMAZON_OPS", label: "Amazon US" },
 ];
 
 export default function CrmDashboardPage() {

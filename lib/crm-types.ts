@@ -11,7 +11,7 @@ import type { SessionUser } from "./types";
  *  5. Có dấu hiệu bị bỏ quên không?      → SLA breach / stale / no-action / follow-up quá hạn
  * ========================================================================== */
 
-export type CrmPipelineKey = "FDA" | "GACC" | "SALE_EXPORT" | "AMAZON_OPS";
+export type CrmPipelineKey = "FDA" | "GACC";
 
 export type CrmCriterion = { key: string; label: string; required: boolean };
 
@@ -40,12 +40,12 @@ export const PIPELINE_DEFS: CrmPipelineDef[] = [
     key: "FDA",
     name: "FDA — Đăng ký & Tư vấn",
     service: "FDA",
-    description: "Pipeline dịch vụ FDA: từ lead mới đến ký hợp đồng",
+    description: "Theo dõi khách hàng từ lúc tiếp nhận đến khi chốt dịch vụ FDA.",
     sort_order: 1,
     stages: [
       {
         key: "lead_moi",
-        name: "Lead mới",
+        name: "Mới tiếp nhận",
         color: "#64748b",
         sla_days: 2,
         exit_criteria: [
@@ -149,7 +149,7 @@ export const PIPELINE_DEFS: CrmPipelineDef[] = [
     stages: [
       {
         key: "lead_moi",
-        name: "Lead mới",
+        name: "Mới tiếp nhận",
         color: "#64748b",
         sla_days: 2,
         exit_criteria: [
@@ -227,176 +227,6 @@ export const PIPELINE_DEFS: CrmPipelineDef[] = [
       {
         key: "da_ky_hop_dong",
         name: "Đã ký hợp đồng",
-        color: "#16a34a",
-        sla_days: 0,
-        exit_criteria: [],
-        is_won: true,
-        is_lost: false,
-      },
-      {
-        key: "khong_phu_hop",
-        name: "Không phù hợp",
-        color: "#dc2626",
-        sla_days: 0,
-        exit_criteria: [],
-        is_won: false,
-        is_lost: true,
-      },
-    ],
-  },
-  {
-    key: "SALE_EXPORT",
-    name: "Sale xuất khẩu Mỹ",
-    service: "SALE_EXPORT",
-    description: "Pipeline dịch vụ sale xuất khẩu (veximtrade.com)",
-    sort_order: 3,
-    stages: [
-      {
-        key: "lead_moi",
-        name: "Lead mới",
-        color: "#64748b",
-        sla_days: 2,
-        exit_criteria: [
-          { key: "contacted", label: "Đã liên hệ được với khách", required: true },
-        ],
-        is_won: false,
-        is_lost: false,
-      },
-      {
-        key: "da_lien_he",
-        name: "Đã liên hệ",
-        color: "#0ea5e9",
-        sla_days: 3,
-        exit_criteria: [
-          { key: "need_clear", label: "Nhu cầu xuất khẩu rõ", required: true },
-          { key: "decision_maker", label: "Đã xác định người quyết định", required: true },
-        ],
-        is_won: false,
-        is_lost: false,
-      },
-      {
-        key: "khao_sat_nhu_cau",
-        name: "Khảo sát nhu cầu",
-        color: "#8b5cf6",
-        sla_days: 5,
-        exit_criteria: [
-          { key: "product_fit", label: "Sản phẩm phù hợp thị trường Mỹ", required: true },
-          { key: "volume_ok", label: "Sản lượng / năng lực đáp ứng", required: true },
-        ],
-        is_won: false,
-        is_lost: false,
-      },
-      {
-        key: "da_gui_bao_gia",
-        name: "Đã gửi báo giá",
-        color: "#0071e3",
-        sla_days: 5,
-        exit_criteria: [
-          { key: "quote_sent", label: "Báo giá / proposal đã gửi", required: true },
-          { key: "reply_date", label: "Đã hẹn ngày phản hồi", required: true },
-        ],
-        is_won: false,
-        is_lost: false,
-      },
-      {
-        key: "thuong_thao",
-        name: "Thương thảo",
-        color: "#005fbd",
-        sla_days: 7,
-        exit_criteria: [
-          { key: "terms_ok", label: "Đã thống nhất điều khoản chính", required: true },
-        ],
-        is_won: false,
-        is_lost: false,
-      },
-      {
-        key: "chot_hop_dong",
-        name: "Chốt hợp đồng",
-        color: "#16a34a",
-        sla_days: 0,
-        exit_criteria: [],
-        is_won: true,
-        is_lost: false,
-      },
-      {
-        key: "khong_phu_hop",
-        name: "Không phù hợp",
-        color: "#dc2626",
-        sla_days: 0,
-        exit_criteria: [],
-        is_won: false,
-        is_lost: true,
-      },
-    ],
-  },
-  {
-    key: "AMAZON_OPS",
-    name: "Vận hành Amazon US",
-    service: "AMAZON_OPS",
-    description: "Pipeline dịch vụ Amazon US (veximops.com)",
-    sort_order: 4,
-    stages: [
-      {
-        key: "lead_moi",
-        name: "Lead mới",
-        color: "#64748b",
-        sla_days: 2,
-        exit_criteria: [
-          { key: "contacted", label: "Đã liên hệ được với khách", required: true },
-        ],
-        is_won: false,
-        is_lost: false,
-      },
-      {
-        key: "da_lien_he",
-        name: "Đã liên hệ",
-        color: "#0ea5e9",
-        sla_days: 3,
-        exit_criteria: [
-          { key: "need_clear", label: "Nhu cầu bán Amazon rõ", required: true },
-          { key: "decision_maker", label: "Đã xác định người quyết định", required: true },
-        ],
-        is_won: false,
-        is_lost: false,
-      },
-      {
-        key: "audit_gian_hang",
-        name: "Audit gian hàng / sản phẩm",
-        color: "#8b5cf6",
-        sla_days: 5,
-        exit_criteria: [
-          { key: "audit_done", label: "Đã audit sản phẩm / listing", required: true },
-          { key: "potential_ok", label: "Đánh giá tiềm năng xong", required: true },
-        ],
-        is_won: false,
-        is_lost: false,
-      },
-      {
-        key: "de_xuat_phuong_an",
-        name: "Đề xuất phương án",
-        color: "#0071e3",
-        sla_days: 5,
-        exit_criteria: [
-          { key: "proposal_sent", label: "Proposal / báo giá đã gửi", required: true },
-          { key: "reply_date", label: "Đã hẹn ngày phản hồi", required: true },
-        ],
-        is_won: false,
-        is_lost: false,
-      },
-      {
-        key: "thuong_thao",
-        name: "Thương thảo",
-        color: "#005fbd",
-        sla_days: 7,
-        exit_criteria: [
-          { key: "terms_ok", label: "Đã thống nhất điều khoản chính", required: true },
-        ],
-        is_won: false,
-        is_lost: false,
-      },
-      {
-        key: "chot_hop_dong",
-        name: "Chốt hợp đồng",
         color: "#16a34a",
         sla_days: 0,
         exit_criteria: [],
@@ -560,7 +390,7 @@ export const OPP_SOURCES = [
   "Verify QR",
   "Telesale",
   "Hội chợ / Sự kiện",
-  "Lead tư vấn",
+  "Yêu cầu tư vấn",
   "Khác",
 ];
 
@@ -726,7 +556,7 @@ export function validateTransition(input: {
 /**
  * Phân quyền CRM:
  * - admin: toàn quyền (xem/sửa/xóa/chuyển owner mọi cơ hội)
- * - specialist (sale): xem tất cả (minh bạch team), nhưng chỉ tạo + sửa +
+ * - specialist: xem tất cả (minh bạch team), nhưng chỉ tạo + sửa +
  *   chuyển giai đoạn + ghi hoạt động trên cơ hội MÌNH LÀ OWNER. Không xóa, không đổi owner.
  */
 export function canMutateOpportunity(user: SessionUser, opp: CrmOpportunity): boolean {

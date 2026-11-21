@@ -35,11 +35,7 @@ type CompanyOption = {
   certificate_count?: number;
 };
 
-/**
- * Dịch vụ báo giá ↔ chứng nhận tương ứng. Doanh nghiệp đã đăng ký dịch vụ đang báo giá sẽ
- * không được gợi ý và không tự điền (ẩn hoàn toàn) — tránh báo giá trùng cho khách đã đăng ký.
- * Sale xuất khẩu / Vận hành Amazon chưa gắn chứng nhận nên vẫn hiện đầy đủ danh mục.
- */
+/** Mỗi mẫu báo giá gắn với một chứng nhận để tránh tạo báo giá trùng. */
 const SERVICE_STANDARD: Partial<Record<QuoteTemplateKey, string>> = {
   FDA: "FDA",
   GACC: "GACC",

@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import fs from "fs";
 import path from "path";
 import { hashPassword } from "./auth";
-import { expiryFromStandard, normalizeTimestamp, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
+import { expiryFromStandard, normalizeTimestamp, randomCode, remainingDays, getValidityYears, todayUtcIso, normCompany } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
 import { isValidValidityYearsForStandard, resolveValidityYears } from "./types";
 import {
@@ -26,12 +26,9 @@ import {
   normalizeInvoiceContractNo,
   invoiceState,
   overdueDays,
-  normalizeCycleMonths,
   type Invoice,
   type InvoiceView,
   type InvoicePayment,
-  type ServiceContract,
-  type ServiceType,
   planPaymentAllocation,
   priorDebtsOf,
   withPriorDebts,
@@ -108,23 +105,6 @@ function migrate(db: DatabaseSync) {
       renewal_count INTEGER NOT NULL DEFAULT 0,
       last_renewed_at TEXT,
       created_by INTEGER NOT NULL REFERENCES users(id),
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
-    CREATE TABLE IF NOT EXISTS consultation_leads (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      service_type TEXT NOT NULL CHECK (service_type IN ('sales','amazon')),
-      name TEXT NOT NULL,
-      phone TEXT NOT NULL,
-      email TEXT NOT NULL DEFAULT '',
-      company_name TEXT NOT NULL DEFAULT '',
-      certificate_no TEXT NOT NULL DEFAULT '',
-      public_code TEXT NOT NULL DEFAULT '',
-      message TEXT NOT NULL DEFAULT '',
-      source_url TEXT NOT NULL DEFAULT '',
-      ip TEXT NOT NULL DEFAULT '',
-      status TEXT NOT NULL DEFAULT 'new' CHECK (status IN ('new','contacted','converted','closed')),
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
@@ -239,34 +219,12 @@ function migrate(db: DatabaseSync) {
       UNIQUE (opportunity_id, stage_key, criterion_key)
     );
 
-    CREATE TABLE IF NOT EXISTS service_contracts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      contract_no TEXT NOT NULL UNIQUE,
-      service_type TEXT NOT NULL CHECK (service_type IN ('SALE_EXPORT','AMAZON_OPS')),
-      company_name TEXT NOT NULL DEFAULT '',
-      company_email TEXT NOT NULL DEFAULT '',
-      contact_name TEXT NOT NULL DEFAULT '',
-      contact_phone TEXT NOT NULL DEFAULT '',
-      scope TEXT NOT NULL DEFAULT '',
-      cycle_months INTEGER NOT NULL DEFAULT 6 CHECK (cycle_months BETWEEN 1 AND 60),
-      started_at TEXT NOT NULL,
-      ends_at TEXT NOT NULL,
-      contract_value INTEGER NOT NULL DEFAULT 0,
-      status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','expired','terminated')),
-      renewal_count INTEGER NOT NULL DEFAULT 0,
-      last_renewed_at TEXT,
-      opportunity_id INTEGER REFERENCES crm_opportunities(id) ON DELETE SET NULL,
-      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at TEXT NOT NULL DEFAULT (datetime('now')),
-      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-    );
-
     CREATE TABLE IF NOT EXISTS invoices (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       invoice_no TEXT NOT NULL UNIQUE,
       contract_no TEXT NOT NULL DEFAULT '',
       payment_request TEXT,
-      ref_type TEXT NOT NULL CHECK (ref_type IN ('certificate','service_contract')),
+      ref_type TEXT NOT NULL CHECK (ref_type IN ('certificate')),
       ref_id INTEGER NOT NULL,
       installment_no INTEGER NOT NULL DEFAULT 1,
       title TEXT NOT NULL DEFAULT '',
@@ -296,7 +254,7 @@ function migrate(db: DatabaseSync) {
     );
 
     CREATE TABLE IF NOT EXISTS quote_templates (
-      template_key TEXT PRIMARY KEY CHECK (template_key IN ('FDA','GACC','SALE_EXPORT','AMAZON_OPS')),
+      template_key TEXT PRIMARY KEY CHECK (template_key IN ('FDA','GACC')),
       payload TEXT NOT NULL,
       updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -305,7 +263,7 @@ function migrate(db: DatabaseSync) {
     CREATE TABLE IF NOT EXISTS quotes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       quote_no TEXT NOT NULL UNIQUE,
-      template_key TEXT NOT NULL CHECK (template_key IN ('FDA','GACC','SALE_EXPORT','AMAZON_OPS')),
+      template_key TEXT NOT NULL CHECK (template_key IN ('FDA','GACC')),
       service_name TEXT NOT NULL DEFAULT '',
       title TEXT NOT NULL DEFAULT '',
       company_name TEXT NOT NULL DEFAULT '',
@@ -338,7 +296,6 @@ function migrate(db: DatabaseSync) {
       updated_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
 
-    CREATE INDEX IF NOT EXISTS service_contracts_company_idx ON service_contracts (company_name);
     CREATE INDEX IF NOT EXISTS invoices_ref_idx ON invoices (ref_type, ref_id);
     CREATE INDEX IF NOT EXISTS invoice_payments_invoice_idx ON invoice_payments (invoice_id);
     CREATE INDEX IF NOT EXISTS quotes_created_idx ON quotes (created_at DESC);
@@ -367,42 +324,162 @@ function migrate(db: DatabaseSync) {
     db.exec("ALTER TABLE quotes ADD COLUMN documents TEXT NOT NULL DEFAULT '[]'");
   }
 
-  // Migration for old DBs
-  // Nới CHECK chu kỳ 3/6/12 cứng -> 1..60 tháng (nhập tay): recreate bảng cũ 1 lần, giữ dữ liệu
+  // Remove old Sale/Amazon records and close the database schema to those services.
+  db.exec("PRAGMA foreign_keys = OFF");
   try {
-    const svcSql = db.prepare(
-      "SELECT sql FROM sqlite_master WHERE type='table' AND name='service_contracts'"
-    ).get() as { sql?: string } | undefined;
-    if (svcSql?.sql && svcSql.sql.includes("IN (3, 6, 12)")) {
-      db.exec("ALTER TABLE service_contracts RENAME TO service_contracts_old");
-      db.exec(`
-        CREATE TABLE service_contracts (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          contract_no TEXT NOT NULL UNIQUE,
-          service_type TEXT NOT NULL CHECK (service_type IN ('SALE_EXPORT','AMAZON_OPS')),
-          company_name TEXT NOT NULL DEFAULT '',
-          company_email TEXT NOT NULL DEFAULT '',
-          contact_name TEXT NOT NULL DEFAULT '',
-          contact_phone TEXT NOT NULL DEFAULT '',
-          scope TEXT NOT NULL DEFAULT '',
-          cycle_months INTEGER NOT NULL DEFAULT 6 CHECK (cycle_months BETWEEN 1 AND 60),
-          started_at TEXT NOT NULL,
-          ends_at TEXT NOT NULL,
-          contract_value INTEGER NOT NULL DEFAULT 0,
-          status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','active','expired','terminated')),
-          renewal_count INTEGER NOT NULL DEFAULT 0,
-          last_renewed_at TEXT,
-          opportunity_id INTEGER REFERENCES crm_opportunities(id) ON DELETE SET NULL,
-          created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-          created_at TEXT NOT NULL DEFAULT (datetime('now')),
-          updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-        )
-      `);
-      db.exec("INSERT INTO service_contracts SELECT * FROM service_contracts_old");
-      db.exec("DROP TABLE service_contracts_old");
+    db.exec("BEGIN IMMEDIATE");
+    db.exec("DELETE FROM invoice_payments WHERE invoice_id IN (SELECT id FROM invoices WHERE ref_type = 'service_contract')");
+    db.exec("DELETE FROM invoices WHERE ref_type = 'service_contract'");
+    db.exec("DROP TABLE IF EXISTS service_contracts");
+    db.exec("DELETE FROM quotes WHERE template_key IN ('SALE_EXPORT','AMAZON_OPS')");
+    db.exec("DELETE FROM quote_templates WHERE template_key IN ('SALE_EXPORT','AMAZON_OPS')");
+    db.exec(`UPDATE quotes SET opportunity_id = NULL WHERE opportunity_id IN (
+      SELECT o.id FROM crm_opportunities o JOIN crm_pipelines p ON p.id = o.pipeline_id
+      WHERE p.key IN ('SALE_EXPORT','AMAZON_OPS')
+    )`);
+    db.exec(`DELETE FROM crm_activities WHERE opportunity_id IN (
+      SELECT o.id FROM crm_opportunities o JOIN crm_pipelines p ON p.id = o.pipeline_id
+      WHERE p.key IN ('SALE_EXPORT','AMAZON_OPS')
+    )`);
+    db.exec(`DELETE FROM crm_checklists WHERE opportunity_id IN (
+      SELECT o.id FROM crm_opportunities o JOIN crm_pipelines p ON p.id = o.pipeline_id
+      WHERE p.key IN ('SALE_EXPORT','AMAZON_OPS')
+    )`);
+    db.exec(`DELETE FROM crm_stage_history WHERE opportunity_id IN (
+      SELECT o.id FROM crm_opportunities o JOIN crm_pipelines p ON p.id = o.pipeline_id
+      WHERE p.key IN ('SALE_EXPORT','AMAZON_OPS')
+    ) OR from_stage_id IN (
+      SELECT s.id FROM crm_stages s JOIN crm_pipelines p ON p.id = s.pipeline_id
+      WHERE p.key IN ('SALE_EXPORT','AMAZON_OPS')
+    ) OR to_stage_id IN (
+      SELECT s.id FROM crm_stages s JOIN crm_pipelines p ON p.id = s.pipeline_id
+      WHERE p.key IN ('SALE_EXPORT','AMAZON_OPS')
+    )`);
+    db.exec("DELETE FROM crm_opportunities WHERE pipeline_id IN (SELECT id FROM crm_pipelines WHERE key IN ('SALE_EXPORT','AMAZON_OPS'))");
+    db.exec("DELETE FROM crm_stages WHERE pipeline_id IN (SELECT id FROM crm_pipelines WHERE key IN ('SALE_EXPORT','AMAZON_OPS'))");
+    db.exec("DELETE FROM crm_pipelines WHERE key IN ('SALE_EXPORT','AMAZON_OPS')");
+    db.exec("DROP TABLE IF EXISTS consultation_leads");
+
+    const tableSql = (name: string) => {
+      const row = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(name) as { sql?: string } | undefined;
+      return String(row?.sql || "");
+    };
+    const copyQuoteColumns = `quote_no, template_key, service_name, title, company_name, company_address,
+      company_tax_code, contact_name, contact_title, contact_phone, contact_email, items, scope, documents,
+      terms, timeline, payment_terms, note, subtotal, discount_percent, discount_amount, vat_rate,
+      vat_amount, total, optional_total, issue_date, valid_until, status, opportunity_id, created_by,
+      created_at, updated_at`;
+
+    if (/SALE_EXPORT|AMAZON_OPS/.test(tableSql("quote_templates"))) {
+      db.exec("ALTER TABLE quote_templates RENAME TO quote_templates_legacy");
+      db.exec(`CREATE TABLE quote_templates (
+        template_key TEXT PRIMARY KEY CHECK (template_key IN ('FDA','GACC')),
+        payload TEXT NOT NULL,
+        updated_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`);
+      db.exec("INSERT INTO quote_templates SELECT * FROM quote_templates_legacy WHERE template_key IN ('FDA','GACC')");
+      db.exec("DROP TABLE quote_templates_legacy");
     }
+
+    if (/SALE_EXPORT|AMAZON_OPS/.test(tableSql("quotes"))) {
+      db.exec("ALTER TABLE quotes RENAME TO quotes_legacy");
+      db.exec(`CREATE TABLE quotes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        quote_no TEXT NOT NULL UNIQUE,
+        template_key TEXT NOT NULL CHECK (template_key IN ('FDA','GACC')),
+        service_name TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL DEFAULT '',
+        company_name TEXT NOT NULL DEFAULT '',
+        company_address TEXT NOT NULL DEFAULT '',
+        company_tax_code TEXT NOT NULL DEFAULT '',
+        contact_name TEXT NOT NULL DEFAULT '',
+        contact_title TEXT NOT NULL DEFAULT '',
+        contact_phone TEXT NOT NULL DEFAULT '',
+        contact_email TEXT NOT NULL DEFAULT '',
+        items TEXT NOT NULL DEFAULT '[]',
+        scope TEXT NOT NULL DEFAULT '[]',
+        documents TEXT NOT NULL DEFAULT '[]',
+        terms TEXT NOT NULL DEFAULT '[]',
+        timeline TEXT NOT NULL DEFAULT '',
+        payment_terms TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        subtotal INTEGER NOT NULL DEFAULT 0,
+        discount_percent REAL NOT NULL DEFAULT 0,
+        discount_amount INTEGER NOT NULL DEFAULT 0,
+        vat_rate REAL NOT NULL DEFAULT 8,
+        vat_amount INTEGER NOT NULL DEFAULT 0,
+        total INTEGER NOT NULL DEFAULT 0,
+        optional_total INTEGER NOT NULL DEFAULT 0,
+        issue_date TEXT NOT NULL,
+        valid_until TEXT,
+        status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','sent','accepted','rejected')),
+        opportunity_id INTEGER REFERENCES crm_opportunities(id) ON DELETE SET NULL,
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`);
+      db.exec(`INSERT INTO quotes (id, ${copyQuoteColumns})
+        SELECT id, ${copyQuoteColumns} FROM quotes_legacy WHERE template_key IN ('FDA','GACC')`);
+      db.exec("DROP TABLE quotes_legacy");
+      db.exec("CREATE INDEX IF NOT EXISTS quotes_created_idx ON quotes (created_at DESC)");
+      db.exec("CREATE INDEX IF NOT EXISTS quotes_company_idx ON quotes (company_name)");
+      db.exec("CREATE INDEX IF NOT EXISTS quotes_pipeline_idx ON quotes (template_key, status)");
+    }
+
+    if (/service_contract/.test(tableSql("invoices"))) {
+      db.exec("ALTER TABLE invoices RENAME TO invoices_legacy");
+      db.exec("ALTER TABLE invoice_payments RENAME TO invoice_payments_legacy");
+      db.exec(`CREATE TABLE invoices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_no TEXT NOT NULL UNIQUE,
+        contract_no TEXT NOT NULL DEFAULT '',
+        payment_request TEXT,
+        ref_type TEXT NOT NULL CHECK (ref_type IN ('certificate')),
+        ref_id INTEGER NOT NULL,
+        installment_no INTEGER NOT NULL DEFAULT 1,
+        title TEXT NOT NULL DEFAULT '',
+        subtotal INTEGER NOT NULL DEFAULT 0,
+        vat_rate REAL NOT NULL DEFAULT 8,
+        vat_amount INTEGER NOT NULL DEFAULT 0,
+        total INTEGER NOT NULL DEFAULT 0,
+        issue_date TEXT NOT NULL,
+        due_date TEXT,
+        status TEXT NOT NULL DEFAULT 'issued' CHECK (status IN ('issued','cancelled')),
+        notes TEXT NOT NULL DEFAULT '',
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`);
+      db.exec(`CREATE TABLE invoice_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_id INTEGER NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+        amount INTEGER NOT NULL DEFAULT 0,
+        paid_at TEXT NOT NULL,
+        method TEXT NOT NULL DEFAULT '',
+        reference TEXT NOT NULL DEFAULT '',
+        note TEXT NOT NULL DEFAULT '',
+        created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      )`);
+      const invoiceColumns = `id, invoice_no, contract_no, payment_request, ref_type, ref_id, installment_no,
+        title, subtotal, vat_rate, vat_amount, total, issue_date, due_date, status, notes, created_by, created_at, updated_at`;
+      db.exec(`INSERT INTO invoices (${invoiceColumns})
+        SELECT ${invoiceColumns} FROM invoices_legacy WHERE ref_type = 'certificate'`);
+      db.exec(`INSERT INTO invoice_payments SELECT p.* FROM invoice_payments_legacy p
+        JOIN invoices i ON i.id = p.invoice_id`);
+      db.exec("DROP TABLE invoice_payments_legacy");
+      db.exec("DROP TABLE invoices_legacy");
+      db.exec("CREATE INDEX IF NOT EXISTS invoices_ref_idx ON invoices (ref_type, ref_id)");
+      db.exec("CREATE INDEX IF NOT EXISTS invoice_payments_invoice_idx ON invoice_payments (invoice_id)");
+    }
+
+    db.exec("COMMIT");
   } catch (e) {
-    console.error("[migrate] widen service_contracts cycle check failed:", e);
+    try { db.exec("ROLLBACK"); } catch {}
+    console.warn("[migrate] remove sale/amazon data failed:", e);
+  } finally {
+    db.exec("PRAGMA foreign_keys = ON");
   }
 
   try {
@@ -704,7 +781,7 @@ function seedCrmDemo(db: DatabaseSync, adminId: number, specId: number) {
       next: "Gửi báo giá chính thức", nextDate: 1, closeIn: 25,
       notes: "Xưởng chế biến tôm đông lạnh, lần đầu làm FDA.",
       hist: [
-        { daysAgo: 6, dur: 0, note: "Lead từ Zalo OA" },
+        { daysAgo: 6, dur: 0, note: "Tiếp nhận từ Zalo OA" },
         { daysAgo: 2, dur: 4, note: "Đã tư vấn phương án + lộ trình" },
       ],
       acts: [
@@ -718,7 +795,7 @@ function seedCrmDemo(db: DatabaseSync, adminId: number, specId: number) {
       enteredDaysAgo: 1, lastActDaysAgo: null,
       next: "", nextDate: null, closeIn: null,
       notes: "Inbox hỏi thủ tục FDA cho rau củ sấy.",
-      hist: [{ daysAgo: 1, dur: 0, note: "Lead mới từ Facebook" }],
+      hist: [{ daysAgo: 1, dur: 0, note: "Yêu cầu tiếp nhận từ Facebook" }],
       acts: [],
     },
     {
@@ -735,21 +812,6 @@ function seedCrmDemo(db: DatabaseSync, adminId: number, specId: number) {
       ],
       acts: [
         { daysAgo: 16, type: "meeting", title: "Gặp trực tiếp tại VP khách", content: "Khách còn lăn tăn thời gian triển khai.", outcome: "Cần follow-up" },
-      ],
-    },
-    {
-      pipe: "SALE_EXPORT", stage: "khao_sat_nhu_cau", company: "An Phat Food JSC",
-      contact: "Chị Mai", phone: "0971 222 333", industry: "Thực phẩm",
-      source: "Lead tư vấn", value: 60000000, owner: specId,
-      enteredDaysAgo: 3, lastActDaysAgo: 3,
-      next: "Khảo sát năng lực sản xuất", nextDate: -1, closeIn: 45,
-      notes: "Muốn đưa miến dong sang thị trường Mỹ.",
-      hist: [
-        { daysAgo: 8, dur: 0, note: "Lead tư vấn từ trang verify" },
-        { daysAgo: 3, dur: 5, note: "Bắt đầu khảo sát nhu cầu" },
-      ],
-      acts: [
-        { daysAgo: 3, type: "call", title: "Gọi khảo sát sơ bộ", content: "Khách có nhà máy, công suất tốt.", outcome: "Đạt, hẹn khảo sát chi tiết" },
       ],
     },
     {
@@ -781,22 +843,6 @@ function seedCrmDemo(db: DatabaseSync, adminId: number, specId: number) {
         { daysAgo: 9, dur: 3, note: "Đóng: giá cao" },
       ],
       acts: [],
-    },
-    {
-      pipe: "AMAZON_OPS", stage: "de_xuat_phuong_an", company: "Hanoi Handicraft",
-      contact: "Chị Thu", phone: "0982 333 444", industry: "Đồ gỗ / Nội thất",
-      source: "Hội chợ / Sự kiện", value: 85000000, owner: adminId,
-      enteredDaysAgo: 2, lastActDaysAgo: 0,
-      next: "Gửi proposal vận hành 6 tháng", nextDate: 2, closeIn: 40,
-      notes: "Đồ mây tre đan, tiềm năng Amazon Handmade.",
-      hist: [
-        { daysAgo: 10, dur: 0, note: "Gặp tại hội chợ" },
-        { daysAgo: 6, dur: 4, note: "Đã audit sản phẩm" },
-        { daysAgo: 2, dur: 4, note: "Đang soạn proposal" },
-      ],
-      acts: [
-        { daysAgo: 0, type: "email", title: "Gửi audit sơ bộ", content: "Khách phản hồi tích cực, chờ proposal chi tiết.", outcome: "Tích cực" },
-      ],
     },
   ];
 
@@ -1120,77 +1166,6 @@ export function deleteCertificate(id: number) {
   db().prepare("DELETE FROM certificates WHERE id = ?").run(id);
 }
 
-export type ConsultationLead = {
-  id: number;
-  service_type: "sales" | "amazon";
-  name: string;
-  phone: string;
-  email: string;
-  company_name: string;
-  certificate_no: string;
-  public_code: string;
-  message: string;
-  source_url: string;
-  ip: string;
-  status: "new" | "contacted" | "converted" | "closed";
-  created_at: string;
-  updated_at: string;
-};
-
-export function createLead(input: {
-  service_type: "sales" | "amazon";
-  name: string;
-  phone: string;
-  email?: string;
-  company_name?: string;
-  certificate_no?: string;
-  public_code?: string;
-  message?: string;
-  source_url?: string;
-  ip?: string;
-}) {
-  const info = db()
-    .prepare(
-      `INSERT INTO consultation_leads (service_type, name, phone, email, company_name, certificate_no, public_code, message, source_url, ip)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
-      input.service_type,
-      input.name.trim(),
-      input.phone.trim(),
-      (input.email || "").trim(),
-      (input.company_name || "").trim(),
-      (input.certificate_no || "").trim(),
-      (input.public_code || "").trim(),
-      (input.message || "").trim(),
-      (input.source_url || "").trim(),
-      (input.ip || "").trim()
-    );
-  return Number(info.lastInsertRowid);
-}
-
-export function listLeads(): ConsultationLead[] {
-  return plain(
-    db()
-      .prepare(`SELECT * FROM consultation_leads ORDER BY created_at DESC, id DESC`)
-      .all()
-  ) as ConsultationLead[];
-}
-
-export function getLead(id: number) {
-  return plain(
-    db().prepare(`SELECT * FROM consultation_leads WHERE id = ?`).get(id)
-  ) as ConsultationLead | undefined;
-}
-
-export function updateLeadStatus(id: number, status: ConsultationLead["status"]) {
-  db().prepare(`UPDATE consultation_leads SET status = ?, updated_at = datetime('now') WHERE id = ?`).run(status, id);
-}
-
-export function deleteLead(id: number) {
-  db().prepare(`DELETE FROM consultation_leads WHERE id = ?`).run(id);
-}
-
 export type Company = {
   id: number;
   company_name: string;
@@ -1318,18 +1293,27 @@ export function getCompanyStats(companyName: string) {
   const certs = db()
     .prepare(`SELECT * FROM certificates WHERE company_name = ? ORDER BY updated_at DESC`)
     .all(companyName) as Certificate[];
-  const leads = db()
-    .prepare(`SELECT * FROM consultation_leads WHERE company_name = ? ORDER BY created_at DESC`)
-    .all(companyName) as ConsultationLead[];
   const services = new Set<string>();
   certs.forEach((c) => services.add(c.standard));
-  leads.forEach((l) => services.add(l.service_type === "sales" ? "SALE_EXPORT" : "AMAZON_OPS"));
+  const normalizedName = normCompany(companyName);
+  const quotes = listQuotes({ q: companyName }).filter(
+    (quote) => normCompany(quote.company_name) === normalizedName
+  );
+  const opportunities = listCrmOpportunities().filter(
+    (o) => normCompany(o.company_name || "") === normalizedName
+  );
+  const invoices = listInvoices({ q: companyName }).filter(
+    (invoice) => normCompany(invoice.company_name || "") === normalizedName
+  );
   return {
     certificates: certs.map(hydrate),
-    leads: plain(leads) as ConsultationLead[],
     services: Array.from(services),
+    quotes,
+    opportunities,
+    invoices,
     totalCertificates: certs.length,
-    totalLeads: leads.length,
+    totalQuotes: quotes.length,
+    totalOpportunities: opportunities.length,
   };
 }
 
@@ -2063,59 +2047,13 @@ export function overviewStats() {
         published_at: c.published_at,
         revenue_recorded: c.revenue_recorded,
       })),
-      leads: listLeads().map((l) => ({ created_at: l.created_at })),
     },
     open.length,
     open.reduce((t, o) => t + (o.estimated_value || 0), 0)
   );
 }
 
-/* ==================== HỢP ĐỒNG DỊCH VỤ + KẾ TOÁN ==================== */
-
-function mapServiceContract(row: any): ServiceContract {
-  const item: ServiceContract = {
-    id: Number(row.id),
-    contract_no: String(row.contract_no),
-    service_type: row.service_type as ServiceType,
-    company_name: String(row.company_name || ""),
-    company_email: String(row.company_email || ""),
-    contact_name: String(row.contact_name || ""),
-    contact_phone: String(row.contact_phone || ""),
-    scope: String(row.scope || ""),
-    cycle_months: Number(row.cycle_months || 6),
-    started_at: String(row.started_at).slice(0, 10),
-    ends_at: String(row.ends_at).slice(0, 10),
-    contract_value: Number(row.contract_value || 0),
-    status: row.status as ServiceContract["status"],
-    renewal_count: Number(row.renewal_count || 0),
-    last_renewed_at: row.last_renewed_at ? String(row.last_renewed_at) : null,
-    opportunity_id: row.opportunity_id === null ? null : Number(row.opportunity_id),
-    created_by: row.created_by === null ? null : Number(row.created_by),
-    created_at: String(row.created_at || ""),
-    updated_at: String(row.updated_at || ""),
-    created_by_name: row.created_by_name ? String(row.created_by_name) : undefined,
-  };
-  if (item.status === "active" && remainingDays(item.ends_at) < 0) item.status = "expired";
-  return item;
-}
-
-function serviceContractPrefix(t: ServiceType): string {
-  return t === "SALE_EXPORT" ? "VXM-SALE" : "VXM-AMZ";
-}
-
-export function nextServiceContractNo(service_type: ServiceType): string {
-  const year = new Date().getFullYear();
-  const prefix = `${serviceContractPrefix(service_type)}-${year}-`;
-  const row = db()
-    .prepare("SELECT contract_no FROM service_contracts WHERE contract_no LIKE ? ORDER BY contract_no DESC LIMIT 1")
-    .get(`${prefix}%`) as { contract_no: string } | undefined;
-  let seq = 1;
-  if (row?.contract_no) {
-    const n = Number(row.contract_no.split("-").pop());
-    if (Number.isFinite(n)) seq = n + 1;
-  }
-  return `${prefix}${String(seq).padStart(4, "0")}`;
-}
+/* ==================== KẾ TOÁN HÓA ĐƠN CHỨNG NHẬN ==================== */
 
 export function nextInvoiceNo(): string {
   const year = new Date().getFullYear();
@@ -2131,16 +2069,13 @@ export function nextInvoiceNo(): string {
   return `${prefix}${String(seq).padStart(4, "0")}`;
 }
 
-function refInfo(ref_type: string, ref_id: number): { company_name: string; ref_label: string; contract_no?: string } {
+function refInfo(ref_type: Invoice["ref_type"], ref_id: number): { company_name: string; ref_label: string; contract_no?: string } {
   if (ref_type === "certificate") {
     const r = db().prepare("SELECT certificate_no, company_name, standard FROM certificates WHERE id = ?").get(ref_id) as any;
     if (!r) return { company_name: "", ref_label: "" };
     return { company_name: String(r.company_name || ""), ref_label: `${r.standard} · ${r.certificate_no}` };
   }
-  const r = db().prepare("SELECT contract_no, company_name, service_type FROM service_contracts WHERE id = ?").get(ref_id) as any;
-  if (!r) return { company_name: "", ref_label: "" };
-  const svc = r.service_type === "SALE_EXPORT" ? "Sale XK" : "Amazon";
-  return { company_name: String(r.company_name || ""), ref_label: `${svc} · ${r.contract_no}`, contract_no: String(r.contract_no || "") };
+  return { company_name: "", ref_label: "" };
 }
 
 function invoicePaidSum(invoice_id: number): number {
@@ -2150,7 +2085,7 @@ function invoicePaidSum(invoice_id: number): number {
 
 function mapInvoice(row: any): InvoiceView {
   const paid = invoicePaidSum(Number(row.id));
-  const info = refInfo(String(row.ref_type), Number(row.ref_id));
+  const info = refInfo(row.ref_type as Invoice["ref_type"], Number(row.ref_id));
   const base = {
     id: Number(row.id),
     invoice_no: String(row.invoice_no),
@@ -2199,150 +2134,6 @@ function mapPayment(row: any): InvoicePayment {
   };
 }
 
-export function listServiceContracts(filter: { service_type?: string; status?: string; q?: string } = {}): ServiceContract[] {
-  const where: string[] = [];
-  const params: any[] = [];
-  if (filter.service_type) {
-    where.push("s.service_type = ?");
-    params.push(filter.service_type);
-  }
-  if (filter.q) {
-    where.push("(s.company_name LIKE ? OR s.contract_no LIKE ? OR s.contact_name LIKE ?)");
-    const q = `%${filter.q}%`;
-    params.push(q, q, q);
-  }
-  const rows = db()
-    .prepare(
-      `SELECT s.*, u.name AS created_by_name FROM service_contracts s
-       LEFT JOIN users u ON u.id = s.created_by
-       ${where.length ? "WHERE " + where.join(" AND ") : ""}
-       ORDER BY s.updated_at DESC`
-    )
-    .all(...params) as any[];
-  let items = plain(rows).map(mapServiceContract);
-  if (filter.status) items = items.filter((i) => i.status === filter.status);
-  return items;
-}
-
-export function getServiceContract(id: number): ServiceContract | undefined {
-  const row = db()
-    .prepare(
-      `SELECT s.*, u.name AS created_by_name FROM service_contracts s
-       LEFT JOIN users u ON u.id = s.created_by WHERE s.id = ?`
-    )
-    .get(id) as any;
-  return row ? mapServiceContract(plain(row)) : undefined;
-}
-
-export function createServiceContract(
-  input: {
-    service_type: ServiceType;
-    company_name: string;
-    company_email?: string;
-    contact_name?: string;
-    contact_phone?: string;
-    scope?: string;
-    cycle_months?: number;
-    started_at: string;
-    contract_value?: number;
-    opportunity_id?: number | null;
-  },
-  createdBy: number
-): number {
-  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
-  if (!input.started_at) throw new Error("START_DATE_REQUIRED");
-  const cycle = normalizeCycleMonths(input.cycle_months, 6);
-  const ends = addMonths(input.started_at.slice(0, 10), cycle);
-  const now = nowSql();
-  const info = db()
-    .prepare(
-      `INSERT INTO service_contracts (
-        contract_no, service_type, company_name, company_email, contact_name, contact_phone,
-        scope, cycle_months, started_at, ends_at, contract_value, opportunity_id, status, created_by, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`
-    )
-    .run(
-      nextServiceContractNo(input.service_type),
-      input.service_type,
-      input.company_name.trim(),
-      (input.company_email || "").trim(),
-      (input.contact_name || "").trim(),
-      (input.contact_phone || "").trim(),
-      (input.scope || "").trim(),
-      cycle,
-      input.started_at.slice(0, 10),
-      ends,
-      Math.max(0, Math.round(input.contract_value || 0)),
-      input.opportunity_id ?? null,
-      createdBy,
-      now,
-      now
-    );
-  return Number(info.lastInsertRowid);
-}
-
-export function updateServiceContract(
-  id: number,
-  input: {
-    company_name?: string;
-    company_email?: string;
-    contact_name?: string;
-    contact_phone?: string;
-    scope?: string;
-    cycle_months?: number;
-    started_at?: string;
-    contract_value?: number;
-  }
-) {
-  const cur = db().prepare("SELECT * FROM service_contracts WHERE id = ?").get(id) as any;
-  if (!cur) throw new Error("NOT_FOUND");
-  const val = (v: any, fb: any) => (v === undefined ? fb : v);
-  const cycle = input.cycle_months !== undefined
-    ? normalizeCycleMonths(input.cycle_months, Number(cur.cycle_months))
-    : Number(cur.cycle_months);
-  const started = (input.started_at !== undefined ? input.started_at : cur.started_at).slice(0, 10);
-  const ends = addMonths(started, cycle);
-  db().prepare(
-    `UPDATE service_contracts SET company_name=?, company_email=?, contact_name=?, contact_phone=?,
-     scope=?, cycle_months=?, started_at=?, ends_at=?, contract_value=?, updated_at=? WHERE id=?`
-  ).run(
-    val(input.company_name?.trim(), cur.company_name),
-    val(input.company_email?.trim(), cur.company_email),
-    val(input.contact_name?.trim(), cur.contact_name),
-    val(input.contact_phone?.trim(), cur.contact_phone),
-    val(input.scope?.trim(), cur.scope),
-    cycle,
-    started,
-    ends,
-    input.contract_value === undefined ? cur.contract_value : Math.max(0, Math.round(input.contract_value || 0)),
-    nowSql(),
-    id
-  );
-}
-
-export function setServiceContractStatus(id: number, status: "active" | "terminated") {
-  const cur = db().prepare("SELECT * FROM service_contracts WHERE id = ?").get(id) as any;
-  if (!cur) throw new Error("NOT_FOUND");
-  db().prepare("UPDATE service_contracts SET status=?, updated_at=? WHERE id=?").run(status, nowSql(), id);
-}
-
-export function renewServiceContract(id: number, cycleMonths?: number) {
-  const cur = getServiceContract(id);
-  if (!cur) throw new Error("NOT_FOUND");
-  const cycle = cycleMonths ? normalizeCycleMonths(cycleMonths, cur.cycle_months) : cur.cycle_months;
-  const base = remainingDays(cur.ends_at) >= 0 ? cur.ends_at : todayUtcIso();
-  const ends = addMonths(base, cycle);
-  db().prepare(
-    "UPDATE service_contracts SET ends_at=?, cycle_months=?, renewal_count=renewal_count+1, last_renewed_at=?, status='active', updated_at=? WHERE id=?"
-  ).run(ends, cycle, nowSql(), nowSql(), id);
-  return getServiceContract(id)!;
-}
-
-export function deleteServiceContract(id: number) {
-  const inv = db().prepare("SELECT COUNT(*) AS c FROM invoices WHERE ref_type='service_contract' AND ref_id=?").get(id) as { c: number };
-  if (inv.c > 0) throw new Error("HAS_INVOICES");
-  db().prepare("DELETE FROM service_contracts WHERE id = ?").run(id);
-}
 
 export function listInvoices(filter: { ref_type?: string; ref_id?: number; state?: string; q?: string } = {}): Invoice[] {
   const where: string[] = [];
@@ -2407,7 +2198,7 @@ export function nextInstallmentNo(ref_type: string, ref_id: number): number {
 
 export function createInvoice(
   input: {
-    ref_type: "certificate" | "service_contract";
+    ref_type: "certificate";
     ref_id: number;
     installment_no?: number;
     title?: string;

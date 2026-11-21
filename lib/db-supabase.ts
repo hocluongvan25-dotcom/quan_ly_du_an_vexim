@@ -2,7 +2,7 @@ import { preparePaymentRequest, savedPaymentRequest, type PaymentRequest } from 
 import { certificateUpdatedAt, prepareCertificateChanges, sameCertificateFields, needsCertificateApproval, certificateFields, type CertificateInput } from "./certificate-workflow";
 import { hashPassword } from "./auth";
 import { supabaseAdmin } from "./supabase";
-import { expiryFromStandard, normalizeTimestamp, randomCode, remainingDays, getValidityYears, todayUtcIso } from "./utils";
+import { expiryFromStandard, normalizeTimestamp, randomCode, remainingDays, getValidityYears, todayUtcIso, normCompany } from "./utils";
 import type { Certificate, Role, Standard, User } from "./types";
 import { DEFAULT_VALIDITY, isValidValidityYears, isValidValidityYearsForStandard, resolveValidityYears } from "./types";
 import {
@@ -18,18 +18,14 @@ import {
   type CrmStageHistory,
 } from "./crm-types";
 import { buildOverview } from "./overview";
-import { addMonths } from "./utils";
 import {
   calcInvoiceTotals,
   normalizeInvoiceContractNo,
   invoiceState,
   overdueDays,
-  normalizeCycleMonths,
   type Invoice,
   type InvoiceView,
   type InvoicePayment,
-  type ServiceContract,
-  type ServiceType,
   planPaymentAllocation,
   priorDebtsOf,
   withPriorDebts,
@@ -194,17 +190,6 @@ function assertNoSupabaseError(error: any, context: string) {
   }
   if (error.code === "PGRST205" || String(error.message || "").includes("PGRST205") || String(error.message || "").includes("schema cache")) {
     console.error(`[Supabase] ${context} - ${error.code || "PGRST205"}:`, error);
-    if (context === "consultation_leads") {
-      const e = new Error(
-        `SUPABASE_SCHEMA_MISSING: Table '${context}' does not exist or is not exposed in Supabase. ` +
-          `Please go to Supabase Dashboard > SQL Editor and run the entire supabase/schema.sql file, ` +
-          `then run: NOTIFY pgrst, 'reload schema'; ` +
-          `Original details: ${error.message}`
-      );
-      (e as any).code = "PGRST205";
-      (e as any).isConsultationLeadsMissing = true;
-      throw e;
-    }
     throw new Error(
       `SUPABASE_SCHEMA_MISSING: Table '${context}' does not exist or is not exposed in Supabase. ` +
         `Please go to Supabase Dashboard > SQL Editor and run the entire supabase/schema.sql file, ` +
@@ -221,15 +206,6 @@ function assertNoSupabaseError(error: any, context: string) {
     );
   }
   throw error;
-}
-
-function isMissingConsultationTableError(e: any): boolean {
-  if (!e) return false;
-  if (e.isConsultationLeadsMissing) return true;
-  const msg = String(e.message || "");
-  if (msg.includes("SUPABASE_SCHEMA_MISSING") && msg.includes("consultation_leads")) return true;
-  if (e.code === "PGRST205" && msg.includes("consultation_leads")) return true;
-  return false;
 }
 
 function normalizeValidityYears(input: number | undefined, standard: Standard): number {
@@ -645,143 +621,6 @@ export async function deleteCertificate(id: number) {
   if (error) assertNoSupabaseError(error, "certificates");
 }
 
-export type ConsultationLead = {
-  id: number;
-  service_type: "sales" | "amazon";
-  name: string;
-  phone: string;
-  email: string;
-  company_name: string;
-  certificate_no: string;
-  public_code: string;
-  message: string;
-  source_url: string;
-  ip: string;
-  status: "new" | "contacted" | "converted" | "closed";
-  created_at: string;
-  updated_at: string;
-};
-
-function mapLead(row: Record<string, unknown>): ConsultationLead {
-  return {
-    id: Number(row.id),
-    service_type: row.service_type as ConsultationLead["service_type"],
-    name: String(row.name || ""),
-    phone: String(row.phone || ""),
-    email: String(row.email || ""),
-    company_name: String(row.company_name || ""),
-    certificate_no: String(row.certificate_no || ""),
-    public_code: String(row.public_code || ""),
-    message: String(row.message || ""),
-    source_url: String(row.source_url || ""),
-    ip: String(row.ip || ""),
-    status: (row.status as ConsultationLead["status"]) || "new",
-    created_at: String(row.created_at),
-    updated_at: String(row.updated_at),
-  };
-}
-
-export async function createLead(input: {
-  service_type: "sales" | "amazon";
-  name: string;
-  phone: string;
-  email?: string;
-  company_name?: string;
-  certificate_no?: string;
-  public_code?: string;
-  message?: string;
-  source_url?: string;
-  ip?: string;
-}) {
-  try {
-    const { data, error } = await supabaseAdmin()
-      .from("consultation_leads")
-      .insert({
-        service_type: input.service_type,
-        name: input.name.trim(),
-        phone: input.phone.trim(),
-        email: (input.email || "").trim(),
-        company_name: (input.company_name || "").trim(),
-        certificate_no: (input.certificate_no || "").trim(),
-        public_code: (input.public_code || "").trim(),
-        message: (input.message || "").trim(),
-        source_url: (input.source_url || "").trim(),
-        ip: (input.ip || "").trim(),
-      })
-      .select("id")
-      .single();
-    if (error) assertNoSupabaseError(error, "consultation_leads");
-    return Number((data as any)?.id ?? 0);
-  } catch (e: any) {
-    if (isMissingConsultationTableError(e)) {
-      console.warn("[Supabase] consultation_leads table missing - lead will be emailed only, not stored in DB. Please run supabase/schema.sql");
-      return 0;
-    }
-    throw e;
-  }
-}
-
-export async function listLeads(): Promise<ConsultationLead[]> {
-  try {
-    const { data, error } = await supabaseAdmin()
-      .from("consultation_leads")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (error) assertNoSupabaseError(error, "consultation_leads");
-    return (data || []).map(mapLead);
-  } catch (e: any) {
-    if (isMissingConsultationTableError(e)) {
-      console.warn("[Supabase] consultation_leads table missing - returning empty list");
-      return [];
-    }
-    throw e;
-  }
-}
-
-export async function getLead(id: number) {
-  try {
-    const { data, error } = await supabaseAdmin()
-      .from("consultation_leads")
-      .select("*")
-      .eq("id", id)
-      .maybeSingle();
-    if (error) assertNoSupabaseError(error, "consultation_leads");
-    return data ? mapLead(data) : undefined;
-  } catch (e: any) {
-    if (isMissingConsultationTableError(e)) return undefined;
-    throw e;
-  }
-}
-
-export async function updateLeadStatus(id: number, status: ConsultationLead["status"]) {
-  try {
-    const { error } = await supabaseAdmin()
-      .from("consultation_leads")
-      .update({ status, updated_at: new Date().toISOString() })
-      .eq("id", id);
-    if (error) assertNoSupabaseError(error, "consultation_leads");
-  } catch (e: any) {
-    if (isMissingConsultationTableError(e)) {
-      console.warn("[Supabase] consultation_leads table missing - updateLeadStatus skipped");
-      return;
-    }
-    throw e;
-  }
-}
-
-export async function deleteLead(id: number) {
-  try {
-    const { error } = await supabaseAdmin().from("consultation_leads").delete().eq("id", id);
-    if (error) assertNoSupabaseError(error, "consultation_leads");
-  } catch (e: any) {
-    if (isMissingConsultationTableError(e)) {
-      console.warn("[Supabase] consultation_leads table missing - deleteLead skipped");
-      return;
-    }
-    throw e;
-  }
-}
-
 export type Company = {
   id: number;
   company_name: string;
@@ -953,38 +792,33 @@ export async function deleteCompany(id: number) {
 
 export async function getCompanyStats(companyName: string) {
   const sb = supabaseAdmin();
-  const { data: certsData, error: certErr } = await sb
-    .from("certificates")
-    .select("*")
-    .eq("company_name", companyName)
-    .order("updated_at", { ascending: false });
-  if (certErr) assertNoSupabaseError(certErr, "certificates");
-
-  let leadsData: any[] = [];
-  try {
-    const { data, error } = await sb
-      .from("consultation_leads")
+  const [certResult, quotesResult, opportunitiesResult, invoicesResult] = await Promise.all([
+    sb
+      .from("certificates")
       .select("*")
       .eq("company_name", companyName)
-      .order("created_at", { ascending: false });
-    if (error) assertNoSupabaseError(error, "consultation_leads");
-    leadsData = data || [];
-  } catch (e: any) {
-    if (!isMissingConsultationTableError(e)) throw e;
-  }
+      .order("updated_at", { ascending: false }),
+    listQuotes({ q: companyName }),
+    listCrmOpportunities({ q: companyName }),
+    listInvoices({ q: companyName }),
+  ]);
+  if (certResult.error) assertNoSupabaseError(certResult.error, "certificates");
 
-  const certs = (certsData || []).map(mapCert);
-  const leads = leadsData.map(mapLead);
-  const services = new Set<string>();
-  certs.forEach((c) => services.add(c.standard));
-  leads.forEach((l) => services.add(l.service_type === "sales" ? "SALE_EXPORT" : "AMAZON_OPS"));
+  const certificates = (certResult.data || []).map(mapCert);
+  const quotes = quotesResult.filter((quote) => normCompany(quote.company_name) === normCompany(companyName));
+  const opportunities = opportunitiesResult.filter((opp) => normCompany(opp.company_name || "") === normCompany(companyName));
+  const invoices = invoicesResult.filter((invoice) => normCompany(invoice.company_name || "") === normCompany(companyName));
+  const services = Array.from(new Set(certificates.map((certificate) => certificate.standard)));
 
   return {
-    certificates: certs,
-    leads,
-    services: Array.from(services),
-    totalCertificates: certs.length,
-    totalLeads: leads.length,
+    certificates,
+    services,
+    quotes,
+    opportunities,
+    invoices,
+    totalCertificates: certificates.length,
+    totalQuotes: quotes.length,
+    totalOpportunities: opportunities.length,
   };
 }
 
@@ -1756,12 +1590,11 @@ export function isCrmSchemaError(e: any): boolean {
 
 export async function overviewStats() {
   const sb = supabaseAdmin();
-  const [enriched, pipes, users, certs, leads] = await Promise.all([
+  const [enriched, pipes, users, certs] = await Promise.all([
     listCrmOpportunities(),
     listCrmPipelines(),
     listUsers(),
     listCertificates(),
-    listLeads(),
   ]);
   const { data: histRows, error: histErr } = await sb
     .from("crm_stage_history")
@@ -1800,63 +1633,13 @@ export async function overviewStats() {
         published_at: c.published_at,
         revenue_recorded: c.revenue_recorded,
       })),
-      leads: leads.map((l) => ({ created_at: l.created_at })),
     },
     open.length,
     open.reduce((t, o) => t + (o.estimated_value || 0), 0)
   );
 }
 
-/* ==================== HỢP ĐỒNG DỊCH VỤ + KẾ TOÁN ==================== */
-
-function mapServiceContract(row: Record<string, any>): ServiceContract {
-  const item: ServiceContract = {
-    id: Number(row.id),
-    contract_no: String(row.contract_no),
-    service_type: row.service_type as ServiceType,
-    company_name: String(row.company_name || ""),
-    company_email: String(row.company_email || ""),
-    contact_name: String(row.contact_name || ""),
-    contact_phone: String(row.contact_phone || ""),
-    scope: String(row.scope || ""),
-    cycle_months: Number(row.cycle_months || 6),
-    started_at: String(row.started_at).slice(0, 10),
-    ends_at: String(row.ends_at).slice(0, 10),
-    contract_value: Number(row.contract_value || 0),
-    status: row.status as ServiceContract["status"],
-    renewal_count: Number(row.renewal_count || 0),
-    last_renewed_at: row.last_renewed_at ? String(row.last_renewed_at) : null,
-    opportunity_id: row.opportunity_id === null ? null : Number(row.opportunity_id),
-    created_by: row.created_by === null ? null : Number(row.created_by),
-    created_at: String(row.created_at || ""),
-    updated_at: String(row.updated_at || ""),
-  };
-  if (item.status === "active" && remainingDays(item.ends_at) < 0) item.status = "expired";
-  return item;
-}
-
-function serviceContractPrefix(t: ServiceType): string {
-  return t === "SALE_EXPORT" ? "VXM-SALE" : "VXM-AMZ";
-}
-
-export async function nextServiceContractNo(service_type: ServiceType): Promise<string> {
-  const year = new Date().getFullYear();
-  const prefix = `${serviceContractPrefix(service_type)}-${year}-`;
-  const { data, error } = await supabaseAdmin()
-    .from("service_contracts")
-    .select("contract_no")
-    .like("contract_no", `${prefix}%`)
-    .order("contract_no", { ascending: false })
-    .limit(1);
-  if (error) assertNoSupabaseError(error, "service_contracts");
-  let seq = 1;
-  const no = (data as any)?.[0]?.contract_no;
-  if (no) {
-    const n = Number(String(no).split("-").pop());
-    if (Number.isFinite(n)) seq = n + 1;
-  }
-  return `${prefix}${String(seq).padStart(4, "0")}`;
-}
+/* ==================== KẾ TOÁN HÓA ĐƠN CHỨNG NHẬN ==================== */
 
 export async function nextInvoiceNo(): Promise<string> {
   const year = new Date().getFullYear();
@@ -1878,7 +1661,7 @@ export async function nextInvoiceNo(): Promise<string> {
 }
 
 async function refInfoCloud(
-  ref_type: string,
+  ref_type: Invoice["ref_type"],
   ref_id: number
 ): Promise<{ company_name: string; ref_label: string; contract_no?: string }> {
   const sb = supabaseAdmin();
@@ -1895,19 +1678,7 @@ async function refInfoCloud(
       ref_label: `${(data as any).standard} · ${(data as any).certificate_no}`,
     };
   }
-  const { data, error } = await sb
-    .from("service_contracts")
-    .select("contract_no, company_name, service_type")
-    .eq("id", ref_id)
-    .maybeSingle();
-  if (error) assertNoSupabaseError(error, "service_contracts");
-  if (!data) return { company_name: "", ref_label: "" };
-  const svc = (data as any).service_type === "SALE_EXPORT" ? "Sale XK" : "Amazon";
-  return {
-    company_name: String((data as any).company_name || ""),
-    ref_label: `${svc} · ${(data as any).contract_no}`,
-    contract_no: String((data as any).contract_no || ""),
-  };
+  return { company_name: "", ref_label: "" };
 }
 
 async function invoicePaidSumCloud(invoice_id: number): Promise<number> {
@@ -1973,159 +1744,6 @@ function mapPaymentCloud(row: Record<string, any>, creatorName?: string): Invoic
   };
 }
 
-export async function listServiceContracts(
-  filter: { service_type?: string; status?: string; q?: string } = {}
-): Promise<ServiceContract[]> {
-  const sb = supabaseAdmin();
-  let query = sb.from("service_contracts").select("*").order("updated_at", { ascending: false });
-  if (filter.service_type) query = query.eq("service_type", filter.service_type);
-  if (filter.q) {
-    const q = filter.q.replace(/[%_]/g, "");
-    query = query.or(`company_name.ilike.%${q}%,contract_no.ilike.%${q}%,contact_name.ilike.%${q}%`);
-  }
-  const { data, error } = await query;
-  if (error) assertNoSupabaseError(error, "service_contracts");
-  const names = await crmUserNameMap();
-  let items = (data || []).map((r: any) => ({
-    ...mapServiceContract(r),
-    created_by_name: r.created_by ? names.get(Number(r.created_by)) : undefined,
-  }));
-  if (filter.status) items = items.filter((i) => i.status === filter.status);
-  return items;
-}
-
-export async function getServiceContract(id: number): Promise<ServiceContract | undefined> {
-  const { data, error } = await supabaseAdmin().from("service_contracts").select("*").eq("id", id).maybeSingle();
-  if (error) assertNoSupabaseError(error, "service_contracts");
-  if (!data) return undefined;
-  const names = await crmUserNameMap();
-  return {
-    ...mapServiceContract(data),
-    created_by_name: (data as any).created_by ? names.get(Number((data as any).created_by)) : undefined,
-  };
-}
-
-export async function createServiceContract(
-  input: {
-    service_type: ServiceType;
-    company_name: string;
-    company_email?: string;
-    contact_name?: string;
-    contact_phone?: string;
-    scope?: string;
-    cycle_months?: number;
-    started_at: string;
-    contract_value?: number;
-    opportunity_id?: number | null;
-  },
-  createdBy: number
-): Promise<number> {
-  if (!input.company_name?.trim()) throw new Error("COMPANY_NAME_REQUIRED");
-  if (!input.started_at) throw new Error("START_DATE_REQUIRED");
-  const cycle = normalizeCycleMonths(input.cycle_months, 6);
-  const started = input.started_at.slice(0, 10);
-  const { data, error } = await supabaseAdmin()
-    .from("service_contracts")
-    .insert({
-      contract_no: await nextServiceContractNo(input.service_type),
-      service_type: input.service_type,
-      status: "active",
-      company_name: input.company_name.trim(),
-      company_email: (input.company_email || "").trim(),
-      contact_name: (input.contact_name || "").trim(),
-      contact_phone: (input.contact_phone || "").trim(),
-      scope: (input.scope || "").trim(),
-      cycle_months: cycle,
-      started_at: started,
-      ends_at: addMonths(started, cycle),
-      contract_value: Math.max(0, Math.round(input.contract_value || 0)),
-      opportunity_id: input.opportunity_id ?? null,
-      created_by: createdBy,
-    })
-    .select("id")
-    .single();
-  if (error) assertNoSupabaseError(error, "service_contracts");
-  return Number((data as any)?.id ?? 0);
-}
-
-export async function updateServiceContract(
-  id: number,
-  input: {
-    company_name?: string;
-    company_email?: string;
-    contact_name?: string;
-    contact_phone?: string;
-    scope?: string;
-    cycle_months?: number;
-    started_at?: string;
-    contract_value?: number;
-  }
-) {
-  const cur = await getServiceContract(id);
-  if (!cur) throw new Error("NOT_FOUND");
-  const cycle =
-    input.cycle_months !== undefined
-      ? normalizeCycleMonths(input.cycle_months, cur.cycle_months)
-      : cur.cycle_months;
-  const started = (input.started_at !== undefined ? input.started_at : cur.started_at).slice(0, 10);
-  const patch: Record<string, any> = {
-    cycle_months: cycle,
-    started_at: started,
-    ends_at: addMonths(started, cycle),
-    updated_at: new Date().toISOString(),
-  };
-  if (input.company_name !== undefined) patch.company_name = input.company_name.trim();
-  if (input.company_email !== undefined) patch.company_email = input.company_email.trim();
-  if (input.contact_name !== undefined) patch.contact_name = input.contact_name.trim();
-  if (input.contact_phone !== undefined) patch.contact_phone = input.contact_phone.trim();
-  if (input.scope !== undefined) patch.scope = input.scope.trim();
-  if (input.contract_value !== undefined) patch.contract_value = Math.max(0, Math.round(input.contract_value || 0));
-  const { error } = await supabaseAdmin().from("service_contracts").update(patch).eq("id", id);
-  if (error) assertNoSupabaseError(error, "service_contracts");
-}
-
-export async function setServiceContractStatus(id: number, status: "active" | "terminated") {
-  const cur = await getServiceContract(id);
-  if (!cur) throw new Error("NOT_FOUND");
-  const { error } = await supabaseAdmin()
-    .from("service_contracts")
-    .update({ status, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) assertNoSupabaseError(error, "service_contracts");
-}
-
-export async function renewServiceContract(id: number, cycleMonths?: number) {
-  const cur = await getServiceContract(id);
-  if (!cur) throw new Error("NOT_FOUND");
-  const cycle = cycleMonths ? normalizeCycleMonths(cycleMonths, cur.cycle_months) : cur.cycle_months;
-  const base = remainingDays(cur.ends_at) >= 0 ? cur.ends_at : todayUtcIso();
-  const { error } = await supabaseAdmin()
-    .from("service_contracts")
-    .update({
-      ends_at: addMonths(base, cycle),
-      cycle_months: cycle,
-      renewal_count: cur.renewal_count + 1,
-      last_renewed_at: new Date().toISOString(),
-      status: "active",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-  if (error) assertNoSupabaseError(error, "service_contracts");
-  return (await getServiceContract(id))!;
-}
-
-export async function deleteServiceContract(id: number) {
-  const { count, error } = await supabaseAdmin()
-    .from("invoices")
-    .select("id", { count: "exact", head: true })
-    .eq("ref_type", "service_contract")
-    .eq("ref_id", id);
-  if (error) assertNoSupabaseError(error, "invoices");
-  if ((count || 0) > 0) throw new Error("HAS_INVOICES");
-  const { error: delErr } = await supabaseAdmin().from("service_contracts").delete().eq("id", id);
-  if (delErr) assertNoSupabaseError(delErr, "service_contracts");
-}
-
 export async function listInvoices(
   filter: { ref_type?: string; ref_id?: number; state?: string; q?: string } = {}
 ): Promise<Invoice[]> {
@@ -2138,7 +1756,7 @@ export async function listInvoices(
   const items: Invoice[] = [];
   for (const row of data || []) {
     const paid = await invoicePaidSumCloud(Number((row as any).id));
-    const info = await refInfoCloud(String((row as any).ref_type), Number((row as any).ref_id));
+    const info = await refInfoCloud((row as any).ref_type as Invoice["ref_type"], Number((row as any).ref_id));
     items.push(hydrateInvoice(row, paid, info, (row as any).created_by ? names.get(Number((row as any).created_by)) : undefined));
   }
   let out = items;
@@ -2161,7 +1779,7 @@ export async function getInvoice(id: number): Promise<(InvoiceView & { payments:
   if (error) assertNoSupabaseError(error, "invoices");
   if (!data) return undefined;
   const paid = await invoicePaidSumCloud(id);
-  const info = await refInfoCloud(String((data as any).ref_type), Number((data as any).ref_id));
+  const info = await refInfoCloud((data as any).ref_type as Invoice["ref_type"], Number((data as any).ref_id));
   const names = await crmUserNameMap();
   const inv = hydrateInvoice(
     data,
@@ -2186,7 +1804,7 @@ export async function getInvoice(id: number): Promise<(InvoiceView & { payments:
   };
 }
 
-export async function nextInstallmentNo(ref_type: string, ref_id: number): Promise<number> {
+export async function nextInstallmentNo(ref_type: "certificate", ref_id: number): Promise<number> {
   const { data, error } = await supabaseAdmin()
     .from("invoices")
     .select("installment_no")
@@ -2200,7 +1818,7 @@ export async function nextInstallmentNo(ref_type: string, ref_id: number): Promi
 
 export async function createInvoice(
   input: {
-    ref_type: "certificate" | "service_contract";
+    ref_type: "certificate";
     ref_id: number;
     installment_no?: number;
     title?: string;

@@ -55,9 +55,9 @@ export const translations: Record<Locale, TranslationTree> = {
     home: {
       internalLogin: "Internal Login",
       network: "Vexim Export Management Platform",
-      title: "FDA, GACC, Export Sales & Amazon — Run on One System",
+      title: "FDA and GACC Management",
       description:
-        "Verify certificates by QR, track every deal from lead to close, auto-generate service contracts, invoice per installment and never miss a follow-up.",
+        "Follow each company from intake and pricing to certification and ongoing support. Verify certificates by QR and keep the next step clear.",
       goToSystem: "Go to Management System",
       features: {
         validity: {
@@ -69,12 +69,12 @@ export const translations: Record<Locale, TranslationTree> = {
           desc: "Every published record has its own QR code — customers and partners scan to check validity. Service fees stay private.",
         },
         crm: {
-          title: "4-Pipeline Sales CRM",
-          desc: "FDA, GACC, Export Sales and Amazon pipelines: drag-and-drop stages, follow-up reminders and alerts for stalled deals.",
+          title: "FDA and GACC CRM",
+          desc: "Track each customer from intake to quote, certification and ongoing support, with clear next steps and reminders.",
         },
         contract: {
-          title: "Self-Generating Contracts",
-          desc: "Closing an Export Sales or Amazon deal auto-creates the contract from deal data, with flexible 1–60 month cycles and renewal reminders.",
+          title: "One company journey",
+          desc: "Keep each company profile, intake, quote, certificate and maintenance together in one workflow.",
         },
         accounting: {
           title: "Billing & Collection",
@@ -400,9 +400,9 @@ export const translations: Record<Locale, TranslationTree> = {
     home: {
       internalLogin: "Đăng nhập nội bộ",
       network: "Nền tảng quản lý xuất khẩu Vexim",
-      title: "FDA, GACC, Sale xuất khẩu & Amazon — Gói gọn trên một hệ thống",
+      title: "Quản lý FDA và GACC",
       description:
-        "Xác minh chứng nhận bằng QR, theo dõi deal từ lead đến chốt, hợp đồng tự sinh, hóa đơn theo từng đợt thu và nhắc việc tự động.",
+        "Theo dõi doanh nghiệp từ tiếp nhận, báo giá đến chứng nhận và duy trì. Xác minh hồ sơ bằng QR và luôn rõ việc cần làm tiếp theo.",
       goToSystem: "Vào hệ thống quản lý",
       features: {
         validity: {
@@ -414,12 +414,12 @@ export const translations: Record<Locale, TranslationTree> = {
           desc: "Mỗi hồ sơ đã xuất bản có mã QR riêng — khách hàng và đối tác tự quét kiểm tra hiệu lực, phí dịch vụ không hiển thị.",
         },
         crm: {
-          title: "CRM 4 tuyến bán hàng",
-          desc: "Pipeline FDA, GACC, Sale XK và Amazon: kéo-thả chuyển giai đoạn, nhắc follow-up, báo động deal bị bỏ quên.",
+          title: "CRM FDA và GACC",
+          desc: "Theo dõi khách hàng từ tiếp nhận đến báo giá, chứng nhận và duy trì, kèm việc cần làm tiếp theo.",
         },
         contract: {
-          title: "Hợp đồng tự sinh",
-          desc: "Chốt deal Sale XK hoặc Amazon là hợp đồng tự tạo từ dữ liệu deal, chu kỳ linh hoạt 1–60 tháng, nhắc gia hạn.",
+          title: "Một hành trình doanh nghiệp",
+          desc: "Gom hồ sơ, tiếp nhận, báo giá, chứng nhận và duy trì của từng doanh nghiệp vào một luồng.",
         },
         accounting: {
           title: "Kế toán thu chi",

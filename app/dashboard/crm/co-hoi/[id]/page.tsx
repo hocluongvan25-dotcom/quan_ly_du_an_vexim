@@ -111,7 +111,7 @@ export default function OppDetailPage() {
       {opp.is_won && (opp.pipeline_key === "FDA" || opp.pipeline_key === "GACC") && (
         <Link
           href={`/dashboard/ho-so/moi?standard=${opp.pipeline_key}&company=${encodeURIComponent(opp.company_name)}${opp.contact_email ? `&email=${encodeURIComponent(opp.contact_email)}` : ""}${opp.estimated_value ? `&price=${opp.estimated_value}` : ""}`}
-          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-600 p-5 text-white shadow-lift transition hover:shadow-card"
+          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-400 p-5 text-navy-950 shadow-lift transition hover:shadow-card"
         >
           <div>
             <div className="font-display text-base font-extrabold">
@@ -122,27 +122,6 @@ export default function OppDetailPage() {
             </div>
           </div>
           <div className="shrink-0 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-bold text-white">Tạo hồ sơ →</div>
-        </Link>
-      )}
-
-      {/* Sale/Amazon: HĐ đã tự sinh khi chốt — link sang xem */}
-      {opp.is_won && (opp.pipeline_key === "SALE_EXPORT" || opp.pipeline_key === "AMAZON_OPS") && (
-        <Link
-          href={`/dashboard/dich-vu?q=${encodeURIComponent(opp.company_name)}`}
-          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-600 p-5 text-white shadow-lift transition hover:shadow-card"
-        >
-          <div>
-            <div className="font-display text-base font-extrabold">
-              ✅ Deal đã chốt — hợp đồng {opp.pipeline_key === "SALE_EXPORT" ? "Sale XK" : "Amazon"} đã tự
-              tạo!
-            </div>
-            <div className="mt-0.5 text-xs font-semibold opacity-70">
-              Bấm để xem hợp đồng, xác nhận ngày bắt đầu & chu kỳ
-            </div>
-          </div>
-          <div className="shrink-0 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-bold text-white">
-            Xem hợp đồng →
-          </div>
         </Link>
       )}
 
@@ -246,7 +225,7 @@ export default function OppDetailPage() {
                 (opp.contact_email ? `&email=${encodeURIComponent(opp.contact_email)}` : "") +
                 (opp.contact_name ? `&name=${encodeURIComponent(opp.contact_name)}` : "") +
                 (opp.contact_phone ? `&phone=${encodeURIComponent(opp.contact_phone)}` : "")}
-              className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-teal-600"
+              className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-extrabold text-navy-950 hover:bg-teal-400"
             >
               <FileText className="h-4 w-4" /> Tạo báo giá
             </Link>

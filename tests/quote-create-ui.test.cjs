@@ -218,14 +218,11 @@ test('chỉ gợi ý doanh nghiệp chưa đăng ký đúng dịch vụ đang b�
   const gaccSuggest = container.querySelector('.absolute.z-20')?.textContent || '';
   assert.ok(!gaccSuggest.includes('THỰC PHẨM ABC'), 'doanh nghiệp đã đăng ký GACC không được gợi ý khi báo giá GACC');
 
-  // 5. Báo giá Sale xuất khẩu không gắn chứng nhận → hiện đầy đủ danh mục
+  // Chỉ còn hai loại báo giá được phép và hiện trong giao diện.
   await clickByText(container, '1. Hạng mục & đơn giá');
-  await clickByText(container, 'Sale xuất khẩu Mỹ');
-  await clickByText(container, 'Tiếp tục: thông tin khách hàng');
-  assert.ok(!container.textContent.includes('Đã ẩn'), 'dịch vụ không gắn chứng nhận thì không ẩn doanh nghiệp nào');
-  const saleInput = inputByPlaceholder('VD: CÔNG TY TNHH THỰC PHẨM ABC');
-  await typeInto(saleInput, 'CÔNG TY TNHH THỰC PHẨM ABC');
-  assert.match(container.textContent, /Đã lấy dữ liệu từ danh mục doanh nghiệp/);
+  assert.deepEqual(TEMPLATE_FIXTURES.map((template) => template.key), ['FDA', 'GACC']);
+  assert.ok(!container.textContent.includes('Amazon'));
+  assert.ok(!container.textContent.includes('Sale xuất khẩu'));
 });
 
 test('tạo báo giá: 2 bước, nút Tiếp tục ở dưới, tự mapping dữ liệu công ty và tính tiền ngay', async () => {

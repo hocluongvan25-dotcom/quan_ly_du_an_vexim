@@ -33,7 +33,7 @@ const pdfApi = require('../app/api/invoices/[id]/payment-request/route.ts');
 const helpers = require('../lib/payment-request.ts');
 const { generatePaymentRequestPdf } = require('../lib/payment-request-pdf.ts');
 const data = { ref_type: 'certificate', ref_id: 1, contract_no: 'GACC-238/2026', installment_no: 1, subtotal: 999, vat_rate: 8, issue_date: '2026-07-16' };
-const snapshot = () => ({ ...helpers.PAYMENT_REQUEST_DEFAULTS, document_no: '01/CV-ĐNTT', recipient_name: 'Công ty TNHH Dr FOODS', contract_date: '2026-07-02', contract_value: 28000000, percentage: 50, service_description: 'ký kết Hợp đồng Dịch vụ Đăng ký Mã GACC', transfer_content: 'Thanh toán DV GACC Lần 1 theo hợp đồng GACC-238/2026' });
+const snapshot = () => ({ ...helpers.PAYMENT_REQUEST_DEFAULTS, document_no: '01/CV-ĐNTT', recipient_name: 'Công ty TNHH Dr FOODS', contract_date: '2026-07-02', contract_value: 28000000, percentage: 50, service_description: 'đăng ký Mã GACC', transfer_content: 'Thanh toán DV GACC Lần 1 theo hợp đồng GACC-238/2026' });
 const create = (patch = {}) => db.createInvoice({ ...data, payment_request: snapshot(), ...patch }, 1);
 const request = (body, method = 'POST') => new Request('http://test/api/invoices', { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const ctx = id => ({ params: { id: String(id) } });
@@ -154,7 +154,6 @@ test('cloud adapter (mock) stores jsonb snapshots and applies the same recalcula
   const previous = supabase.supabaseAdmin;
   const tables = {
     certificates: [{ id: 1, certificate_no: 'CERT-001', company_name: 'Company', standard: 'FDA' }],
-    service_contracts: [{ id: 1, contract_no: 'SOURCE-001', company_name: 'Company', service_type: 'AMAZON_OPS' }],
     staff_users: [{ id: 1, name: 'Admin', email: 'test@example.com', role: 'admin' }],
     invoices: [], invoice_payments: [],
   };

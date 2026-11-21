@@ -2,9 +2,9 @@
 
 ## Luồng sử dụng
 
-1. Admin/kế toán mở hồ sơ hoặc hợp đồng dịch vụ → Tạo hóa đơn.
-2. Nhập số hợp đồng, ngày xuất và đợt thu. Phần **Giấy đề nghị thanh toán** bật mặc định cho hóa đơn mới; có thể bỏ chọn để tạo hóa đơn thông thường.
-3. Kiểm tra công ty khách hàng/dịch vụ tự điền; bổ sung ngày ký hợp đồng thực tế và tổng giá trị **chưa VAT**. Ngày bắt đầu dịch vụ không được coi mặc nhiên là ngày ký. Giá trị hợp đồng dịch vụ được gợi ý từ hồ sơ và cần xác nhận là chưa VAT.
+1. Admin/kế toán vào **Kế toán → Hóa đơn → Lập hóa đơn** (`/dashboard/ke-toan/hoa-don/moi`), chọn hồ sơ FDA/GACC rồi tạo hóa đơn. Màn hình hồ sơ chứng nhận chỉ dùng để lưu thông tin hồ sơ.
+2. Nhập số hợp đồng tham chiếu, ngày xuất và đợt thu. Phần **Giấy đề nghị thanh toán** bật mặc định cho hóa đơn mới; có thể bỏ chọn để tạo hóa đơn thông thường.
+3. Kiểm tra doanh nghiệp/dịch vụ tự điền; bổ sung ngày ký hợp đồng thực tế và tổng giá trị **chưa VAT**. Không suy đoán ngày bắt đầu hiệu lực hồ sơ là ngày ký. Giá trị dịch vụ lưu trong hồ sơ chỉ là giá trị tham chiếu, cần xác nhận là chưa VAT.
 4. Nhập tỷ lệ đợt (vd. 50%) để tự tính tiền chưa VAT, hoặc để trống tỷ lệ và nhập số tiền trực tiếp. Server tính lại tiền theo tỷ lệ, VAT và tổng, không tin số tiền tổng do trình duyệt gửi.
 5. Kiểm tra điều khoản, tên đơn vị, ngân hàng, số/tên tài khoản, nội dung chuyển khoản, chức danh và người ký. Các giá trị Vexim/MB là mặc định theo mẫu người dùng, không phải thông tin tài khoản được ngân hàng xác minh.
 6. Tạo hóa đơn → nút **Tải đề nghị thanh toán PDF A4** trên thẻ hóa đơn hoặc trang chi tiết. Có trang xem nội dung trước khi tải. Form sửa hỗ trợ bổ sung giấy đề nghị cho hóa đơn cũ.
