@@ -776,6 +776,11 @@
 
 /* Thanh công cụ hẹp: nhóm lọc xuống dòng thay vì cắt mất nhãn ở mép phải */
 @container (max-width: 780px) {
+  /* Số hồ sơ bên trái, nút Xoá lọc bên phải cho cân hàng */
+  .rec-btn-quiet {
+    margin-left: auto;
+  }
+
   .rec-group {
     flex-basis: 100%;
     flex-wrap: wrap;
