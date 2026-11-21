@@ -167,7 +167,7 @@ export type QuoteTotals = {
 
 const money = (value: number) => Math.max(0, Math.round(Number.isFinite(value) ? value : 0));
 
-/** Hạng mục chính cộng vào tổng; hạng mục tùy chọn chỉ hiển thị để khách chọn. */
+/** Hạng mục chính cộng vào tổng; dòng chưa tính tiền được hiển thị riêng để khách tham khảo. */
 export function calcQuoteTotals(
   items: QuoteLine[],
   discountPercent = 0,
@@ -249,9 +249,9 @@ export function normalizeQuoteItems(value: unknown): QuoteLine[] {
   if (value.length === 0) throw new Error("Báo giá cần ít nhất 01 hạng mục chính.");
   if (value.length > MAX_QUOTE_ITEMS) throw new Error(`Báo giá tối đa ${MAX_QUOTE_ITEMS} hạng mục.`);
   const items = value.map((row, index) => normalizeQuoteLine(row, index));
-  if (!items.some((i) => !i.optional)) throw new Error("Báo giá cần ít nhất 01 hạng mục chính (không phải tùy chọn).");
+  if (!items.some((i) => !i.optional)) throw new Error("Báo giá cần ít nhất một hạng mục có tính tiền.");
   if (items.some((i) => !i.optional && i.unit_price === 0) && !items.every((i) => !i.optional && i.unit_price === 0)) {
-    throw new Error("Hạng mục chính có đơn giá 0 ₫ — kiểm tra lại hoặc chuyển thành hạng mục tùy chọn.");
+    throw new Error("Đơn giá hạng mục chính bằng 0 ₫. Kiểm tra lại đơn giá trước khi tạo báo giá.");
   }
   return items;
 }
@@ -433,7 +433,7 @@ export function buildQuoteMessage(quote: QuoteView): string {
   if (optional.length > 0) {
     lines.push(
       "",
-      "Hạng mục tùy chọn (chưa tính vào tổng, Anh/Chị chọn thêm nếu cần):",
+      "Dịch vụ đi kèm (chưa tính vào tổng, Anh/Chị có thể chọn thêm nếu cần):",
       ...optional.map((item) => `- ${item.name}: ${formatMoney(item.qty * item.unit_price)} ₫${item.note ? ` (${item.note})` : ""}`)
     );
   }

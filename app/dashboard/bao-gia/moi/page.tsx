@@ -18,7 +18,7 @@ import {
 } from "@/lib/quote-templates";
 import { todayLocalIso } from "@/lib/utils";
 
-/** Dòng hạng mục trên form: thêm `option_key` để biết dòng nào do tùy chọn mà có. */
+/** Dòng báo giá trên form: `option_key` nhận diện dịch vụ đi kèm đã chọn. */
 type EditLine = QuoteLine & { option_key?: string };
 
 /** Doanh nghiệp trong danh mục — dùng để tự điền thông tin khách hàng ở bước 2. */
@@ -240,7 +240,7 @@ function NewQuoteInner() {
   function goToStep2() {
     setErr("");
     if (mainItems.length === 0) {
-      setErr("Báo giá cần ít nhất 01 hạng mục chính (không phải tùy chọn) trước khi sang bước 2.");
+      setErr("Báo giá cần ít nhất một hạng mục có tính tiền trước khi sang bước 2.");
       return;
     }
     if (items.some((line) => !line.name.trim())) {
@@ -254,7 +254,7 @@ function NewQuoteInner() {
   const submit = async () => {
     setErr("");
     if (mainItems.length === 0) {
-      setErr("Báo giá cần ít nhất 01 hạng mục chính (không phải tùy chọn).");
+      setErr("Báo giá cần ít nhất một hạng mục có tính tiền.");
       setStep(1);
       return;
     }
@@ -388,9 +388,14 @@ function NewQuoteInner() {
                           <span className="rounded-md bg-navy-900/5 px-1.5 py-0.5 text-[10px] font-extrabold text-navy-900/60">
                             {index + 1}
                           </span>
+                          {line.option_key && (
+                            <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-800">
+                              Dịch vụ đi kèm
+                            </span>
+                          )}
                           {line.optional && (
                             <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
-                              Tùy chọn — không cộng vào tổng
+                              Chưa cộng vào tổng
                             </span>
                           )}
                         </div>
@@ -445,14 +450,18 @@ function NewQuoteInner() {
                             {formatMoney(Math.max(0, (line.qty || 0) * (line.unit_price || 0)))} ₫
                           </div>
                         </div>
-                        <label className="flex items-center gap-1 text-[10px] font-bold text-navy-900/60">
-                          <input
-                            type="checkbox"
-                            checked={line.optional}
-                            onChange={(e) => patchLine(index, { optional: e.target.checked })}
-                          />
-                          Tùy chọn
-                        </label>
+                        {line.option_key ? (
+                          <span className="text-[10px] font-bold text-teal-700">Được tính vào tổng</span>
+                        ) : (
+                          <label className="flex items-center gap-1 text-[10px] font-bold text-navy-900/60">
+                            <input
+                              type="checkbox"
+                              checked={line.optional}
+                              onChange={(e) => patchLine(index, { optional: e.target.checked })}
+                            />
+                            Không cộng vào tổng
+                          </label>
+                        )}
                         <button
                           onClick={() => removeLine(index)}
                           disabled={items.length <= 1}
@@ -477,8 +486,11 @@ function NewQuoteInner() {
               {template.options.length > 0 && (
                 <div className="mt-4 rounded-2xl bg-teal-50 p-4">
                   <div className="flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-wider text-navy-900/60">
-                    <Sparkles className="h-3.5 w-3.5" /> Hạng mục tùy chọn của dịch vụ (tick để in kèm báo giá)
+                    <Sparkles className="h-3.5 w-3.5" /> Dịch vụ đi kèm
                   </div>
+                  <p className="mt-1 text-[11px] text-navy-900/55">
+                    Chọn dịch vụ để thêm vào hạng mục chính. Giá sẽ được cộng vào báo giá.
+                  </p>
                   <div className="mt-2 grid gap-2 md:grid-cols-2">
                     {template.options.map((option) => {
                       const checked = items.some((line) => line.option_key === option.key);
@@ -495,6 +507,11 @@ function NewQuoteInner() {
                             <span className="mt-0.5 block text-navy-900/50">
                               {formatMoney(option.qty * option.unit_price)} ₫ · {option.group}
                             </span>
+                            {checked && (
+                              <span className="mt-1 block font-bold text-teal-700">
+                                Đã thêm vào hạng mục chính
+                              </span>
+                            )}
                           </span>
                         </label>
                       );
@@ -707,7 +724,7 @@ function NewQuoteInner() {
                   <div className="font-bold text-navy-900">Kiểm tra nhanh trước khi tạo</div>
                   <ul className="mt-1 space-y-0.5 text-navy-900/70">
                     <li>• Dịch vụ: {template.name}</li>
-                    <li>• {mainItems.length} hạng mục chính · {items.length - mainItems.length} hạng mục tùy chọn</li>
+                    <li>• {mainItems.length} hạng mục chính · {items.length - mainItems.length} dòng chưa cộng vào tổng</li>
                     <li>• Khách hàng: {company.trim() ? company : <b className="text-red-600">chưa nhập tên công ty</b>}</li>
                     <li>• Tổng cộng: <b>{formatMoney(totals.total)} ₫</b> (đã gồm VAT {vatRate}%)</li>
                   </ul>
@@ -747,7 +764,7 @@ function NewQuoteInner() {
               {items.map((line, index) => (
                 <div key={index} className="text-[11px]">
                   <div className="font-semibold text-navy-900">
-                    {line.optional && <span className="text-amber-700">[Tùy chọn] </span>}
+                    {line.optional && <span className="text-amber-700">[Chưa tính] </span>}
                     {line.name || "(chưa đặt tên)"}
                   </div>
                   <div className="text-navy-900/50">
@@ -772,7 +789,7 @@ function NewQuoteInner() {
               <div className="pt-0.5 italic text-navy-900/55">Bằng chữ: {moneyInWords(totals.total)}</div>
               {totals.optional_total > 0 && (
                 <div className="italic text-navy-900/55">
-                  Tùy chọn cộng thêm (khách chọn): {formatMoney(totals.optional_total)} ₫
+                  Dòng chưa cộng vào tổng: {formatMoney(totals.optional_total)} ₫
                 </div>
               )}
             </div>

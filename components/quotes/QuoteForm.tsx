@@ -316,7 +316,7 @@ export function QuoteForm({
                       checked={line.optional}
                       onChange={(e) => patchLine(index, { optional: e.target.checked })}
                     />
-                    Tùy chọn
+                    Không cộng vào tổng
                   </label>
                   <button
                     onClick={() => set("items", form.items.filter((_, i) => i !== index))}
@@ -377,7 +377,7 @@ export function QuoteForm({
             </div>
             {totals.optional_total > 0 && (
               <div className="mt-1 text-[10px] italic text-navy-900/60">
-                Tùy chọn cộng thêm: {formatMoney(totals.optional_total)} ₫
+                Dòng chưa cộng vào tổng: {formatMoney(totals.optional_total)} ₫
               </div>
             )}
           </div>

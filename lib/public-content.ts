@@ -1,37 +1,28 @@
 /**
- * Nội dung website công khai (trang chủ tra cứu mã FDA, mã GACC).
- *
- * Một nguồn duy nhất cho cả tiếng Việt (đường dẫn gốc) và tiếng Anh (/en),
- * để phần FAQ trên trang và FAQ trong schema JSON-LD luôn trùng khớp nhau.
+ * Nội dung công khai cho trang tra cứu tiếng Việt và tiếng Anh.
+ * Phần hiển thị và dữ liệu SEO lấy từ cùng nguồn để luôn nhất quán.
  */
 
 export type SiteLang = "vi" | "en";
 
 export type SiteService = {
   id: "fda" | "gacc" | "trade" | "website";
-  no: string;
   tag: string;
   title: string;
   desc: string;
-  /** Câu mô tả dùng riêng trong schema JSON-LD (giữ đúng đặc tả). */
+  /** Mô tả dịch vụ dùng trong dữ liệu có cấu trúc cho công cụ tìm kiếm. */
   schemaDescription: string;
   bullets: string[];
   cta: string;
 };
 
 export type SiteFaq = { q: string; a: string };
-
-export type CopySegment = { text: string; href?: string };
+export type SiteLink = { label: string; href: string; nofollow?: boolean };
 
 export type SiteCopy = {
   htmlLang: string;
   a11y: { skip: string };
-  meta: {
-    title: string;
-    description: string;
-    /** Tên website dùng trong schema WebSite và thẻ og:site_name. */
-    siteName: string;
-  };
+  meta: { title: string; description: string; siteName: string };
   org: {
     legal: string;
     legalEn: string;
@@ -52,8 +43,9 @@ export type SiteCopy = {
   };
   nav: {
     aria: string;
-    links: { label: string; href: string }[];
+    links: SiteLink[];
     login: string;
+    call: string;
     menu: string;
     close: string;
     language: string;
@@ -64,11 +56,10 @@ export type SiteCopy = {
     lead: string;
     primary: string;
     secondary: string;
-    factsLabel: string;
-    facts: string[];
+    highlightsLabel: string;
+    highlights: string[];
   };
   lookup: {
-    index: string;
     kicker: string;
     title: string;
     typeLabel: string;
@@ -103,13 +94,14 @@ export type SiteCopy = {
     close: string;
   };
   services: {
-    index: string;
+    eyebrow: string;
     title: string;
     lead: string;
-    contact: CopySegment[];
+    contactPrompt: string;
+    contactCta: string;
   };
   faq: {
-    index: string;
+    eyebrow: string;
     title: string;
     lead: string;
     contact: string;
@@ -119,10 +111,10 @@ export type SiteCopy = {
     companyTitle: string;
     contactTitle: string;
     linkTitle: string;
-    hotlineLabel: string;
+    phoneLabel: string;
     emailLabel: string;
     websiteLabel: string;
-    links: { label: string; href: string; nofollow?: boolean }[];
+    links: SiteLink[];
     copyright: string;
   };
   services_list: SiteService[];
@@ -139,10 +131,10 @@ const vi: SiteCopy = {
   htmlLang: "vi",
   a11y: { skip: "Bỏ qua điều hướng" },
   meta: {
-    title: "Tra cứu mã FDA, đăng ký mã GACC | Vexim Global",
+    title: "Tra cứu mã đăng ký FDA và GACC | Vexim Global",
     description:
-      "Tra cứu mã FDA, mã GACC của doanh nghiệp bạn. Vexim Global hỗ trợ đăng ký FDA, đăng ký mã GACC, niêm yết miễn phí trên Vexim Trade và thiết kế website xuất khẩu.",
-    siteName: "Tra cứu mã FDA, mã GACC | Vexim Global",
+      "Tra cứu hồ sơ FDA hoặc GACC bằng mã đăng ký, tên doanh nghiệp hoặc mã QR. Xem tình trạng và ngày hết hạn của hồ sơ do Vexim quản lý.",
+    siteName: "Tra cứu mã đăng ký FDA và GACC | Vexim Global",
   },
   org: {
     legal: "Công ty TNHH Vexim Global",
@@ -159,8 +151,7 @@ const vi: SiteCopy = {
     email: EMAIL,
     website: WEBSITE,
     websiteLabel: WEBSITE_LABEL,
-    description:
-      "Hỗ trợ doanh nghiệp đăng ký, lưu trữ và theo dõi mã FDA, mã GACC.",
+    description: "Hỗ trợ doanh nghiệp đăng ký và theo dõi hồ sơ FDA, GACC.",
     knowsAbout: [
       "Đăng ký FDA",
       "Mã DUNS",
@@ -174,192 +165,184 @@ const vi: SiteCopy = {
   nav: {
     aria: "Điều hướng chính",
     links: [
-      { label: "Tra cứu mã", href: "#tra-cuu" },
+      { label: "Tra cứu", href: "#tra-cuu" },
       { label: "Dịch vụ", href: "#dich-vu" },
       { label: "Câu hỏi thường gặp", href: "#faq" },
     ],
-    login: "Đăng nhập nội bộ",
+    login: "Đăng nhập",
+    call: "Gọi tư vấn",
     menu: "Mở menu",
     close: "Đóng menu",
     language: "Ngôn ngữ",
   },
   hero: {
-    eyebrow: "Tra cứu công khai",
-    title: "Tra cứu mã FDA, mã GACC",
-    lead: "Tra cứu ngay mã FDA, GACC của doanh nghiệp bạn.",
-    primary: "Tra cứu mã",
-    secondary: "Liên hệ tư vấn",
-    factsLabel: "Mã và hệ thống liên quan",
-    facts: ["FDA", "DUNS", "FEI", "GACC", "CIFER"],
+    eyebrow: "Hồ sơ FDA và GACC",
+    title: "Tra cứu mã đăng ký FDA và GACC",
+    lead: "Nhập mã đăng ký hoặc tên doanh nghiệp để xem tình trạng và ngày hết hạn.",
+    primary: "Tra cứu hồ sơ",
+    secondary: "Gọi tư vấn",
+    highlightsLabel: "Cách tra cứu",
+    highlights: [
+      "Nhập mã hoặc tên doanh nghiệp",
+      "Quét mã QR trên hồ sơ",
+      "Xem tình trạng và ngày hết hạn",
+    ],
   },
   lookup: {
-    index: "01",
-    kicker: "Hồ sơ Vexim Global quản lý",
-    title: "Tra cứu mã đăng ký",
-    typeLabel: "Chọn loại mã",
-    fda: "Mã FDA",
-    gacc: "Mã GACC",
-    inputLabel: "Số đăng ký hoặc tên doanh nghiệp",
-    placeholder: "Ví dụ: 12345678901 hoặc Công ty TNHH ABC",
+    kicker: "FDA và GACC",
+    title: "Tra cứu hồ sơ",
+    typeLabel: "Loại mã đăng ký",
+    fda: "FDA",
+    gacc: "GACC",
+    inputLabel: "Mã đăng ký hoặc tên doanh nghiệp",
+    placeholder: "Nhập mã hoặc tên doanh nghiệp",
     submit: "Tra cứu",
     submitting: "Đang tra cứu",
     scan: "Quét mã QR",
-    note: "Kết quả áp dụng cho hồ sơ do Vexim Global quản lý.",
-    resultsLabel: "Kết quả tra cứu",
+    note: "Kết quả chỉ hiển thị hồ sơ do Vexim quản lý.",
+    resultsLabel: "Kết quả",
     resultCompany: "Doanh nghiệp",
     resultType: "Loại mã",
     resultStatus: "Tình trạng",
-    resultDeadline: "Hạn tiếp theo",
+    resultDeadline: "Ngày hết hạn",
     statusValid: "Còn hiệu lực",
     statusExpiring: "Sắp hết hạn",
-    statusExpired: "Hết hiệu lực",
+    statusExpired: "Đã hết hạn",
     notFound: {
-      before: "Chưa có hồ sơ trong hệ thống của Vexim Global. Vui lòng liên hệ ",
+      before: "Chưa tìm thấy hồ sơ. Gọi ",
       phone: PHONE,
-      after: " để được hỗ trợ.",
+      after: " để được hỗ trợ kiểm tra.",
     },
-    countOne: "1 hồ sơ phù hợp",
-    countMany: "{count} hồ sơ phù hợp",
-    openVerify: "Mở trang xác minh",
-    tooShort: "Vui lòng nhập ít nhất 2 ký tự.",
-    failed: "Chưa tra cứu được. Vui lòng thử lại hoặc gọi 0373 685 634.",
+    countOne: "1 kết quả",
+    countMany: "{count} kết quả",
+    openVerify: "Xem hồ sơ",
+    tooShort: "Nhập ít nhất 2 ký tự để tra cứu.",
+    failed: "Chưa tra cứu được. Thử lại hoặc gọi 0373 685 634.",
     startOver: "Tra cứu lại",
     scanTitle: "Quét mã QR trên hồ sơ",
-    scanHint: "Đưa mã QR vào giữa khung hình.",
+    scanHint: "Đặt mã QR vào giữa khung hình.",
     scanUnsupported:
-      "Trình duyệt chưa hỗ trợ quét trực tiếp. Mở camera điện thoại và quét mã QR trên hồ sơ, trang xác minh sẽ tự mở.",
-    scanError: "Không mở được camera. Vui lòng nhập số đăng ký hoặc tên doanh nghiệp.",
+      "Trình duyệt này chưa hỗ trợ quét QR trực tiếp. Dùng camera điện thoại để quét mã trên hồ sơ.",
+    scanError: "Không mở được camera. Nhập mã đăng ký hoặc tên doanh nghiệp để tra cứu.",
     scanStarting: "Đang mở camera",
     close: "Đóng",
   },
   services: {
-    index: "02",
+    eyebrow: "Hỗ trợ doanh nghiệp",
     title: "Dịch vụ",
-    lead: "Vexim Global hỗ trợ Quý doanh nghiệp đăng ký, lưu trữ và theo dõi mã đăng ký FDA, mã GACC.",
-    contact: [
-      { text: "Gọi " },
-      { text: PHONE, href: PHONE_HREF },
-      { text: " hoặc gửi email tới " },
-      { text: EMAIL, href: `mailto:${EMAIL}` },
-      { text: " để được tư vấn." },
-    ],
+    lead: "Chọn dịch vụ bạn cần. Gọi tư vấn để biết hồ sơ cần chuẩn bị và bước tiếp theo.",
+    contactPrompt: "Chưa rõ nên bắt đầu từ đâu?",
+    contactCta: "Gọi tư vấn",
   },
   faq: {
-    index: "03",
+    eyebrow: "Thông tin cần biết",
     title: "Câu hỏi thường gặp",
-    lead: "Thông tin về tra cứu, đăng ký và gia hạn mã FDA, mã GACC.",
-    contact: "Chưa có câu trả lời bạn cần?",
+    lead: "Câu trả lời ngắn về tra cứu, đăng ký và gia hạn hồ sơ.",
+    contact: "Cần kiểm tra thêm?",
   },
   footer: {
-    brandline: "Hỗ trợ doanh nghiệp đăng ký, lưu trữ và theo dõi mã FDA, mã GACC.",
-    companyTitle: "Doanh nghiệp",
+    brandline: "Hỗ trợ đăng ký và theo dõi hồ sơ FDA, GACC.",
+    companyTitle: "Thông tin doanh nghiệp",
     contactTitle: "Liên hệ",
     linkTitle: "Liên kết",
-    hotlineLabel: "Đường dây nóng",
+    phoneLabel: "Điện thoại",
     emailLabel: "Email",
     websiteLabel: "Website",
     links: [
-      { label: "Tra cứu mã", href: "#tra-cuu" },
+      { label: "Tra cứu hồ sơ", href: "#tra-cuu" },
       { label: "Đăng ký FDA", href: "#dich-vu" },
       { label: "Đăng ký GACC", href: "#dich-vu" },
       { label: "Câu hỏi thường gặp", href: "#faq" },
-      { label: "Đăng nhập nội bộ", href: "/login", nofollow: true },
+      { label: "Đăng nhập", href: "/login", nofollow: true },
     ],
-    copyright: "© 2026 Công ty TNHH Vexim Global.",
+    copyright: "Bản quyền 2026 Công ty TNHH Vexim Global.",
   },
   services_list: [
     {
       id: "fda",
-      no: "01",
       tag: "FDA",
       title: "Đăng ký FDA",
-      desc: "Đăng ký và quản lý mã FDA cho doanh nghiệp xuất khẩu thực phẩm sang Hoa Kỳ.",
+      desc: "Hỗ trợ cơ sở thực phẩm đăng ký với FDA Hoa Kỳ.",
       schemaDescription:
-        "Đăng ký cơ sở với FDA, cập nhật mã DUNS, mã FEI, lưu hồ sơ điện tử, nhắc lịch gia hạn và gửi cảnh báo trước hạn.",
+        "Rà soát thông tin cơ sở, hỗ trợ đăng ký hoặc cập nhật hồ sơ FDA, theo dõi ngày gia hạn.",
       bullets: [
-        "Đăng ký cơ sở với FDA.",
-        "Cập nhật mã DUNS, mã FEI.",
-        "Lưu hồ sơ điện tử, tra cứu khi cần.",
-        "Nhắc lịch gia hạn và các mốc thời gian quan trọng.",
-        "Gửi cảnh báo để doanh nghiệp chủ động chuẩn bị.",
-        "Mã FDA được xác minh công khai, tăng uy tín với đối tác.",
+        "Rà soát thông tin cơ sở.",
+        "Hỗ trợ đăng ký hoặc cập nhật hồ sơ.",
+        "Theo dõi thời hạn và nhắc lịch gia hạn.",
       ],
-      cta: "Đăng ký FDA",
+      cta: "Gọi tư vấn",
     },
     {
       id: "gacc",
-      no: "02",
       tag: "GACC",
       title: "Đăng ký mã GACC",
-      desc: "Hỗ trợ doanh nghiệp đăng ký mã GACC để xuất khẩu thực phẩm sang Trung Quốc.",
+      desc: "Hỗ trợ cơ sở thực phẩm đăng ký để xuất khẩu sang Trung Quốc.",
       schemaDescription:
-        "Tư vấn, tra cứu mã HS, mã CIQ để đăng ký đúng mã GACC, rà soát hồ sơ, nộp lên hệ thống CIFER, duy trì mã số và cập nhật địa chỉ miễn phí.",
+        "Rà soát thông tin cơ sở và sản phẩm, hỗ trợ đăng ký GACC trên CIFER và theo dõi thông tin đăng ký.",
       bullets: [
-        "Tư vấn, tra cứu mã HS, mã CIQ để đăng ký đúng mã GACC.",
-        "Rà soát hồ sơ và nộp lên hệ thống CIFER.",
-        "Duy trì mã số, cập nhật địa chỉ miễn phí.",
+        "Kiểm tra thông tin cơ sở và sản phẩm.",
+        "Hỗ trợ nộp hồ sơ lên hệ thống CIFER.",
+        "Theo dõi mã đăng ký và cập nhật địa chỉ.",
       ],
-      cta: "Đăng ký GACC",
+      cta: "Gọi tư vấn",
     },
     {
       id: "trade",
-      no: "03",
       tag: "Vexim Trade",
-      title: "Niêm yết miễn phí trên Vexim Trade",
-      desc: "Đưa doanh nghiệp và sản phẩm lên sàn Vexim Trade, không mất phí.",
+      title: "Đăng sản phẩm trên Vexim Trade",
+      desc: "Giới thiệu doanh nghiệp và sản phẩm miễn phí trên sàn giao dịch.",
       schemaDescription:
         "Tạo hồ sơ doanh nghiệp, đăng sản phẩm và nhận yêu cầu báo giá từ người mua.",
       bullets: [
-        "Tạo hồ sơ doanh nghiệp.",
-        "Đăng sản phẩm, quy cách, giá tham khảo.",
+        "Tạo trang giới thiệu doanh nghiệp.",
+        "Đăng sản phẩm và quy cách.",
         "Nhận yêu cầu báo giá từ người mua.",
       ],
-      cta: "Đăng ký niêm yết",
+      cta: "Gọi tư vấn",
     },
     {
       id: "website",
-      no: "04",
       tag: "Website",
       title: "Thiết kế website xuất khẩu",
-      desc: "Website giới thiệu doanh nghiệp và sản phẩm bằng nhiều ngôn ngữ.",
+      desc: "Giới thiệu doanh nghiệp và sản phẩm bằng nhiều ngôn ngữ.",
       schemaDescription:
-        "Website giới thiệu doanh nghiệp và sản phẩm bằng nhiều ngôn ngữ, có biểu mẫu nhận yêu cầu báo giá.",
+        "Thiết kế website nhiều ngôn ngữ để giới thiệu doanh nghiệp, sản phẩm và nhận yêu cầu báo giá.",
       bullets: [
-        "Trình bày sản phẩm, quy cách đóng gói.",
-        "Có biểu mẫu nhận yêu cầu báo giá.",
-        "Hiển thị tốt trên máy tính và điện thoại.",
+        "Trình bày sản phẩm và quy cách đóng gói.",
+        "Thêm biểu mẫu nhận yêu cầu báo giá.",
+        "Hiển thị tốt trên điện thoại và máy tính.",
       ],
-      cta: "Đăng ký thiết kế",
+      cta: "Gọi tư vấn",
     },
   ],
   faqs: [
     {
-      q: "Tra cứu mã FDA, mã GACC như thế nào?",
-      a: "Nhập số đăng ký hoặc tên doanh nghiệp vào ô tra cứu, hoặc quét mã QR. Kết quả áp dụng cho hồ sơ do Vexim Global quản lý.",
+      q: "Làm sao tra cứu mã đăng ký FDA hoặc GACC?",
+      a: "Chọn loại mã, nhập mã đăng ký hoặc tên doanh nghiệp, rồi chọn Tra cứu. Bạn cũng có thể quét mã QR trên hồ sơ.",
     },
     {
-      q: "Không tìm thấy mã thì làm gì?",
-      a: "Vui lòng liên hệ 0373 685 634 để được hỗ trợ kiểm tra.",
+      q: "Vì sao không tìm thấy hồ sơ?",
+      a: "Trang này chỉ hiển thị hồ sơ do Vexim quản lý. Gọi 0373 685 634 để nhờ kiểm tra.",
     },
     {
-      q: "Vexim Global hỗ trợ gì về FDA?",
-      a: "Đăng ký cơ sở với FDA, cập nhật mã DUNS, mã FEI, lưu hồ sơ điện tử, nhắc lịch gia hạn và gửi cảnh báo trước hạn.",
+      q: "Mã đăng ký FDA là gì?",
+      a: "Đây là mã đăng ký cơ sở với FDA Hoa Kỳ. Mã này không phải chứng nhận sản phẩm.",
     },
     {
-      q: "Bao lâu phải gia hạn đăng ký FDA?",
-      a: "Hai năm một lần, từ ngày 01/10 đến ngày 31/12 của các năm chẵn.",
+      q: "Khi nào cần gia hạn đăng ký FDA?",
+      a: "Đăng ký FDA cần gia hạn hai năm một lần. Kỳ gia hạn diễn ra từ ngày 1 tháng 10 đến ngày 31 tháng 12 của năm chẵn.",
     },
     {
-      q: "Doanh nghiệp được nhắc hạn như thế nào?",
-      a: "Hệ thống tự động gửi nhắc lịch và cảnh báo trước hạn để doanh nghiệp chủ động chuẩn bị.",
+      q: "Mã đăng ký GACC dùng để làm gì?",
+      a: "Mã này dùng để nhận diện cơ sở thực phẩm đăng ký xuất khẩu sang Trung Quốc.",
     },
     {
-      q: "Vexim Global hỗ trợ gì về GACC?",
-      a: "Tư vấn, tra cứu mã HS, mã CIQ để đăng ký đúng mã GACC, rà soát hồ sơ và nộp lên hệ thống CIFER.",
+      q: "Đăng ký GACC cần chuẩn bị gì?",
+      a: "Tùy sản phẩm, hồ sơ có thể khác nhau. Gọi tư vấn để được rà soát thông tin cơ sở và sản phẩm trước khi nộp.",
     },
     {
-      q: "Sau khi có mã GACC, Vexim Global hỗ trợ gì thêm?",
-      a: "Duy trì mã số và cập nhật địa chỉ miễn phí.",
+      q: "Có hỗ trợ ngoài FDA và GACC không?",
+      a: "Có. Bạn có thể đăng sản phẩm trên Vexim Trade hoặc thiết kế website giới thiệu doanh nghiệp.",
     },
   ],
 };
@@ -368,10 +351,10 @@ const en: SiteCopy = {
   htmlLang: "en",
   a11y: { skip: "Skip navigation" },
   meta: {
-    title: "FDA and GACC code lookup | Vexim Global",
+    title: "Look up FDA and GACC registration codes | Vexim Global",
     description:
-      "Look up the FDA and GACC codes of your business. Vexim Global supports FDA registration, GACC registration, free listings on Vexim Trade and export website design.",
-    siteName: "FDA and GACC code lookup | Vexim Global",
+      "Look up FDA or GACC records by registration code, business name, or QR code. See the status and expiry date of records managed by Vexim.",
+    siteName: "Look up FDA and GACC registration codes | Vexim Global",
   },
   org: {
     legal: "Vexim Global Co., Ltd",
@@ -388,13 +371,12 @@ const en: SiteCopy = {
     email: EMAIL,
     website: WEBSITE,
     websiteLabel: WEBSITE_LABEL,
-    description:
-      "We help businesses register, keep and track FDA and GACC codes.",
+    description: "We help businesses register and track FDA and GACC records.",
     knowsAbout: [
-      "FDA registration",
+      "FDA facility registration",
+      "GACC registration",
       "DUNS number",
       "FEI number",
-      "GACC registration",
       "HS code",
       "CIQ code",
       "CIFER system",
@@ -403,192 +385,184 @@ const en: SiteCopy = {
   nav: {
     aria: "Main navigation",
     links: [
-      { label: "Code lookup", href: "#tra-cuu" },
+      { label: "Look up", href: "#tra-cuu" },
       { label: "Services", href: "#dich-vu" },
       { label: "FAQ", href: "#faq" },
     ],
-    login: "Internal login",
+    login: "Log in",
+    call: "Call us",
     menu: "Open menu",
     close: "Close menu",
     language: "Language",
   },
   hero: {
-    eyebrow: "Public lookup",
-    title: "FDA and GACC code lookup",
-    lead: "Look up the FDA and GACC codes of your business.",
-    primary: "Look up a code",
-    secondary: "Talk to our team",
-    factsLabel: "Related codes and systems",
-    facts: ["FDA", "DUNS", "FEI", "GACC", "CIFER"],
+    eyebrow: "FDA and GACC records",
+    title: "Look up FDA and GACC registration codes",
+    lead: "Enter a registration code or business name to see the record status and expiry date.",
+    primary: "Look up a record",
+    secondary: "Call for advice",
+    highlightsLabel: "Lookup options",
+    highlights: [
+      "Enter a code or business name",
+      "Scan the QR code on a record",
+      "See status and expiry date",
+    ],
   },
   lookup: {
-    index: "01",
-    kicker: "Records managed by Vexim Global",
-    title: "Registration code lookup",
-    typeLabel: "Code type",
-    fda: "FDA code",
-    gacc: "GACC code",
-    inputLabel: "Registration number or company name",
-    placeholder: "For example: 12345678901 or ABC Co., Ltd.",
+    kicker: "FDA and GACC",
+    title: "Look up a record",
+    typeLabel: "Registration type",
+    fda: "FDA",
+    gacc: "GACC",
+    inputLabel: "Registration code or business name",
+    placeholder: "Enter a code or business name",
     submit: "Look up",
-    submitting: "Looking up",
+    submitting: "Searching",
     scan: "Scan QR code",
-    note: "Results cover records managed by Vexim Global.",
-    resultsLabel: "Lookup result",
-    resultCompany: "Company",
-    resultType: "Code type",
+    note: "Results include records managed by Vexim only.",
+    resultsLabel: "Results",
+    resultCompany: "Business",
+    resultType: "Registration type",
     resultStatus: "Status",
-    resultDeadline: "Next deadline",
+    resultDeadline: "Expiry date",
     statusValid: "Valid",
     statusExpiring: "Expiring soon",
     statusExpired: "Expired",
     notFound: {
-      before: "No record found in the Vexim Global system. Please call ",
+      before: "No record found. Call ",
       phone: PHONE,
-      after: " for assistance.",
+      after: " for help checking it.",
     },
-    countOne: "1 matching record",
-    countMany: "{count} matching records",
-    openVerify: "Open verification page",
-    tooShort: "Please enter at least 2 characters.",
-    failed: "The lookup could not be completed. Please try again or call 0373 685 634.",
+    countOne: "1 result",
+    countMany: "{count} results",
+    openVerify: "View record",
+    tooShort: "Enter at least 2 characters to search.",
+    failed: "The search could not be completed. Try again or call 0373 685 634.",
     startOver: "Search again",
-    scanTitle: "Scan the QR code on the record",
-    scanHint: "Place the QR code inside the frame.",
+    scanTitle: "Scan the QR code on a record",
+    scanHint: "Place the QR code in the center of the frame.",
     scanUnsupported:
-      "This browser cannot scan directly. Open your phone camera and scan the QR code on the record; the verification page will open.",
-    scanError: "The camera could not be opened. Please enter the registration number or company name.",
+      "This browser cannot scan QR codes directly. Use your phone camera to scan the code on the record.",
+    scanError: "The camera could not be opened. Enter a registration code or business name to search.",
     scanStarting: "Opening camera",
     close: "Close",
   },
   services: {
-    index: "02",
+    eyebrow: "Business support",
     title: "Services",
-    lead: "Vexim Global helps businesses register, keep and track FDA and GACC registration codes.",
-    contact: [
-      { text: "Call " },
-      { text: PHONE, href: PHONE_HREF },
-      { text: " or email " },
-      { text: EMAIL, href: `mailto:${EMAIL}` },
-      { text: " for advice." },
-    ],
+    lead: "Choose a service. Call us to learn what information to prepare and what to do next.",
+    contactPrompt: "Not sure where to start?",
+    contactCta: "Call for advice",
   },
   faq: {
-    index: "03",
+    eyebrow: "Helpful information",
     title: "Frequently asked questions",
-    lead: "How to look up, register and renew FDA and GACC codes.",
-    contact: "Do you need another answer?",
+    lead: "Short answers about looking up, registering, and renewing records.",
+    contact: "Need help checking a record?",
   },
   footer: {
-    brandline: "We help businesses register, keep and track FDA and GACC codes.",
-    companyTitle: "Company",
+    brandline: "Support for FDA and GACC registration and record tracking.",
+    companyTitle: "Business details",
     contactTitle: "Contact",
     linkTitle: "Links",
-    hotlineLabel: "Hotline",
+    phoneLabel: "Phone",
     emailLabel: "Email",
     websiteLabel: "Website",
     links: [
-      { label: "Code lookup", href: "#tra-cuu" },
+      { label: "Look up a record", href: "#tra-cuu" },
       { label: "FDA registration", href: "#dich-vu" },
       { label: "GACC registration", href: "#dich-vu" },
-      { label: "FAQ", href: "#faq" },
-      { label: "Internal login", href: "/login", nofollow: true },
+      { label: "Frequently asked questions", href: "#faq" },
+      { label: "Log in", href: "/login", nofollow: true },
     ],
-    copyright: "© 2026 Vexim Global Co., Ltd.",
+    copyright: "Copyright 2026 Vexim Global Co., Ltd.",
   },
   services_list: [
     {
       id: "fda",
-      no: "01",
       tag: "FDA",
       title: "FDA registration",
-      desc: "FDA registration and code management for businesses exporting food to the United States.",
+      desc: "Support for food facilities registering with the U.S. FDA.",
       schemaDescription:
-        "Facility registration with the FDA, DUNS and FEI code updates, electronic records, renewal reminders and advance notices.",
+        "Review facility details, support FDA registration or updates, and track renewal dates.",
       bullets: [
-        "Facility registration with the FDA.",
-        "DUNS and FEI code updates.",
-        "Electronic records, ready when you need them.",
-        "Renewal reminders and key deadlines.",
-        "Advance notices so you can prepare in time.",
-        "Publicly verifiable FDA codes that support your standing with partners.",
+        "Review facility information.",
+        "Support registration or record updates.",
+        "Track deadlines and send renewal reminders.",
       ],
-      cta: "Register for FDA",
+      cta: "Call for advice",
     },
     {
       id: "gacc",
-      no: "02",
       tag: "GACC",
       title: "GACC registration",
-      desc: "GACC registration for businesses exporting food to China.",
+      desc: "Support for food facilities registering to export to China.",
       schemaDescription:
-        "Advice and checks on HS and CIQ codes for a correct GACC registration, document review, submission to CIFER, code maintenance and free address updates.",
+        "Review facility and product details, support GACC registration in CIFER, and help maintain registration details.",
       bullets: [
-        "Advice on HS and CIQ codes for a correct GACC registration.",
-        "Document review and submission to CIFER.",
-        "Code maintenance and free address updates.",
+        "Review facility and product information.",
+        "Support submission through CIFER.",
+        "Track registration details and update addresses.",
       ],
-      cta: "Register for GACC",
+      cta: "Call for advice",
     },
     {
       id: "trade",
-      no: "03",
       tag: "Vexim Trade",
-      title: "Free listing on Vexim Trade",
-      desc: "Put your business and products on Vexim Trade at no cost.",
+      title: "List products on Vexim Trade",
+      desc: "Introduce your business and products on a marketplace at no cost.",
       schemaDescription:
-        "Create a company profile, publish products and receive quotation requests from buyers.",
+        "Create a company profile, publish products, and receive quotation requests from buyers.",
       bullets: [
-        "Create a company profile.",
-        "Publish products, specifications and reference prices.",
+        "Create a business profile.",
+        "List products and specifications.",
         "Receive quotation requests from buyers.",
       ],
-      cta: "Request a listing",
+      cta: "Call for advice",
     },
     {
       id: "website",
-      no: "04",
       tag: "Website",
       title: "Export website design",
-      desc: "A company and product website in more than one language.",
+      desc: "Introduce your business and products in more than one language.",
       schemaDescription:
-        "A company and product website in more than one language, with a quotation request form.",
+        "Design a multilingual website that introduces a business and its products and includes a quotation request form.",
       bullets: [
-        "Present products and packaging specifications.",
-        "Include a quotation request form.",
+        "Present products and packaging details.",
+        "Add a quotation request form.",
         "Display well on desktop and mobile.",
       ],
-      cta: "Request a website",
+      cta: "Call for advice",
     },
   ],
   faqs: [
     {
-      q: "How do I look up an FDA or GACC code?",
-      a: "Enter the registration number or company name in the lookup field, or scan the QR code. Results cover records managed by Vexim Global.",
+      q: "How do I look up an FDA or GACC registration code?",
+      a: "Choose a registration type, enter a code or business name, and select Look up. You can also scan the QR code on a record.",
     },
     {
-      q: "What if I cannot find a code?",
-      a: "Please call 0373 685 634 and we will check it for you.",
+      q: "Why can’t I find a record?",
+      a: "This page only shows records managed by Vexim. Call 0373 685 634 and we can check it for you.",
     },
     {
-      q: "What does Vexim Global do for FDA registration?",
-      a: "Facility registration with the FDA, DUNS and FEI code updates, electronic records, renewal reminders and advance notices.",
+      q: "What is an FDA registration code?",
+      a: "It identifies a facility registered with the U.S. FDA. It is not a certificate for a product.",
     },
     {
-      q: "How often must FDA registration be renewed?",
-      a: "Every two years, from 1 October to 31 December of even years.",
+      q: "When must FDA registration be renewed?",
+      a: "FDA registration must be renewed every two years, from October 1 to December 31 of even-numbered years.",
     },
     {
-      q: "How are renewal deadlines notified?",
-      a: "The system sends automatic reminders and advance notices so your business can prepare.",
+      q: "What is a GACC registration code used for?",
+      a: "It identifies a food facility registered to export to China.",
     },
     {
-      q: "What does Vexim Global do for GACC registration?",
-      a: "Advice on HS and CIQ codes for a correct GACC registration, document review and submission to CIFER.",
+      q: "What information is needed for GACC registration?",
+      a: "Requirements vary by product. Call us to review the facility and product details before submission.",
     },
     {
-      q: "What happens after a GACC code is issued?",
-      a: "We maintain the code and update your address at no cost.",
+      q: "Do you provide support beyond FDA and GACC?",
+      a: "Yes. You can list products on Vexim Trade or request a website to introduce your business.",
     },
   ],
 };
@@ -601,13 +575,10 @@ export function siteCopy(lang: SiteLang): SiteCopy {
 
 export const SITE_PATHS: Record<SiteLang, string> = { vi: "/", en: "/en" };
 
-/** Địa chỉ gốc dùng trong schema, giữ đúng đặc tả. */
+/** Địa chỉ gốc dùng trong schema. */
 const SCHEMA_ORIGIN = "https://vanhanh.veximglobal.com";
 
-/**
- * JSON-LD của trang chủ: thông tin doanh nghiệp, website, trang, bốn dịch vụ
- * và bảy câu hỏi thường gặp. Toàn bộ nội dung lấy từ cùng nguồn với phần hiển thị.
- */
+/** JSON-LD cho doanh nghiệp, website, trang, dịch vụ và câu hỏi thường gặp. */
 export function siteJsonLd(lang: SiteLang) {
   const c = siteCopy(lang);
   const orgId = `${SCHEMA_ORIGIN}/#organization`;
@@ -618,14 +589,13 @@ export function siteJsonLd(lang: SiteLang) {
     website: "dich-vu-website",
   };
   const serviceId = (id: SiteService["id"]) => `${SCHEMA_ORIGIN}/#${schemaIds[id]}`;
-
-  const services = c.services_list.map((s) => ({
+  const services = c.services_list.map((service) => ({
     "@type": "Service",
-    "@id": serviceId(s.id),
-    name: s.title,
-    description: s.schemaDescription,
+    "@id": serviceId(service.id),
+    name: service.title,
+    description: service.schemaDescription,
     provider: { "@id": orgId },
-    ...(s.id === "trade"
+    ...(service.id === "trade"
       ? { offers: { "@type": "Offer", price: "0", priceCurrency: "VND" } }
       : {}),
   }));
@@ -643,17 +613,14 @@ export function siteJsonLd(lang: SiteLang) {
         description: c.org.description,
         telephone: "+84373685634",
         email: EMAIL,
-        address: {
-          "@type": "PostalAddress",
-          ...c.org.address,
-        },
+        address: { "@type": "PostalAddress", ...c.org.address },
         knowsAbout: c.org.knowsAbout,
       },
       {
         "@type": "WebSite",
         "@id": `${SCHEMA_ORIGIN}/#website`,
         url: `${SCHEMA_ORIGIN}/`,
-        name: siteCopy("vi").meta.siteName,
+        name: c.meta.siteName,
         inLanguage: lang,
         publisher: { "@id": orgId },
       },
@@ -673,10 +640,10 @@ export function siteJsonLd(lang: SiteLang) {
         "@type": "FAQPage",
         "@id": `${SCHEMA_ORIGIN}/#faq`,
         inLanguage: lang,
-        mainEntity: c.faqs.map((f) => ({
+        mainEntity: c.faqs.map((faq) => ({
           "@type": "Question",
-          name: f.q,
-          acceptedAnswer: { "@type": "Answer", text: f.a },
+          name: faq.q,
+          acceptedAnswer: { "@type": "Answer", text: faq.a },
         })),
       },
     ],

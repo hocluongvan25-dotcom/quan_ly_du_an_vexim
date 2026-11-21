@@ -302,7 +302,7 @@ class QuotePdf {
       if (kind === "caption") {
         this.page.drawRectangle({ x: this.left, y: top - height, width: this.width, height, color: IVORY });
         this.page.drawRectangle({ x: this.left, y: top - height, width: 2.5, height, color: GOLD });
-        this.page.drawText("HẠNG MỤC TÙY CHỌN — chưa tính vào tổng, áp dụng khi Quý khách chọn thêm", {
+        this.page.drawText("DỊCH VỤ ĐI KÈM — chưa tính vào tổng, Quý khách có thể chọn thêm", {
           x: this.left + 8, y: top - height / 2 - 3, font: this.fonts.bold, size: 8.5, color: GOLD_DEEP,
         });
         this.y = top - height;
@@ -409,7 +409,7 @@ class QuotePdf {
     this.write(`Bằng chữ: ${quote.total_in_words}.`, { x, width: blockWidth, font: this.fonts.italic, size: 9, color: GREY });
     if (quote.optional_total > 0) {
       this.write(
-        `Hạng mục tùy chọn (nếu chọn thêm): ${formatMoney(quote.optional_total)} ₫ (chưa gồm VAT).`,
+        `Dịch vụ đi kèm chưa tính vào tổng: ${formatMoney(quote.optional_total)} ₫ (chưa gồm VAT).`,
         { x, width: blockWidth, font: this.fonts.italic, size: 9, color: GREY, gap: 2 }
       );
     }

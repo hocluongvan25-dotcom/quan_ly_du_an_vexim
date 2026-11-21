@@ -77,17 +77,7 @@ export function CodeLookup({ lang }: { lang: SiteLang }) {
   }
 
   return (
-    <section className="lookup" id="tra-cuu" aria-labelledby="lookup-title">
-      <div className="lookup__head">
-        <span className="lookup__index" aria-hidden="true">
-          {copy.index}
-        </span>
-        <span className="lookup__kicker">{copy.kicker}</span>
-      </div>
-      <h2 className="lookup__title" id="lookup-title">
-        {copy.title}
-      </h2>
-
+    <div className="lookup" id="tra-cuu" role="region" aria-labelledby="lookup-title">
       <form className="lookup__body" onSubmit={onSubmit} noValidate>
         <div>
           <span className="lookup__label" id="lookup-type-label">
@@ -220,6 +210,6 @@ export function CodeLookup({ lang }: { lang: SiteLang }) {
       </div>
 
       {scanOpen && <QrScanner lang={lang} onClose={() => setScanOpen(false)} />}
-    </section>
+    </div>
   );
 }

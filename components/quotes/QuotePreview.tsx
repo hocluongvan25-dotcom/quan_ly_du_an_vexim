@@ -105,7 +105,7 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
               <>
                 <tr>
                   <td colSpan={6} className="border-l-[3px] border-[#C99C25] bg-[#F8F4EC] px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-[#836514]">
-                    Hạng mục tùy chọn — chưa tính vào tổng, áp dụng khi Quý khách chọn thêm
+                    Dịch vụ đi kèm. Chưa tính vào tổng, khách hàng có thể chọn thêm.
                   </td>
                 </tr>
                 {optional.map((item, index) => (
@@ -152,7 +152,7 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
           </div>
           {quote.optional_total > 0 && (
             <div className="mt-0.5 px-2 text-[11px] italic text-navy-900/55">
-              Hạng mục tùy chọn (nếu chọn thêm): {formatMoney(quote.optional_total)} ₫ (chưa gồm VAT).
+              Dịch vụ đi kèm chưa tính vào tổng: {formatMoney(quote.optional_total)} ₫ (chưa gồm VAT).
             </div>
           )}
         </div>

@@ -76,10 +76,10 @@ const stripTags = (html) =>
 
 test('thẻ SEO của trang chủ đúng đặc tả', () => {
   const viPage = require('../app/page.tsx');
-  assert.equal(viPage.metadata.title, 'Tra cứu mã FDA, đăng ký mã GACC | Vexim Global');
+  assert.equal(viPage.metadata.title, 'Tra cứu mã đăng ký FDA và GACC | Vexim Global');
   assert.equal(
     viPage.metadata.description,
-    'Tra cứu mã FDA, mã GACC của doanh nghiệp bạn. Vexim Global hỗ trợ đăng ký FDA, đăng ký mã GACC, niêm yết miễn phí trên Vexim Trade và thiết kế website xuất khẩu.',
+    'Tra cứu hồ sơ FDA hoặc GACC bằng mã đăng ký, tên doanh nghiệp hoặc mã QR. Xem tình trạng và ngày hết hạn của hồ sơ do Vexim quản lý.',
   );
   assert.deepEqual(viPage.metadata.alternates.languages, { vi: '/', en: '/en', 'x-default': '/' });
   assert.equal(viPage.metadata.alternates.canonical, '/');
@@ -87,7 +87,11 @@ test('thẻ SEO của trang chủ đúng đặc tả', () => {
   const enPage = require('../app/en/page.tsx');
   assert.equal(enPage.metadata.alternates.canonical, '/en');
   assert.equal(enPage.metadata.alternates.languages.en, '/en');
-  assert.match(enPage.metadata.title, /Vexim Global/);
+  assert.equal(enPage.metadata.title, 'Look up FDA and GACC registration codes | Vexim Global');
+  assert.equal(
+    enPage.metadata.description,
+    'Look up FDA or GACC records by registration code, business name, or QR code. See the status and expiry date of records managed by Vexim.',
+  );
 
   const loginLayout = require('../app/login/layout.tsx');
   assert.equal(loginLayout.metadata.robots.index, false);
@@ -104,27 +108,34 @@ test('cấu trúc tiêu đề theo đúng thứ tự đặc tả', () => {
   const h2 = [...viHtml.matchAll(/<h2[^>]*>([\s\S]*?)<\/h2>/g)].map((m) => stripTags(m[1]));
   const h3 = [...viHtml.matchAll(/<h3[^>]*>([\s\S]*?)<\/h3>/g)].map((m) => stripTags(m[1]));
 
-  assert.deepEqual(h1, ['Tra cứu mã FDA, mã GACC']);
-  /* H2 của thẻ tra cứu đứng trước, sau đó tới Dịch vụ và Câu hỏi thường gặp. */
-  assert.deepEqual(h2, ['Tra cứu mã đăng ký', 'Dịch vụ', 'Câu hỏi thường gặp']);
+  assert.deepEqual(h1, ['Tra cứu mã đăng ký FDA và GACC']);
+  /* H2 tra cứu đứng trước Dịch vụ và Câu hỏi thường gặp. */
+  assert.deepEqual(h2, ['Tra cứu hồ sơ', 'Dịch vụ', 'Câu hỏi thường gặp']);
   assert.deepEqual(h3, [
     'Đăng ký FDA',
     'Đăng ký mã GACC',
-    'Niêm yết miễn phí trên Vexim Trade',
+    'Đăng sản phẩm trên Vexim Trade',
     'Thiết kế website xuất khẩu',
   ]);
 });
 
 test('đầu trang có câu mô tả, hai nút và ô tra cứu đầy đủ', () => {
-  assert.match(viText, /Tra cứu ngay mã FDA, GACC của doanh nghiệp bạn\./);
-  assert.match(viText, /Tra cứu mã /);
-  assert.match(viText, /Liên hệ tư vấn/);
+  assert.match(viText, /Nhập mã đăng ký hoặc tên doanh nghiệp để xem tình trạng và ngày hết hạn\./);
+  assert.match(viText, /Tra cứu hồ sơ/);
+  assert.match(viText, /Gọi tư vấn/);
 
-  assert.match(viHtml, /Mã FDA/);
-  assert.match(viHtml, /Mã GACC/);
-  assert.match(viHtml, /Số đăng ký hoặc tên doanh nghiệp/);
+  assert.match(viHtml, /FDA/);
+  assert.match(viHtml, /GACC/);
+  assert.match(viHtml, /Mã đăng ký hoặc tên doanh nghiệp/);
   assert.match(viHtml, /Quét mã QR/);
-  assert.match(viText, /Kết quả áp dụng cho hồ sơ do Vexim Global quản lý\./);
+  assert.match(viText, /Kết quả chỉ hiển thị hồ sơ do Vexim quản lý\./);
+});
+
+test('liên kết điều hướng có đúng một điểm đến trên trang', () => {
+  for (const id of ['tra-cuu', 'dich-vu', 'faq']) {
+    assert.equal((viHtml.match(new RegExp(`id="${id}"`, 'g')) || []).length, 1, `id ${id} cần duy nhất`);
+    assert.match(viHtml, new RegExp(`href="#${id}"`), `thiếu liên kết tới ${id}`);
+  }
 });
 
 test('bốn dịch vụ giữ nguyên nội dung và nút liên hệ', () => {
@@ -160,7 +171,7 @@ test('chân trang đủ thông tin doanh nghiệp và liên kết nội bộ nof
   assert.ok(viText.includes('0373 685 634'));
   assert.ok(viText.includes('contact@veximglobal.com'));
   assert.ok(viText.includes('www.veximglobal.com'));
-  assert.ok(viText.includes('© 2026 Công ty TNHH Vexim Global.'));
+  assert.ok(viText.includes('Bản quyền 2026 Công ty TNHH Vexim Global.'));
   for (const link of c.footer.links) {
     assert.ok(viText.includes(link.label), `thiếu liên kết chân trang: ${link.label}`);
   }
@@ -207,15 +218,15 @@ test('JSON-LD: doanh nghiệp, website, trang, bốn dịch vụ, bảy câu h�
     'Hệ thống CIFER',
   ]);
 
-  assert.equal(graph[1].name, 'Tra cứu mã FDA, mã GACC | Vexim Global');
-  assert.equal(graph[2].name, 'Tra cứu mã FDA, đăng ký mã GACC | Vexim Global');
+  assert.equal(graph[1].name, 'Tra cứu mã đăng ký FDA và GACC | Vexim Global');
+  assert.equal(graph[2].name, 'Tra cứu mã đăng ký FDA và GACC | Vexim Global');
   assert.equal(
     graph[2].description,
-    'Tra cứu mã FDA, mã GACC của doanh nghiệp bạn. Vexim Global hỗ trợ đăng ký FDA, đăng ký mã GACC, niêm yết miễn phí trên Vexim Trade và thiết kế website xuất khẩu.',
+    'Tra cứu hồ sơ FDA hoặc GACC bằng mã đăng ký, tên doanh nghiệp hoặc mã QR. Xem tình trạng và ngày hết hạn của hồ sơ do Vexim quản lý.',
   );
 
   const trade = graph[5];
-  assert.equal(trade.name, 'Niêm yết miễn phí trên Vexim Trade');
+  assert.equal(trade.name, 'Đăng sản phẩm trên Vexim Trade');
   assert.deepEqual(trade.offers, { '@type': 'Offer', price: '0', priceCurrency: 'VND' });
 
   const faq = graph[7];
@@ -238,6 +249,9 @@ test('máy tìm kiếm đọc được JSON-LD trong HTML và cả hai ngôn ng�
   assert.match(viHtml, /<script type="application\/ld\+json">/);
   assert.ok(viHtml.includes('"@type":"FAQPage"'));
   const en = siteJsonLd('en');
+  assert.equal(en['@graph'][1].name, siteCopy('en').meta.siteName);
+  assert.equal(en['@graph'][2].name, siteCopy('en').meta.title);
+  assert.equal(en['@graph'][2].description, siteCopy('en').meta.description);
   assert.equal(en['@graph'].find((node) => node['@type'] === 'FAQPage').mainEntity.length, 7);
   assert.equal(en['@graph'][2].inLanguage, 'en');
 });
@@ -255,7 +269,7 @@ test('văn phong: không biểu tượng, không hứa hẹn, không từ cấm'
     const text = stripTags(visible);
     assert.ok(!text.includes('!'), `${lang}: không dùng dấu chấm than`);
     assert.ok(!text.includes('—'), `${lang}: không dùng gạch dài`);
-    assert.ok(!/→|⇒|✔|★|🚀/.test(text), `${lang}: không dùng biểu tượng mũi tên`);
+    assert.ok(!/[→⇒↗↓↑←✔★🚀]/.test(text), `${lang}: không dùng ký tự trang trí kiểu AI`);
     const banned = [
       'giải pháp toàn diện',
       'hành trình',
@@ -278,8 +292,9 @@ test('gọi đúng tên dịch vụ và người đọc theo đặc tả', () =>
   const c = siteCopy('vi');
   assert.ok(viText.includes('Đăng ký FDA'));
   assert.ok(viText.includes('mã đăng ký FDA'), 'có dùng cụm "mã đăng ký FDA"');
-  assert.match(viText, /Quý doanh nghiệp/, 'phần thông tin gọi "Quý doanh nghiệp"');
-  assert.match(viText, /của doanh nghiệp bạn/, 'câu kêu gọi dùng "bạn"');
+  assert.match(viText, /Gọi tư vấn/);
+  assert.match(viText, /Tra cứu mã đăng ký FDA và GACC/);
+  assert.doesNotMatch(viText, /Quý doanh nghiệp|doanh nghiệp bạn/, 'không dùng danh xưng trang trọng hoặc câu xưng hô rườm rà');
 });
 
 /* -------------------------------- Tiếng Anh ------------------------------- */
@@ -287,7 +302,7 @@ test('gọi đúng tên dịch vụ và người đọc theo đặc tả', () =>
 test('bản tiếng Anh ở /en cùng bố cục, cùng số mục', () => {
   const enHtml = render(React.createElement(require('../app/en/page.tsx').default));
   const enText = stripTags(enHtml);
-  assert.match(enText, /FDA and GACC code lookup/);
+  assert.match(enText, /Look up FDA and GACC registration codes/);
   assert.equal([...enHtml.matchAll(/<h3[^>]*>/g)].length, 4);
   assert.equal([...enHtml.matchAll(/<details class="faq-item"/g)].length, 7);
   assert.match(enHtml, /hrefLang="vi"/);

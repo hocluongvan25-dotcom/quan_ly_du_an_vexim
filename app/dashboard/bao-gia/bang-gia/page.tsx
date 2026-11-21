@@ -353,19 +353,19 @@ export default function PriceBookPage() {
           <div className="rounded-3xl bg-white p-6 shadow-card">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="text-xs font-extrabold uppercase tracking-wider text-navy-900/60">
-                Hạng mục tùy chọn ({draft.options.length})
+                Dịch vụ đi kèm ({draft.options.length})
               </div>
               {isAdmin && (
                 <button
                   onClick={() => patch({ options: [...draft.options, emptyOption()] })}
                   className="inline-flex items-center gap-1 rounded-xl bg-navy-900 px-3 py-2 text-[11px] font-bold text-white"
                 >
-                  <Plus className="h-3.5 w-3.5" /> Thêm hạng mục tùy chọn
+                  <Plus className="h-3.5 w-3.5" /> Thêm dịch vụ đi kèm
                 </button>
               )}
             </div>
             <p className="mt-1 text-[11px] text-navy-900/50">
-              Hạng mục tùy chọn in kèm báo giá nhưng <b>không cộng vào tổng</b> — khách chọn thêm thì mới tính.
+              Chọn dịch vụ đi kèm khi tạo báo giá để thêm vào hạng mục chính và cộng phí vào tổng.
             </p>
             <div className="mt-3 space-y-3">
               {draft.options.map((option, index) => (
@@ -375,7 +375,7 @@ export default function PriceBookPage() {
                       <input
                         value={option.label}
                         onChange={(e) => patchOption(index, { label: e.target.value })}
-                        placeholder="Tên hạng mục tùy chọn"
+                        placeholder="Tên dịch vụ đi kèm"
                         disabled={!isAdmin}
                         className="w-full rounded-xl border border-navy-900/10 px-3 py-2 text-sm disabled:bg-slate-50"
                       />
@@ -441,7 +441,7 @@ export default function PriceBookPage() {
                     {isAdmin && (
                       <button
                         onClick={() => patch({ options: draft.options.filter((_, i) => i !== index) })}
-                        aria-label="Xóa hạng mục tùy chọn"
+                        aria-label="Xóa dịch vụ đi kèm"
                         className="rounded-lg bg-red-50 p-2 text-red-600"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -452,7 +452,7 @@ export default function PriceBookPage() {
               ))}
               {draft.options.length === 0 && (
                 <div className="rounded-2xl bg-slate-50 px-4 py-6 text-center text-xs text-slate-400">
-                  Dịch vụ này chưa có hạng mục tùy chọn.
+                  Dịch vụ này chưa có dịch vụ đi kèm.
                 </div>
               )}
             </div>
@@ -537,7 +537,7 @@ export default function PriceBookPage() {
               </div>
               {draft.options.length > 0 && (
                 <div className="pt-0.5 italic text-navy-900/55">
-                  {draft.options.length} hạng mục tùy chọn — không cộng vào tổng.
+                  {draft.options.length} dịch vụ đi kèm, chỉ cộng phí khi được chọn trong báo giá.
                 </div>
               )}
             </div>

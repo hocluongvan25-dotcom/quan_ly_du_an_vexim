@@ -6,9 +6,9 @@ export function SiteFooter({ lang }: { lang: SiteLang }) {
 
   return (
     <footer className="site-footer">
-      <div className="site-container">
+      <div className="public-shell">
         <div className="site-footer__top">
-          <div>
+          <div className="site-footer__brand">
             <Brand light href={SITE_PATHS[lang]} />
             <p className="site-footer__brandline">{c.footer.brandline}</p>
           </div>
@@ -27,12 +27,10 @@ export function SiteFooter({ lang }: { lang: SiteLang }) {
             <p className="site-footer__col-title">{c.footer.contactTitle}</p>
             <ul className="site-footer__list">
               <li>
-                {c.footer.hotlineLabel}:{" "}
-                <a href={c.org.phoneHref}>{c.org.phone}</a>
+                {c.footer.phoneLabel}: <a href={c.org.phoneHref}>{c.org.phone}</a>
               </li>
               <li>
-                {c.footer.emailLabel}:{" "}
-                <a href={`mailto:${c.org.email}`}>{c.org.email}</a>
+                {c.footer.emailLabel}: <a href={`mailto:${c.org.email}`}>{c.org.email}</a>
               </li>
               <li>
                 {c.footer.websiteLabel}:{" "}
@@ -59,15 +57,15 @@ export function SiteFooter({ lang }: { lang: SiteLang }) {
 
         <div className="site-footer__bottom">
           <span>{c.footer.copyright}</span>
-          <span className="site-footer__langs">
+          <nav className="site-footer__langs" aria-label={c.nav.language}>
             <a href={SITE_PATHS.vi} hrefLang="vi" lang="vi">
               Tiếng Việt
             </a>
-            <span aria-hidden="true"> / </span>
+            <span aria-hidden="true">/</span>
             <a href={SITE_PATHS.en} hrefLang="en" lang="en">
               English
             </a>
-          </span>
+          </nav>
         </div>
       </div>
     </footer>

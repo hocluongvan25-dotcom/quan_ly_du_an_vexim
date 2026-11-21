@@ -246,16 +246,30 @@ test('tạo báo giá: 2 bước, nút Tiếp tục ở dưới, tự mapping d�
   assert.ok(container.textContent.includes('Tiếp tục: thông tin khách hàng'), 'thiếu nút Tiếp tục ở bước 1');
   assert.ok(!container.textContent.includes('Điều kiện báo giá'), 'bước 1 không được chứa phần điều kiện');
 
-  /* --- Tick 1 hạng mục tùy chọn → in kèm nhưng không cộng vào tổng --- */
+  /* --- Chọn dịch vụ đi kèm → thêm vào hạng mục chính và cộng tiền --- */
   const optionLabel = [...container.querySelectorAll('label')].find((l) =>
     l.textContent.includes(fda.options[0].label)
   );
-  assert.ok(optionLabel, 'thiếu hạng mục tùy chọn của dịch vụ');
+  assert.ok(optionLabel, 'thiếu dịch vụ đi kèm của mẫu');
   await act(async () => {
     optionLabel.querySelector('input[type="checkbox"]').click();
   });
   await flush(10);
-  assert.match(container.textContent, /Tùy chọn — không cộng vào tổng/, 'hạng mục tùy chọn phải được đánh dấu riêng');
+  assert.match(container.textContent, /Dịch vụ đi kèm/);
+  assert.match(container.textContent, /Đã thêm vào hạng mục chính/);
+  assert.doesNotMatch(container.textContent, /Chưa cộng vào tổng/);
+  const selectedItems = [...mainItems, templates.optionLine(fda.options[0])];
+  assert.equal(selectedItems.at(-1).optional, false, 'dịch vụ đi kèm đã chọn phải là hạng mục chính');
+  const selectedTotals = calcQuoteTotals(selectedItems, 0, fda.vat_rate);
+  const subtotalLabel = [...container.querySelectorAll('span')].find((node) =>
+    node.textContent.trim() === 'Tạm tính (hạng mục chính)'
+  );
+  assert.ok(subtotalLabel, 'thiếu dòng tạm tính hạng mục chính');
+  assert.equal(
+    subtotalLabel.parentElement.querySelector('b').textContent,
+    `${formatMoney(selectedTotals.subtotal)} ₫`,
+    'tạm tính phải cộng cả dịch vụ đi kèm đã chọn',
+  );
 
   /* --- Bấm nút Tiếp tục ở dưới danh sách hạng mục --- */
   await clickByText(container, 'Tiếp tục: thông tin khách hàng');
@@ -293,9 +307,9 @@ test('tạo báo giá: 2 bước, nút Tiếp tục ở dưới, tự mapping d�
   const priceInputs = [...container.querySelectorAll('label')]
     .filter((l) => l.textContent.trim().startsWith('Đơn giá (₫)'))
     .map((l) => l.querySelector('input'));
-  assert.equal(priceInputs.length, fda.items.length + 1, 'mỗi dòng hạng mục (kể cả tùy chọn) phải có ô đơn giá sửa được');
+  assert.equal(priceInputs.length, fda.items.length + 1, 'mỗi dòng hạng mục (kể cả dịch vụ đi kèm đã chọn) phải có ô đơn giá sửa được');
 
-  const before = calcQuoteTotals(mainItems, 0, fda.vat_rate).total;
+  const before = selectedTotals.total;
   assert.ok(container.textContent.includes(formatMoney(before)), 'tổng trước khi sửa chưa hiển thị');
 
   const qtyInputs = [...container.querySelectorAll('label')]
@@ -304,7 +318,7 @@ test('tạo báo giá: 2 bước, nút Tiếp tục ở dưới, tự mapping d�
   await typeInto(qtyInputs[0], '3');
   await typeInto(priceInputs[0], '50000000');
 
-  const edited = mainItems.map((item, index) => (index === 0 ? { ...item, qty: 3, unit_price: 50_000_000 } : item));
+  const edited = selectedItems.map((item, index) => (index === 0 ? { ...item, qty: 3, unit_price: 50_000_000 } : item));
   const after2 = calcQuoteTotals(edited, 0, fda.vat_rate).total;
   assert.equal(formatMoney(150_000_000), formatMoney(3 * 50_000_000));
   assert.ok(container.textContent.includes(formatMoney(150_000_000)), 'thành tiền dòng chưa tính lại');
@@ -323,8 +337,9 @@ test('tạo báo giá: 2 bước, nút Tiếp tục ở dưới, tự mapping d�
   assert.ok(global.__created, 'chưa gọi API tạo báo giá');
   assert.equal(global.__created.company_name, 'CÔNG TY TNHH KHÁCH MỚI');
   assert.equal(global.__created.company_tax_code, COMPANY_FIXTURES[1].tax_code);
-  assert.equal(global.__created.items.length, fda.items.length + 1, 'thiếu hạng mục tùy chọn đã tick');
-  assert.equal(global.__created.items.at(-1).optional, true, 'hạng mục tùy chọn phải giữ cờ optional');
+  assert.equal(global.__created.items.length, fda.items.length + 1, 'thiếu dịch vụ đi kèm đã chọn');
+  assert.equal(global.__created.items.at(-1).name, fda.options[0].label);
+  assert.equal(global.__created.items.at(-1).optional, false, 'dịch vụ đi kèm phải được tính vào tổng');
   assert.equal(global.__created.items[0].qty, 3);
   assert.equal(global.__created.items[0].unit_price, 50_000_000);
   assert.equal(global.__created.discount_percent, 10);
