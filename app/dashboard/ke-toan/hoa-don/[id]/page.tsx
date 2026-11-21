@@ -66,7 +66,7 @@ export default function InvoiceDetailPage() {
           <div className="flex justify-between"><span className="text-slate-400">VAT {inv.vat_rate}%</span><b>{formatMoney(inv.vat_amount)}</b></div>
           <div className="flex justify-between border-t border-slate-200 pt-2 text-base"><span className="font-bold">Tổng cộng</span><b className="text-navy-900">{formatMoney(inv.total)}</b></div>
           <div className="flex justify-between"><span className="text-slate-400">Đã thu</span><b className="text-emerald-600">{formatMoney(inv.paid_amount)}</b></div>
-          <div className="flex justify-between"><span className="text-slate-400">Còn lại (đợt này)</span><b className="text-amber-600">{formatMoney(inv.remaining)}</b></div>
+          <div className="flex justify-between"><span className="text-slate-400">Còn lại (đợt này)</span><b className="text-blue-600">{formatMoney(inv.remaining)}</b></div>
           {(inv.prior_debts?.length || 0) > 0 && (
             <>
               <div className="flex justify-between">

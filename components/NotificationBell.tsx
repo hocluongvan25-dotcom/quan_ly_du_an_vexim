@@ -247,7 +247,7 @@ export function NotificationBell() {
                   {followups.map((item) => (
                     <Link key={item.id} href={`/dashboard/crm/co-hoi/${item.id}`} onClick={() => setOpen(false)} className="block border-b border-black/[0.05] px-4 py-3 last:border-0 hover:bg-[#fafafc]">
                       <div className="flex items-start gap-3">
-                        <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-[#97530c]" />
+                        <CalendarClock className="mt-0.5 h-4 w-4 shrink-0 text-[#0071e3]" />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm font-semibold text-[#1d1d1f]">{item.company_name}</div>
                           <p className="mt-1 text-xs text-[#6e6e73]">{item.next_action || "Cần liên hệ khách hàng"}</p>
@@ -289,7 +289,7 @@ export function NotificationBell() {
                   {!alerts.length && <EmptyMessage text="Không có cảnh báo cần xử lý." />}
                   {alerts.map((item) => (
                     <Link key={item.id} href={`/dashboard/crm/co-hoi/${item.id}`} onClick={() => setOpen(false)} className="flex gap-3 border-b border-black/[0.05] px-4 py-3 last:border-0 hover:bg-[#fafafc]">
-                      <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${item.health === "danger" ? "text-[#b3261e]" : "text-[#97530c]"}`} />
+                      <AlertTriangle className={`mt-0.5 h-4 w-4 shrink-0 ${item.health === "danger" ? "text-[#b3261e]" : "text-[#0071e3]"}`} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-sm font-semibold text-[#1d1d1f]">{item.company_name}</div>
                         <div className="mt-1 flex flex-wrap gap-1.5">{item.alerts.map((alert, index) => <span key={`${alert.type}-${index}`} className="rounded-full bg-[#f2f2f7] px-2 py-0.5 text-[10px] text-[#6e6e73]">{alert.label}</span>)}</div>

@@ -402,11 +402,11 @@ export default function OppDetailPage() {
 
 function InfoBox({ icon, label, value, sub, alert }: { icon: React.ReactNode; label: string; value: string; sub?: string; alert?: boolean }) {
   return (
-    <div className={`rounded-2xl border p-3 ${alert ? "border-amber-300 bg-amber-50" : "border-navy-900/10 bg-[#fffaf0]"}`}>
+    <div className={`rounded-2xl border p-3 ${alert ? "border-blue-300 bg-blue-50" : "border-navy-900/10 bg-[#f2f2f7]"}`}>
       <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-navy-900/45">
         {icon} {label}
       </div>
-      <div className={`mt-1 truncate text-sm font-extrabold ${alert ? "text-amber-800" : ""}`} title={value}>
+      <div className={`mt-1 truncate text-sm font-extrabold ${alert ? "text-blue-800" : ""}`} title={value}>
         {value}
       </div>
       {sub && <div className="truncate text-[11px] text-navy-900/50">{sub}</div>}

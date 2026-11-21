@@ -138,12 +138,12 @@ export default function DashboardPage() {
                         </span>
                       </td>
                       <td className="py-3">
-                        <span className="rounded-full bg-gold-100 px-2 py-0.5 text-xs font-bold text-gold-700">
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">
                           {vy} {vy === 1 ? t("common.year") : t("common.years")}
                         </span>
                       </td>
                       <td className="py-3">{formatDate(c.expires_at)}</td>
-                      <td className={`py-3 font-semibold ${left < 0 ? "text-rose-600" : left <= 90 ? "text-amber-600" : "text-emerald-600"}`}>
+                      <td className={`py-3 font-semibold ${left < 0 ? "text-rose-600" : left <= 90 ? "text-blue-600" : "text-emerald-600"}`}>
                         {left < 0 ? t("dashboard.expired") : `${left} ${t("common.days")}`}
                       </td>
                     </tr>
@@ -167,11 +167,11 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="rounded-2xl bg-white/10 p-4">
-              <div className="text-xs uppercase tracking-wider text-gold-400">{t("dashboard.gaccFlexible")}</div>
+              <div className="text-xs uppercase tracking-wider text-blue-400">{t("dashboard.gaccFlexible")}</div>
               <div className="mt-1 text-2xl font-extrabold">{t("dashboard.gaccYears")}</div>
               <p className="mt-1 text-sm text-white/65">{t("dashboard.gaccDesc")}</p>
               <div className="mt-2">
-                <span className="rounded-full bg-gold-400/20 px-2 py-0.5 text-[10px] font-bold text-gold-300">
+                <span className="rounded-full bg-blue-400/20 px-2 py-0.5 text-[10px] font-bold text-blue-300">
                   {t("dashboard.fixedYears", { years: GACC_FIXED_YEARS })}
                 </span>
               </div>

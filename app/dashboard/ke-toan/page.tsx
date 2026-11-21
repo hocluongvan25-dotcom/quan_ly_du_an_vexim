@@ -59,7 +59,7 @@ export default function AccountingPage() {
         {[
           { label: "Tổng đã xuất HĐ", value: data.invoiced, cls: "text-navy-900" },
           { label: "Đã thu", value: data.paid, cls: "text-emerald-600" },
-          { label: "Còn phải thu", value: data.remaining, cls: "text-amber-600" },
+          { label: "Còn phải thu", value: data.remaining, cls: "text-blue-600" },
           { label: "Quá hạn", value: data.overdueAmount, cls: "text-red-600" },
         ].map((k) => (
           <div key={k.label} className="rounded-3xl bg-white p-5 shadow-card">
@@ -97,7 +97,7 @@ export default function AccountingPage() {
 
         {/* Sắp đến hạn */}
         <div className="rounded-3xl bg-white p-5 shadow-card">
-          <h2 className="font-display text-lg font-extrabold text-amber-600">
+          <h2 className="font-display text-lg font-extrabold text-blue-600">
             🟡 Đến hạn trong 7 ngày ({dueSoon.length})
           </h2>
           {dueSoon.length === 0 && <p className="mt-2 text-sm text-slate-400">Không có hóa đơn sắp đến hạn.</p>}
@@ -106,13 +106,13 @@ export default function AccountingPage() {
               <Link
                 key={i.id}
                 href={`/dashboard/ke-toan/hoa-don/${i.id}`}
-                className="flex items-center justify-between gap-2 rounded-2xl bg-amber-50/60 px-4 py-2.5 hover:bg-amber-50"
+                className="flex items-center justify-between gap-2 rounded-2xl bg-blue-50/60 px-4 py-2.5 hover:bg-blue-50"
               >
                 <div className="min-w-0">
                   <div className="truncate text-sm font-bold">{i.invoice_no} · {i.company_name}</div>
-                  <div className="text-[11px] font-bold text-amber-600">hạn {i.due_date}</div>
+                  <div className="text-[11px] font-bold text-blue-600">hạn {i.due_date}</div>
                 </div>
-                <div className="shrink-0 text-right text-sm font-extrabold text-amber-600">
+                <div className="shrink-0 text-right text-sm font-extrabold text-blue-600">
                   {formatMoney(i.remaining)}
                 </div>
               </Link>

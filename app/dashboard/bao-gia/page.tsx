@@ -10,7 +10,7 @@ import { QUOTE_TEMPLATES, getQuoteTemplate } from "@/lib/quote-templates";
 
 const STATE_STYLES: Record<string, string> = {
   draft: "bg-slate-200 text-slate-600",
-  sent: "bg-amber-100 text-amber-800",
+  sent: "bg-teal-100 text-teal-700",
   accepted: "bg-emerald-100 text-emerald-700",
   rejected: "bg-red-100 text-red-600",
   expired: "bg-navy-900/10 text-navy-900/60",
@@ -118,7 +118,7 @@ function QuotesListInner() {
           <button
             key={s}
             onClick={() => setStatus(s)}
-            className={`rounded-xl px-4 py-2 text-sm font-semibold ${status === s ? "bg-teal-500 text-navy-950" : "bg-white text-navy-900"}`}
+            className={`rounded-xl px-4 py-2 text-sm font-semibold ${status === s ? "bg-teal-500 text-white" : "bg-white text-navy-900"}`}
           >
             {s === "ALL" ? "Mọi trạng thái" : QUOTE_STATE_LABELS[s]}
           </button>
@@ -126,13 +126,13 @@ function QuotesListInner() {
       </div>
 
       {warning && (
-        <div className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-semibold text-amber-800">{warning}</div>
+        <div className="mt-4 rounded-2xl bg-blue-50 px-4 py-3 text-xs font-semibold text-blue-800">{warning}</div>
       )}
 
       <div className="mt-5 overflow-hidden rounded-3xl bg-white shadow-card">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[960px] text-left text-sm">
-            <thead className="bg-[#fffaf0] text-[11px] uppercase tracking-wider text-navy-900/45">
+            <thead className="bg-[#f2f2f7] text-[11px] uppercase tracking-wider text-navy-900/45">
               <tr>
                 <th className="px-4 py-3">Mã báo giá</th>
                 <th className="px-4 py-3">Khách hàng</th>

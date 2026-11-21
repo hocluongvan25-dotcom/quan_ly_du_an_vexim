@@ -101,9 +101,9 @@ export default function OverviewPage() {
         <Kpi icon={<Wallet className="h-5 w-5" />} label="Doanh thu đã ghi nhận" value={formatVnd(data.kpis.recordedRevenueTotal)} hint={`12 tháng gần nhất: ${formatCrmValue(data.kpis.recordedRevenue12m)}`} tone="navy" />
         <Kpi icon={<TrendingUp className="h-5 w-5" />} label="Giá trị chốt CRM (12T)" value={formatCrmValue(data.kpis.wonValue12m)} hint={`Tỷ lệ chốt ${data.kpis.conversion12m}%`} tone="green" />
         <Kpi icon={<Briefcase className="h-5 w-5" />} label="Cơ hội đang mở" value={String(data.kpis.openOpps)} hint={`Giá trị dự kiến ${formatCrmValue(data.kpis.openValue)}`} tone="navy" />
-        <Kpi icon={<Briefcase className="h-5 w-5" />} label="Cơ hội mới trong 12 tháng" value={String(data.kpis.oppsCreated12m)} hint="Đã ghi nhận trong CRM" tone="amber" />
+        <Kpi icon={<Briefcase className="h-5 w-5" />} label="Cơ hội mới trong 12 tháng" value={String(data.kpis.oppsCreated12m)} hint="Đã ghi nhận trong CRM" tone="blue" />
         <Kpi icon={<CheckCircle2 className="h-5 w-5" />} label="Tỷ lệ chốt (12T)" value={`${data.kpis.conversion12m}%`} hint="Chốt / (Chốt + Mất)" tone="green" />
-        <Kpi icon={<Users className="h-5 w-5" />} label="Nhân sự hoạt động" value={String(data.kpis.activeEmployees)} hint={`Tổng ${data.employees.length} tài khoản`} tone="amber" />
+        <Kpi icon={<Users className="h-5 w-5" />} label="Nhân sự hoạt động" value={String(data.kpis.activeEmployees)} hint={`Tổng ${data.employees.length} tài khoản`} tone="blue" />
       </div>
 
       {/* Phễu 12 tháng */}
@@ -185,7 +185,7 @@ export default function OverviewPage() {
         </div>
 
         {emp && (
-          <div className="mt-4 rounded-3xl border border-navy-900/10 bg-[#fffaf0] p-5">
+          <div className="mt-4 rounded-3xl border border-navy-900/10 bg-[#f2f2f7] p-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="font-display text-base font-extrabold">
                 Biểu đồ của {emp.name} — {emp.totals.won} chốt · {emp.totals.conversion}% · {formatCrmValue(emp.totals.wonValue)}
@@ -268,8 +268,8 @@ function GrowthCharts({ rows, showActivities }: { rows: GrowthBucket[]; showActi
             <YAxis fontSize={11} />
             <Tooltip formatter={(v: any) => [`${v} tr`, ""]} />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="Chốt CRM (tr)" fill="#E8B22A" radius={[6, 6, 0, 0]} />
-            <Bar dataKey="DThu ghi nhận (tr)" fill="#24180C" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="Chốt CRM (tr)" fill="#0071E3" radius={[6, 6, 0, 0]} />
+            <Bar dataKey="DThu ghi nhận (tr)" fill="#1D1D1F" radius={[6, 6, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -284,7 +284,7 @@ function GrowthCharts({ rows, showActivities }: { rows: GrowthBucket[]; showActi
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <Bar dataKey="Cơ hội mới" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
             <Bar dataKey="Chốt" fill="#16a34a" radius={[6, 6, 0, 0]} />
-            {showActivities && <Bar dataKey="Hoạt động" fill="#f59e0b" radius={[6, 6, 0, 0]} />}
+            {showActivities && <Bar dataKey="Hoạt động" fill="#0071e3" radius={[6, 6, 0, 0]} />}
           </BarChart>
         </ResponsiveContainer>
       </div>
@@ -341,7 +341,7 @@ function GrowthTable({
               {showRevenue && <td className="px-4 py-2 text-right font-semibold">{formatCrmValue(r.recordedRevenue)}</td>}
             </tr>
           ))}
-          <tr className="border-t-2 border-navy-900/15 bg-[#fffaf0] font-extrabold">
+          <tr className="border-t-2 border-navy-900/15 bg-[#f2f2f7] font-extrabold">
             <td className="px-4 py-2">Tổng</td>
             <td className="px-4 py-2 text-right">{totals.oppsCreated}</td>
             <td className="px-4 py-2 text-right text-emerald-600">{totals.won}</td>
@@ -368,11 +368,11 @@ function Kpi({
   label: string;
   value: string;
   hint: string;
-  tone: "navy" | "amber" | "green";
+  tone: "navy" | "blue" | "green";
 }) {
   const toneCls =
-    tone === "amber"
-      ? "bg-amber-50 text-amber-600"
+    tone === "blue"
+      ? "bg-blue-50 text-blue-600"
       : tone === "green"
         ? "bg-emerald-50 text-emerald-600"
         : "bg-teal-50 text-teal-700";

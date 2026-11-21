@@ -3,7 +3,7 @@
 // email bán hàng: không từ ngữ sale ("gấp", "khẩn cấp", giá ưu đãi...), gọi đúng thuật
 // ngữ "Đăng ký FDA" (không phải "chứng nhận"). Nhưng phải ĐÁNH VÀO HẬU QUẢ THẬT của
 // doanh nghiệp: khối rủi ro cụ thể (lô hàng bị giữ/từ chối nhập khẩu, buyer tra cứu
-// thấy hết hạn) và màu sắc leo thang theo mức cảnh báo (navy → vàng → cam → đỏ).
+// thấy hết hạn) và màu sắc leo thang theo mức cảnh báo (graphite → xanh dương → xanh dương đậm → đỏ).
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -238,24 +238,24 @@ test('email phải nêu rủi ro cụ thể khi hồ sơ hết hạn (đánh và
   assert.ok(textEmail.text.includes('- '));
 });
 
-test('màu sắc leo thang theo mức cảnh báo: navy → vàng → cam → đỏ', () => {
+test('màu sắc leo thang theo mức cảnh báo: graphite → xanh dương → xanh dương đậm → đỏ', () => {
   const htmlFor = (data, type) => buildExpiryWarningEmail(data, type).html;
 
   // 90/60 ngày: trung tính, không có màu cảnh báo
   const low = htmlFor(FDA, '60_days');
-  assert.ok(low.includes('background:#334155'), 'dải màu trên đầu là xanh trung tính');
-  assert.ok(low.includes('#F1F5F9'), 'khối trạng thái nền xám trung tính');
-  assert.ok(!low.includes('#FFFBEB') && !low.includes('#FFF7ED') && !low.includes('#FEF2F2'), '60 ngày không được mang màu cảnh báo');
+  assert.ok(low.includes('background:#86868B'), 'dải màu graphite trung tính');
+  assert.ok(low.includes('#F2F2F7'), 'khối trạng thái nền xám trung tính');
+  assert.ok(!low.includes('#E8F2FF') && !low.includes('#FFF2F2'), '60 ngày không được mang màu cảnh báo');
 
-  // 30/14 ngày: vàng hổ phách
+  // 30/14 ngày: xanh dương
   const medium = htmlFor(FDA, '30_days');
-  assert.ok(medium.includes('background:#F59E0B'), 'dải màu vàng');
-  assert.ok(medium.includes('#FFFBEB') && medium.includes('#B45309'), 'khối trạng thái + accent vàng hổ phách');
+  assert.ok(medium.includes('background:#0071E3'), 'dải màu xanh dương');
+  assert.ok(medium.includes('#E8F2FF') && medium.includes('#075FBD'), 'khối trạng thái + accent xanh dương');
 
-  // 7/3/1 ngày: cam
+  // 7/3/1 ngày: xanh dương đậm
   const high = htmlFor(FDA, '7_days');
-  assert.ok(high.includes('background:#EA580C'), 'dải màu cam');
-  assert.ok(high.includes('#C2410C'), 'số đếm ngược + nút CTA màu cam');
+  assert.ok(high.includes('background:#005FBD'), 'dải màu xanh dương đậm');
+  assert.ok(high.includes('#004FA6'), 'số đếm ngược + nút CTA xanh dương đậm');
 
   // đã hết hạn: đỏ
   const critical = htmlFor({ ...FDA, remaining_days: -12 }, 'expired');
@@ -267,11 +267,11 @@ test('màu sắc leo thang theo mức cảnh báo: navy → vàng → cam → đ
 test('CTA theo mức cảnh báo: mốc cao đưa nút gọi hotline lên trước, nút xác minh vẫn còn', () => {
   const high = buildExpiryWarningEmail(FDA, '3_days');
   assert.ok(high.html.includes('Gia hạn ngay · 0373 685 634'), 'nút gọi hotline nổi bật ở mốc cao');
-  assert.ok(high.html.includes('background:#C2410C'), 'nút gọi mang màu cảnh báo');
+  assert.ok(high.html.includes('background:#004FA6'), 'nút gọi mang màu cảnh báo');
   assert.equal((high.html.match(/Kiểm tra thông tin hồ sơ/g) || []).length >= 2, true, 'vẫn còn nút + dòng link tới trang xác minh');
 
   const low = buildExpiryWarningEmail(FDA, '60_days');
-  assert.ok(low.html.includes('background:#0B1837; color:#ffffff; padding:12px 20px'), 'mốc thấp giữ nút xác minh navy làm CTA chính');
+  assert.ok(low.html.includes('background:#1D1D1F; color:#ffffff; padding:12px 20px'), 'mốc thấp giữ nút xác minh graphite làm CTA chính');
   assert.ok(low.html.includes('href="tel:0373685634"'), 'mốc thấp vẫn có hotline trong khối liên hệ');
 });
 

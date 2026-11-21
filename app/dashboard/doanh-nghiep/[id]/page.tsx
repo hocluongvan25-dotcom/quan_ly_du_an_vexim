@@ -394,7 +394,7 @@ export default function CompanyDetailPage() {
                         </div>
                         <div className="mt-1 text-xs text-[#6e6e73]">Mã đăng ký {certificate.registration_code || "chưa có"}</div>
                       </div>
-                      <span className={`inline-flex shrink-0 items-center gap-1 text-xs ${expired ? "text-[#b3261e]" : soon ? "text-[#97530c]" : "text-[#6e6e73]"}`}>
+                      <span className={`inline-flex shrink-0 items-center gap-1 text-xs ${expired ? "text-[#b3261e]" : soon ? "text-[#075fbd]" : "text-[#6e6e73]"}`}>
                         {expired ? <RefreshCw className="h-3.5 w-3.5" /> : <CalendarDays className="h-3.5 w-3.5" />}
                         {expired ? "Cần gia hạn" : `Còn ${remaining} ngày`}
                       </span>

@@ -200,13 +200,13 @@ export function urgencyTheme(urgency: UrgencyLevel): {
 } {
   switch (urgency) {
     case "medium":
-      return { bar: "#F59E0B", accent: "#B45309", chipBg: "#FFFBEB", chipBorder: "#FDE68A", riskText: "#92400E" };
+      return { bar: "#0071E3", accent: "#075FBD", chipBg: "#E8F2FF", chipBorder: "#CCE4FF", riskText: "#075FBD" };
     case "high":
-      return { bar: "#EA580C", accent: "#C2410C", chipBg: "#FFF7ED", chipBorder: "#FED7AA", riskText: "#9A3412" };
+      return { bar: "#005FBD", accent: "#004FA6", chipBg: "#E8F2FF", chipBorder: "#99CAFF", riskText: "#004489" };
     case "critical":
       return { bar: "#DC2626", accent: "#B91C1C", chipBg: "#FEF2F2", chipBorder: "#FECACA", riskText: "#991B1B" };
     default: // low — thông tin, trung tính
-      return { bar: "#334155", accent: "#0B1837", chipBg: "#F1F5F9", chipBorder: "#E2E8F0", riskText: "#334155" };
+      return { bar: "#86868B", accent: "#3A3A3C", chipBg: "#F2F2F7", chipBorder: "#D2D2D7", riskText: "#48484A" };
   }
 }
 
@@ -324,7 +324,7 @@ export function buildExpiryWarningEmail(data: ExpiryWarningData, type: Notificat
   const row = (label: string, value: string, mono = false) => `
         <tr>
           <td style="padding:9px 0; color:#64748b; width:210px; vertical-align:top; border-bottom:1px solid #eef2f7">${label}</td>
-          <td style="padding:9px 0; color:#0f172a; font-weight:600; border-bottom:1px solid #eef2f7${mono ? "; font-family:'SFMono-Regular',Consolas,monospace" : ""}">${value}</td>
+          <td style="padding:9px 0; color:#1d1d1f; font-weight:600; border-bottom:1px solid #eef2f7${mono ? "; font-family:'SFMono-Regular',Consolas,monospace" : ""}">${value}</td>
         </tr>`;
 
   const chipLabel = isExpired ? "Đã hết hiệu lực" : onExpiryDay ? "Hết hiệu lực hôm nay" : "Sắp hết hiệu lực";
@@ -338,13 +338,13 @@ export function buildExpiryWarningEmail(data: ExpiryWarningData, type: Notificat
 
   const primaryBtn = callFirst
     ? `<a href="tel:0373685634" style="display:inline-block; background:${theme.accent}; color:#ffffff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">Gia hạn ngay · 0373 685 634</a>
-        <a href="${verifyUrl}" style="display:inline-block; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px; margin-left:8px">Kiểm tra thông tin hồ sơ</a>`
-    : `<a href="${verifyUrl}" style="display:inline-block; background:#0B1837; color:#ffffff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">Kiểm tra thông tin hồ sơ</a>`;
+        <a href="${verifyUrl}" style="display:inline-block; background:#ffffff; color:#1d1d1f; border:1px solid #cbd5e1; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px; margin-left:8px">Kiểm tra thông tin hồ sơ</a>`
+    : `<a href="${verifyUrl}" style="display:inline-block; background:#1D1D1F; color:#ffffff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">Kiểm tra thông tin hồ sơ</a>`;
 
   const html = `
   <div style="font-family:Inter,Arial,sans-serif; max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden">
     <div style="background:${theme.bar}; height:6px; line-height:0; font-size:0">&nbsp;</div>
-    <div style="background:#0B1837; padding:20px 24px; color:#ffffff">
+    <div style="background:#1D1D1F; padding:20px 24px; color:#ffffff">
       <div style="font-size:11px; letter-spacing:0.15em; text-transform:uppercase; opacity:0.85">VEXIM GLOBAL · HỆ THỐNG QUẢN LÝ HỒ SƠ FDA/GACC</div>
       <div style="margin-top:10px; font-size:20px; font-weight:800">Thông báo tình trạng đăng ký</div>
       <div style="margin-top:4px; font-size:13px; opacity:0.9">${data.company_name} · ${noun} · ${data.certificate_no}</div>
@@ -385,18 +385,18 @@ export function buildExpiryWarningEmail(data: ExpiryWarningData, type: Notificat
           ${row("Kỳ hạn đăng ký", `${data.validity_years} năm`)}
           ${row("Số ngày còn lại", `${remaining} ngày`)}
           ${row("Cơ quan đăng ký", registryName)}
-          ${row("Kiểm tra thông tin hồ sơ", `<a href="${verifyUrl}" style="color:#0f766e; word-break:break-all">${verifyUrl}</a>`)}
+          ${row("Kiểm tra thông tin hồ sơ", `<a href="${verifyUrl}" style="color:#075fbd; word-break:break-all">${verifyUrl}</a>`)}
         </tbody>
       </table>
 
       <div style="margin-top:22px; padding:16px; background:#F8FAFC; border:1px solid #e2e8f0; border-radius:12px">
-        <div style="font-size:13px; font-weight:700; color:#0f172a">Nếu cần gia hạn</div>
+        <div style="font-size:13px; font-weight:700; color:#1d1d1f">Nếu cần gia hạn</div>
         <p style="margin:8px 0 0; font-size:13px; line-height:1.6; color:#334155">
           Vui lòng liên hệ Vexim để kiểm tra hồ sơ hiện tại, xác nhận thông tin đăng ký và báo phí gia hạn.
         </p>
         <p style="margin:10px 0 0; font-size:13px; color:#334155">
-          Hotline: <a href="tel:0373685634" style="color:#0f172a; font-weight:700; text-decoration:none">0373 685 634</a>
-          · Email: <a href="mailto:${FROM_EMAIL}" style="color:#0f172a; font-weight:700; text-decoration:none">${FROM_EMAIL}</a>
+          Hotline: <a href="tel:0373685634" style="color:#1d1d1f; font-weight:700; text-decoration:none">0373 685 634</a>
+          · Email: <a href="mailto:${FROM_EMAIL}" style="color:#1d1d1f; font-weight:700; text-decoration:none">${FROM_EMAIL}</a>
         </p>
       </div>
 
@@ -462,20 +462,20 @@ export function buildRenewalConfirmationEmail(data: ExpiryWarningData): { subjec
   const row = (label: string, value: string, mono = false) => `
         <tr>
           <td style="padding:9px 0; color:#64748b; width:210px; vertical-align:top; border-bottom:1px solid #eef2f7">${label}</td>
-          <td style="padding:9px 0; color:#0f172a; font-weight:600; border-bottom:1px solid #eef2f7${mono ? "; font-family:'SFMono-Regular',Consolas,monospace" : ""}">${value}</td>
+          <td style="padding:9px 0; color:#1d1d1f; font-weight:600; border-bottom:1px solid #eef2f7${mono ? "; font-family:'SFMono-Regular',Consolas,monospace" : ""}">${value}</td>
         </tr>`;
 
   const html = `
   <div style="font-family:Inter,Arial,sans-serif; max-width:640px; margin:0 auto; background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; overflow:hidden">
-    <div style="background:#0B1837; padding:20px 24px; color:#ffffff">
+    <div style="background:#1D1D1F; padding:20px 24px; color:#ffffff">
       <div style="font-size:11px; letter-spacing:0.15em; text-transform:uppercase; opacity:0.85">VEXIM GLOBAL · HỆ THỐNG QUẢN LÝ HỒ SƠ FDA/GACC</div>
       <div style="margin-top:10px; font-size:20px; font-weight:800">Xác nhận gia hạn đăng ký</div>
       <div style="margin-top:4px; font-size:13px; opacity:0.9">${data.company_name} · ${noun} · ${data.certificate_no}</div>
     </div>
 
     <div style="padding:24px">
-      <div style="background:#F8F4EC; border:1px solid #E7D4A6; border-radius:12px; padding:14px 16px; margin-bottom:20px">
-        <div style="font-size:12px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:#0B1837">Đã gia hạn · Hiệu lực đến ${expiryDate}</div>
+      <div style="background:#F2F2F7; border:1px solid #D2D2D7; border-radius:12px; padding:14px 16px; margin-bottom:20px">
+        <div style="font-size:12px; font-weight:700; letter-spacing:0.06em; text-transform:uppercase; color:#1D1D1F">Đã gia hạn · Hiệu lực đến ${expiryDate}</div>
       </div>
 
       <p style="margin:0 0 22px; font-size:14px; line-height:1.65; color:#334155">
@@ -496,23 +496,23 @@ export function buildRenewalConfirmationEmail(data: ExpiryWarningData): { subjec
           ${row("Kỳ hạn đăng ký", `${data.validity_years} năm`)}
           ${row("Số lần gia hạn", `${renewals} lần`)}
           ${row("Cơ quan đăng ký", registryName)}
-          ${row("Kiểm tra thông tin hồ sơ", `<a href="${verifyUrl}" style="color:#0f766e; word-break:break-all">${verifyUrl}</a>`)}
+          ${row("Kiểm tra thông tin hồ sơ", `<a href="${verifyUrl}" style="color:#075fbd; word-break:break-all">${verifyUrl}</a>`)}
         </tbody>
       </table>
 
       <div style="margin-top:22px; padding:16px; background:#F8FAFC; border:1px solid #e2e8f0; border-radius:12px">
-        <div style="font-size:13px; font-weight:700; color:#0f172a">Nếu cần hỗ trợ</div>
+        <div style="font-size:13px; font-weight:700; color:#1d1d1f">Nếu cần hỗ trợ</div>
         <p style="margin:8px 0 0; font-size:13px; line-height:1.6; color:#334155">
           Vui lòng liên hệ Vexim nếu cần kiểm tra hoặc cập nhật thông tin đăng ký của doanh nghiệp.
         </p>
         <p style="margin:10px 0 0; font-size:13px; color:#334155">
-          Hotline: <a href="tel:0373685634" style="color:#0f172a; font-weight:700; text-decoration:none">0373 685 634</a>
-          · Email: <a href="mailto:${FROM_EMAIL}" style="color:#0f172a; font-weight:700; text-decoration:none">${FROM_EMAIL}</a>
+          Hotline: <a href="tel:0373685634" style="color:#1d1d1f; font-weight:700; text-decoration:none">0373 685 634</a>
+          · Email: <a href="mailto:${FROM_EMAIL}" style="color:#1d1d1f; font-weight:700; text-decoration:none">${FROM_EMAIL}</a>
         </p>
       </div>
 
       <div style="margin-top:20px">
-        <a href="${verifyUrl}" style="display:inline-block; background:#0B1837; color:#ffffff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">Kiểm tra thông tin hồ sơ</a>
+        <a href="${verifyUrl}" style="display:inline-block; background:#1D1D1F; color:#ffffff; padding:12px 20px; border-radius:999px; text-decoration:none; font-weight:700; font-size:13px">Kiểm tra thông tin hồ sơ</a>
       </div>
 
       <div style="margin-top:22px; padding-top:16px; border-top:1px solid #e2e8f0; font-size:11px; line-height:1.7; color:#94a3b8">

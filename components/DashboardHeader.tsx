@@ -9,17 +9,17 @@ import type { SessionUser } from "@/lib/types";
 export function DashboardHeader({ user }: { user: SessionUser }) {
   const { t } = useI18n();
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-navy-900/5 bg-white/80 px-4 py-3 backdrop-blur md:px-8">
+    <header className="sticky top-0 z-20 flex items-center justify-between border-b border-[#e5e5ea] bg-white/85 px-4 py-3 backdrop-blur md:px-8">
       <div className="flex items-center gap-3">
         <MobileNav user={user} />
-        <div className="hidden text-sm text-navy-900/60 md:block">
+        <div className="hidden text-sm text-[#6e6e73] md:block">
           {t("nav.internalSystem")}
         </div>
       </div>
       <div className="flex items-center gap-3 ml-auto">
         <NotificationBell />
         <LanguageSwitcher size="sm" />
-        <div className="text-right text-xs text-navy-900/50 hidden sm:block">{user.email}</div>
+        <div className="text-right text-xs text-[#86868b] hidden sm:block">{user.email}</div>
       </div>
     </header>
   );

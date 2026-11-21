@@ -12,7 +12,7 @@ function fireCelebration() {
     particleCount: 100,
     spread: 72,
     origin: { y: 0.62 },
-    colors: ["#0071e3", "#34c759", "#f5c451", "#ffffff"],
+    colors: ["#0071e3", "#34c759", "#1d1d1f", "#ffffff"],
   });
 }
 

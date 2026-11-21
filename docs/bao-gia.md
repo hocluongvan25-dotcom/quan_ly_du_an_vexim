@@ -82,15 +82,15 @@ mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, khô
 - **Chữ ký 2 bên** + ngày lập (`Hà Nội, ngày … tháng … năm …`), tên/người ký lấy từ mẫu chứng từ thanh toán
   (`LƯƠNG VĂN HỌC — GIÁM ĐỐC`), thông tin pháp lý ở chân trang mọi trang.
 
-### Nhận diện trên báo giá (navy + vàng đồng)
+### Nhận diện trên báo giá (graphite + xanh dương)
 
-- **Xanh navy** là màu chủ đạo: dải đầu trang và chân trang, tiêu đề mục, khối **TỔNG CỘNG**, bảng hạng mục.
-- **Vàng đồng** chỉ dùng làm điểm nhấn sang trọng: đường kẻ dưới dải navy, gạch đầu dòng, vạch nhấn dải thông tin,
+- **Graphite** là màu chủ đạo: dải đầu trang và chân trang, tiêu đề mục, khối **TỔNG CỘNG**, bảng hạng mục.
+- **Xanh dương** làm điểm nhấn: đường kẻ dưới dải graphite, gạch đầu dòng, vạch nhấn dải thông tin,
   số tiền tổng, đường kẻ chân trang và gạch dưới tên người ký.
-- **Logo chỉ có chữ, không kèm slogan**: file `assets/quote/logo-wordmark-white.png` (bản trắng dùng trên nền navy)
+- **Logo chỉ có chữ, không kèm slogan**: file `assets/quote/logo-wordmark-white.png` (bản trắng dùng trên nền graphite)
   và `assets/quote/logo-wordmark.png` (bản mực dùng trên nền sáng). Bản xem trước trên màn hình dùng
   `public/quote/logo-wordmark-white.png`. Muốn đổi logo: thay 3 file PNG này (nền trong suốt, cắt sát chữ).
-- Bảng hạng mục dùng dòng kẻ chẵn màu navy rất nhạt; dòng **HẠNG MỤC TÙY CHỌN** có nền kem + vạch vàng.
+- Bảng hạng mục dùng dòng kẻ chẵn màu xám rất nhạt; dòng **HẠNG MỤC TÙY CHỌN** có nền xám lạnh + vạch xanh.
 - **Khối thông tin thanh toán** (đơn vị thụ hưởng · số tài khoản · ngân hàng, lấy từ `lib/payment-request.ts`) chia 3 cột
   theo tỉ lệ **52% · 20% · 28%** (`PAYMENT_COL_RATIOS`) và chỉ in khi trang cuối còn đủ chỗ, để chữ ký 2 bên không bị đẩy
   sang trang mới.
@@ -100,7 +100,7 @@ mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, khô
 - **Khối chữ ký cách nội dung phía trên đúng 3 dòng** (`SIGNATURE_TOP_GAP = 3 × 13.5pt`) để có chỗ ký và đóng dấu;
   nếu thêm khoảng cách mà trang cuối không còn đủ chỗ cho dải thanh toán + chữ ký thì dải thanh toán tự ẩn để
   chữ ký không bị đẩy sang trang mới. Bản xem trước trên màn hình dùng cùng khoảng cách đó (`mt-[4.6rem]`).
-- Màu được khai báo một chỗ trong `lib/quote-pdf.ts` (`NAVY`, `GOLD`, `NAVY_TINT`, `IVORY`, `GOLD_LIGHT`…).
+- Màu được khai báo một chỗ trong `lib/quote-pdf.ts` (`GRAPHITE`, `GRAPHITE_DEEP`, `NEUTRAL_TINT`, `PANEL_TINT`, `ACCENT`, `ACCENT_DARK`, `ACCENT_LIGHT`…).
 - PDF dùng font Tinos đã bundle (đủ dấu tiếng Việt), khổ A4, tự ngắt trang và **lặp lại tiêu đề bảng** khi sang trang.
 - **Số báo giá** đánh tiếp từ mốc thực tế đang dùng: `QUOTE_NO_START = 290` → `VXM-BG-<năm>-0290`, `-0291`, …
   (`nextQuoteSeq`/`formatQuoteNo` trong `lib/quotes.ts`, dùng chung cho cả SQLite và Supabase). Số đã có trong hệ thống

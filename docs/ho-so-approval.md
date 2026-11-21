@@ -113,15 +113,15 @@ không cần từ ngữ sale để khuếch đại:
   không khai được”*. Nội dung đổi theo mức cảnh báo: thông tin (60 ngày) → chặt theo hạn (7 ngày) →
   hậu quả đang hiện hữu (đã hết hạn).
 - **Màu sắc leo thang** (`urgencyTheme()`) để mắt nhận mức độ trước cả khi đọc chữ — toàn bộ màu solid
-  (an toàn cho client email): 90/60 ngày xanh navy trung tính `#334155/#0B1837` → 30/14 ngày vàng hổ phách
-  `#F59E0B/#B45309` → 7/3/1 ngày cam `#EA580C/#C2410C` → đã hết hạn đỏ `#DC2626/#B91C1C`. Màu áp lên:
+  (an toàn cho client email): 90/60 ngày graphite trung tính `#86868B/#3A3A3C` → 30/14 ngày xanh dương
+  `#0071E3/#075FBD` → 7/3/1 ngày xanh dương đậm `#005FBD/#004FA6` → đã hết hạn đỏ `#DC2626/#B91C1C`. Màu áp lên:
   dải mỏng trên đầu email, số đếm ngược cỡ lớn trong khối trạng thái (“7 ngày”, “HÔM NAY”, “ĐÃ HẾT HẠN”),
   khối rủi ro và nút CTA chính.
 - **Bảng thông tin hồ sơ** (giữ nguyên vì thể hiện tính hệ thống): Doanh nghiệp · **Mã hồ sơ Vexim** ·
   **FDA Registration No.** / **GACC Registration No.** · D-U-N-S · U.S. Agent · Ngày đăng ký · Ngày hết hạn ·
   Kỳ hạn đăng ký · Số ngày còn lại · Cơ quan đăng ký · **Kiểm tra thông tin hồ sơ** (link xác minh, xem bên dưới).
-- **CTA theo mức cảnh báo**: mốc thấp giữ nút navy “Kiểm tra thông tin hồ sơ”; từ 7/3/1 ngày và đã hết hạn,
-  nút chính mang màu cảnh báo “Gia hạn ngay · 0373 685 634” (gọi hotline), nút xác minh thành nút phụ viền.
+- **CTA theo mức cảnh báo**: mốc thấp giữ nút graphite “Kiểm tra thông tin hồ sơ”; từ 7/3/1 ngày và đã hết hạn,
+  nút chính mang màu xanh dương đậm/đỏ “Gia hạn ngay · 0373 685 634” (gọi hotline), nút xác minh thành nút phụ viền.
 - **Khối “Nếu cần gia hạn”**: chỉ hướng dẫn liên hệ — *“Vui lòng liên hệ Vexim để kiểm tra hồ sơ hiện tại,
   xác nhận thông tin đăng ký và báo phí gia hạn.”* Không kèm thông tin bán hàng (hiệu lực 1-10 năm, “chuẩn bị phí gia hạn”).
 - **Footer**: *“Email được gửi tự động từ hệ thống quản lý hồ sơ FDA/GACC của Vexim Global.”* + thời gian gửi,

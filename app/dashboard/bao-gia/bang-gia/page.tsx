@@ -167,7 +167,7 @@ export default function PriceBookPage() {
           </p>
         </div>
         {!isAdmin && (
-          <div className="rounded-xl bg-amber-50 px-3.5 py-2.5 text-xs font-bold text-amber-800">
+          <div className="rounded-xl bg-blue-50 px-3.5 py-2.5 text-xs font-bold text-blue-800">
             Chỉ Admin được sửa bảng giá — bạn đang xem ở chế độ chỉ đọc.
           </div>
         )}
@@ -187,7 +187,7 @@ export default function PriceBookPage() {
       </div>
 
       {toast && <div className="rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-700">{toast}</div>}
-      {err && <div className="rounded-2xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{err}</div>}
+      {err && <div className="rounded-2xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-800">{err}</div>}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-5">
@@ -549,7 +549,7 @@ export default function PriceBookPage() {
               <button
                 onClick={save}
                 disabled={busy}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-500 py-3.5 text-sm font-extrabold text-navy-950 shadow-lift disabled:opacity-50"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-teal-500 py-3.5 text-sm font-extrabold text-white shadow-lift disabled:opacity-50"
               >
                 <Save className="h-4 w-4" /> {busy ? "Đang lưu…" : "Lưu bảng giá"}
               </button>

@@ -82,8 +82,8 @@ export default function ExpiryAlertsPage() {
 
   const getUrgencyColor = (remaining: number) => {
     if (remaining < 0) return "bg-rose-100 text-rose-800 border-rose-200";
-    if (remaining <= 7) return "bg-orange-100 text-orange-800 border-orange-200";
-    if (remaining <= 30) return "bg-amber-100 text-amber-800 border-amber-200";
+    if (remaining <= 7) return "bg-rose-100 text-rose-800 border-rose-200";
+    if (remaining <= 30) return "bg-blue-100 text-blue-800 border-blue-200";
     return "bg-emerald-50 text-emerald-700 border-emerald-200";
   };
 
@@ -92,7 +92,7 @@ export default function ExpiryAlertsPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-extrabold text-navy-900 flex items-center gap-2">
-            <Bell className="h-6 w-6 text-amber-500" /> Cảnh Báo Hết Hạn Tự Động
+            <Bell className="h-6 w-6 text-blue-500" /> Cảnh Báo Hết Hạn Tự Động
           </h1>
           <p className="mt-1 text-sm text-navy-900/60">
             Hệ thống tự động quét thời gian đăng ký dịch vụ (FDA, GACC) và gửi email cảnh báo cho doanh nghiệp & admin
@@ -147,7 +147,7 @@ export default function ExpiryAlertsPage() {
         {/* Expiring Soon */}
         <div className="rounded-3xl bg-white p-6 shadow-card">
           <h2 className="font-display text-lg font-bold text-navy-900 flex items-center gap-2">
-            <AlertTriangle className="h-5 w-5 text-amber-500" /> Sắp Hết Hạn ({expiring.length})
+            <AlertTriangle className="h-5 w-5 text-blue-500" /> Sắp Hết Hạn ({expiring.length})
           </h2>
           <p className="text-xs text-slate-500 mt-1">Tự động quét từ database chính thức, tính theo công thức UTC đã audit</p>
 
