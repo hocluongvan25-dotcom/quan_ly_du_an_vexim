@@ -38,7 +38,7 @@ single source of truth, tự đồng bộ vào DB mỗi lần khởi động.
 ## Owner & Next action
 
 - Mỗi cơ hội có đúng 1 **Owner** (người chịu trách nhiệm).
-- Mỗi cơ hội đang mở nên có **Next action + ngày hẹn**. Thiếu → cảnh báo vàng.
+- Mỗi cơ hội đang mở nên có **Next action + ngày hẹn**. Thiếu → cảnh báo xanh dương.
 - Ghi hoạt động (gọi/Zalo/gặp/báo giá...) đồng thời cập nhật next action → sale
   không cần nhập liệu 2 lần.
 

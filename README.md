@@ -101,7 +101,7 @@ Pre-built quote templates per service so staff only enter customer details and e
 - Quote lifecycle: **Nháp → Đã gửi khách → Khách đồng ý / Từ chối** (+ auto *Hết hiệu lực* after the validity date).
   A quote sent to the customer is locked; use **Nhân bản để sửa** to revise it.
 - PDF export (`/api/quotes/[id]/pdf`) uses the bundled Tinos fonts, repeats table headers across pages.
-  Brand look: **navy** dominant with **gold** accents (band, totals block, rules), and the **wordmark logo only —
+  Brand look: **graphite** dominant with **blue** accents (band, totals block, rules), and the **wordmark logo only —
   no slogan** (`assets/quote/logo-wordmark-white.png`, swap to change the logo).
 - Created from a CRM opportunity with one click (service, company, contact, email, phone pre-filled).
 - Migration: `supabase/migrations/20260922_price_book.sql` adds the `quote_templates` table (re-runnable).

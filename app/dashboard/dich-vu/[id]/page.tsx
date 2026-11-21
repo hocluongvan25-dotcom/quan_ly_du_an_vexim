@@ -138,7 +138,7 @@ export default function ContractDetailPage() {
           {item.status === "expired" && (
             <button
               onClick={() => setShowRenew(true)}
-              className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-extrabold text-navy-950"
+              className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-extrabold text-white"
             >
               🔁 Gia hạn chu kỳ mới
             </button>
@@ -147,7 +147,7 @@ export default function ContractDetailPage() {
             <button
               onClick={() => act({ action: "terminate" })}
               disabled={busy}
-              className="rounded-xl bg-amber-100 px-4 py-2 text-sm font-bold text-amber-700"
+              className="rounded-xl bg-blue-100 px-4 py-2 text-sm font-bold text-blue-700"
             >
               Chấm dứt HĐ
             </button>
@@ -264,7 +264,7 @@ export default function ContractDetailPage() {
               <button
                 onClick={() => act({ action: "renew", cycle_months: renewCycle }, "Đã gia hạn chu kỳ mới!")}
                 disabled={busy}
-                className="rounded-xl bg-teal-500 px-5 py-2 text-sm font-extrabold text-navy-950"
+                className="rounded-xl bg-teal-500 px-5 py-2 text-sm font-extrabold text-white"
               >
                 Xác nhận gia hạn
               </button>

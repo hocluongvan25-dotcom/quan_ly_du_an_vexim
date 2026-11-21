@@ -251,7 +251,7 @@ export default function CompaniesPage() {
                           </>
                         ) : (
                           <>
-                            <span className="text-[11px] text-amber-600 bg-amber-50 border border-amber-200 px-2 py-1 rounded-full">Chưa có hồ sơ</span>
+                            <span className="text-[11px] text-slate-600 bg-slate-100 border border-slate-200 px-2 py-1 rounded-full">Chưa có hồ sơ</span>
                             <button
                               onClick={() => {
                                 setEditing(null);
@@ -371,13 +371,13 @@ function ExpiryCountdown({ company }: { company: Company }) {
     icon = <AlertTriangle className="h-3.5 w-3.5" />;
     label = `Hết hạn ${absDays} ngày`;
   } else if (isUrgent) {
-    color = "bg-amber-50 text-amber-700 border-amber-200";
+    color = "bg-rose-50 text-rose-700 border-rose-200";
     icon = <AlertTriangle className="h-3.5 w-3.5" />;
     if (remaining === 0) label = "Hết hạn hôm nay";
     else if (remaining === 1) label = "Còn 1 ngày";
     else label = `Còn ${remaining} ngày`;
   } else if (isWarning) {
-    color = "bg-orange-50 text-orange-700 border-orange-200";
+    color = "bg-blue-50 text-blue-700 border-blue-200";
     icon = <Clock className="h-3.5 w-3.5" />;
     label = `Còn ${remaining} ngày`;
   } else {
@@ -458,7 +458,7 @@ function CompanyServices({ companyName, company }: { companyName: string; compan
               : s === "GACC"
               ? "bg-emerald-50 text-emerald-700 border-emerald-200"
               : s === "SALE"
-              ? "bg-amber-50 text-amber-700 border-amber-200"
+              ? "bg-blue-50 text-blue-700 border-blue-200"
               : "bg-slate-900 text-white border-slate-900"
           }`}
         >

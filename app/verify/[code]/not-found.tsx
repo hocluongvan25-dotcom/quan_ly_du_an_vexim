@@ -8,7 +8,7 @@ import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 export default function NotFoundCert() {
   const { t } = useI18n();
   return (
-    <div className="grid min-h-screen place-items-center bg-[#fff8ec] px-6">
+    <div className="grid min-h-screen place-items-center bg-[#f5f5f7] px-6">
       <div className="absolute right-4 top-4">
         <LanguageSwitcher />
       </div>

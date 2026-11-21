@@ -75,16 +75,16 @@ export default function LeadsPage() {
       </div>
 
       {warning && (
-        <div className="rounded-2xl bg-amber-50 border border-amber-300 p-4 text-sm text-amber-900">
+        <div className="rounded-2xl bg-blue-50 border border-blue-300 p-4 text-sm text-blue-900">
           <div className="font-bold flex items-center gap-2">⚠️ Cảnh báo Supabase - Bảng consultation_leads chưa tồn tại</div>
           <div className="mt-2 leading-relaxed">{warning}</div>
           <div className="mt-3 rounded-xl bg-slate-900 text-white p-3 font-mono text-xs leading-relaxed">
             <div>1. Vào Supabase Dashboard → SQL Editor</div>
             <div>2. Mở file supabase/schema.sql, copy toàn bộ và chạy</div>
-            <div>3. Chạy thêm lệnh: <span className="text-amber-300">NOTIFY pgrst, 'reload schema';</span></div>
+            <div>3. Chạy thêm lệnh: <span className="text-blue-300">NOTIFY pgrst, 'reload schema';</span></div>
             <div>4. Đợi 10s rồi reload trang này</div>
           </div>
-          <div className="mt-2 text-xs text-amber-800/80">
+          <div className="mt-2 text-xs text-blue-800/80">
             Trong khi chờ migration, leads vẫn được gửi qua email (không bị mất), chỉ không lưu vào DB để hiển thị ở đây.
           </div>
         </div>
@@ -95,10 +95,10 @@ export default function LeadsPage() {
           <div className="text-xs uppercase tracking-wider text-navy-900/45">Tổng Leads</div>
           <div className="mt-1 text-2xl font-extrabold">{stats.total}</div>
         </div>
-        <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4">
-          <div className="text-xs uppercase tracking-wider text-amber-700/70">Sale Xuất Khẩu</div>
-          <div className="mt-1 text-2xl font-extrabold text-amber-900">{stats.sales}</div>
-          <div className="text-[11px] text-amber-700/60">veximtrade.com</div>
+        <div className="rounded-2xl bg-blue-50 border border-blue-200 p-4">
+          <div className="text-xs uppercase tracking-wider text-blue-700/70">Sale Xuất Khẩu</div>
+          <div className="mt-1 text-2xl font-extrabold text-blue-900">{stats.sales}</div>
+          <div className="text-[11px] text-blue-700/60">veximtrade.com</div>
         </div>
         <div className="rounded-2xl bg-slate-900 text-white p-4">
           <div className="text-xs uppercase tracking-wider text-white/50">Amazon US</div>
@@ -161,7 +161,7 @@ export default function LeadsPage() {
                   <tr key={l.id} className="border-t border-slate-100 hover:bg-slate-50/50">
                     <td className="px-4 py-3 text-xs">{formatDate(l.created_at)}<div className="text-[11px] text-slate-400">{new Date(l.created_at).toLocaleTimeString("vi-VN")}</div></td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold ${l.service_type === "sales" ? "bg-amber-100 text-amber-800 border border-amber-200" : "bg-slate-900 text-white"}`}>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold ${l.service_type === "sales" ? "bg-blue-100 text-blue-800 border border-blue-200" : "bg-slate-900 text-white"}`}>
                         {l.service_type === "sales" ? "Sale Mỹ" : "Amazon US"}
                       </span>
                     </td>

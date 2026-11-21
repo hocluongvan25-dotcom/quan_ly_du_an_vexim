@@ -31,7 +31,7 @@ function playFanfare() {
   } catch {}
 }
 
-const BRAND = ["#E8B22A", "#F6D36B", "#FBEFCC", "#ffffff", "#16a34a"];
+const BRAND = ["#0071E3", "#5BA7FF", "#DCEBFF", "#ffffff", "#16a34a"];
 
 function fireCelebration() {
   const z = { zIndex: 9999, disableForReducedMotion: true };
@@ -61,7 +61,7 @@ function fireCelebration() {
       gravity: 0.8,
       ticks: 220,
       origin: { y: 0.2 },
-      colors: ["#E8B22A", "#F6D36B", "#FFF3C4"],
+      colors: ["#0071E3", "#5BA7FF", "#DCEBFF"],
       shapes: ["star"],
       scalar: 1.4,
     });
@@ -158,8 +158,8 @@ export function WinCelebration({
     <div className="fixed inset-0 z-[9990] flex items-center justify-center bg-navy-950/60 p-4 backdrop-blur-[2px]">
       <div className="relative w-full max-w-md overflow-hidden rounded-[28px] bg-gradient-to-br from-navy-900 via-navy-800 to-navy-900 p-[2px] shadow-lift">
         <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full bg-teal-500/30 blur-2xl" />
-        <div className="absolute -bottom-12 -left-12 h-44 w-44 rounded-full bg-gold-400/20 blur-2xl" />
-        <div className="relative rounded-[26px] bg-gradient-to-b from-white to-[#fff6e4] px-6 py-8 text-center">
+        <div className="absolute -bottom-12 -left-12 h-44 w-44 rounded-full bg-blue-400/20 blur-2xl" />
+        <div className="relative rounded-[26px] bg-gradient-to-b from-white to-[#f5f5f7] px-6 py-8 text-center">
           <button
             onClick={onClose}
             className="absolute right-3 top-3 rounded-full bg-slate-100 p-1.5 text-slate-500 hover:bg-slate-200"
@@ -188,7 +188,7 @@ export function WinCelebration({
             <Link
               href={recordHref}
               onClick={onClose}
-              className="mt-4 block rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-navy-950 shadow-lift hover:bg-teal-400"
+              className="mt-4 block rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-white shadow-lift hover:bg-teal-600"
             >
               📁 Tạo hồ sơ {recordLabel} cho khách này →
             </Link>
@@ -251,7 +251,7 @@ export function WinCelebration({
                 <button
                   onClick={confirmContract}
                   disabled={confirming || !confirmStart}
-                  className="flex-1 rounded-xl bg-teal-500 py-2.5 text-sm font-extrabold text-navy-950 disabled:opacity-50"
+                  className="flex-1 rounded-xl bg-teal-500 py-2.5 text-sm font-extrabold text-white disabled:opacity-50"
                 >
                   {confirming ? "Đang lưu…" : "Xác nhận hợp đồng"}
                 </button>
@@ -268,7 +268,7 @@ export function WinCelebration({
             <Link
               href={`/dashboard/dich-vu/${autoContract.id}`}
               onClick={onClose}
-              className="mt-4 block rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-navy-950 shadow-lift hover:bg-teal-400"
+              className="mt-4 block rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-white shadow-lift hover:bg-teal-600"
             >
               🎉 Đã xác nhận — xem hợp đồng {autoContract.contract_no} →
             </Link>
@@ -277,7 +277,7 @@ export function WinCelebration({
             <Link
               href={recordHref}
               onClick={onClose}
-              className="mt-4 block rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-navy-950 shadow-lift hover:bg-teal-400"
+              className="mt-4 block rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-white shadow-lift hover:bg-teal-600"
             >
               📁 Tạo hợp đồng {recordLabel} cho khách này →
             </Link>

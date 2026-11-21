@@ -122,8 +122,8 @@ export default function CompanyDetailPage() {
               </div>
             </div>
             {company.notes && (
-              <div className="rounded-xl bg-amber-50 border border-amber-200 p-4">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-amber-700">Ghi Chú</div>
+              <div className="rounded-xl bg-blue-50 border border-blue-200 p-4">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-blue-700">Ghi Chú</div>
                 <div className="mt-2 text-sm text-slate-700 whitespace-pre-wrap">{company.notes}</div>
               </div>
             )}
@@ -213,7 +213,7 @@ export default function CompanyDetailPage() {
                   <div className="text-xs text-slate-500 mt-1">Dịch vụ: <b>{l.service_type === "sales" ? "Phòng Sale Xuất Khẩu Mỹ (veximtrade.com)" : "Vận Hành Amazon US (veximops.com)"}</b> · {formatDate(l.created_at)}</div>
                   <div className="text-xs text-slate-600 mt-1">Nguồn: {l.source_url || "—"}</div>
                 </div>
-                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${l.status === "new" ? "bg-amber-100 text-amber-800" : "bg-slate-100 text-slate-600"}`}>{l.status}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${l.status === "new" ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-600"}`}>{l.status}</span>
               </div>
             ))}
           </div>

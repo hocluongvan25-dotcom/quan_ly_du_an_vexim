@@ -59,7 +59,7 @@ const h1 = (t, sub) => `<header style="max-width:720px; margin:48px auto 0; padd
 
 const parts = [`<!doctype html><html lang="vi"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><title>Preview — Email cảnh báo hết hạn Vexim</title></head>
 <body style="margin:0; background:#e2e8f0; font-family:Inter,Arial,sans-serif">`,
-  h1('Email cảnh báo hết hạn — trước / sau', 'Bản "Trước" render từ lib/email.ts ở commit HEAD. Bản "Sau" là đề xuất mới: khối rủi ro nêu hậu quả thật + màu sắc leo thang navy → vàng → cam → đỏ + số đếm ngược lớn + CTA gọi hotline ở mốc cao.'),
+  h1('Email cảnh báo hết hạn — trước / sau', 'Bản "Trước" render từ lib/email.ts ở commit HEAD. Bản "Sau" là đề xuất mới: khối rủi ro nêu hậu quả thật + màu sắc leo thang graphite → xanh dương → xanh dương đậm → đỏ + số đếm ngược lớn + CTA gọi hotline ở mốc cao.'),
 
   h1('1 · Bản TRƯỚC (đang chạy)', 'Chỉ nêu sự thật "còn bao nhiêu ngày", chưa nói hậu quả — mọi mốc đều navy, chỉ đổi đỏ khi đã hết hạn.'),
   section('Trước — FDA · còn 60 ngày', 'mốc thông tin', before.buildExpiryWarningEmail({ ...FDA, remaining_days: 60 }, '60_days')),
@@ -67,9 +67,9 @@ const parts = [`<!doctype html><html lang="vi"><head><meta charset="utf-8"/><met
   section('Trước — FDA · đã hết hạn', 'mới đổi sang đỏ', before.buildExpiryWarningEmail({ ...FDA, remaining_days: -12 }, 'expired')),
 
   h1('2 · Bản SAU (đề xuất)', 'Mỗi mốc một cấp độ thị giác: thông tin → chú ý → cảnh báo → sự việc đã xảy ra; khối rủi ro nói hậu quả thật (refused entry, buyer tra cứu, hải quan Trung Quốc).'),
-  section('Sau — FDA · còn 60 ngày', 'urgency LOW · navy trung tính', after.buildExpiryWarningEmail({ ...FDA, remaining_days: 60 }, '60_days')),
-  section('Sau — FDA · còn 30 ngày', 'urgency MEDIUM · vàng hổ phách', after.buildExpiryWarningEmail({ ...FDA, remaining_days: 30 }, '30_days')),
-  section('Sau — FDA · còn 7 ngày', 'urgency HIGH · cam + CTA gọi hotline', after.buildExpiryWarningEmail(FDA, '7_days')),
+  section('Sau — FDA · còn 60 ngày', 'urgency LOW · graphite trung tính', after.buildExpiryWarningEmail({ ...FDA, remaining_days: 60 }, '60_days')),
+  section('Sau — FDA · còn 30 ngày', 'urgency MEDIUM · xanh dương', after.buildExpiryWarningEmail({ ...FDA, remaining_days: 30 }, '30_days')),
+  section('Sau — FDA · còn 7 ngày', 'urgency HIGH · xanh dương đậm + CTA gọi hotline', after.buildExpiryWarningEmail(FDA, '7_days')),
   section('Sau — FDA · còn 1 ngày', 'urgency HIGH', after.buildExpiryWarningEmail({ ...FDA, remaining_days: 1 }, '1_day')),
   section('Sau — FDA · NGÀY 0 — hết hạn hôm nay', 'cron vẫn gửi (threshold days:0) · "HÔM NAY", không hiện "Chỉ còn 0 ngày"', after.buildExpiryWarningEmail({ ...FDA, remaining_days: 0 }, '1_day')),
   section('Sau — FDA · đã hết hạn', 'urgency CRITICAL · đỏ', after.buildExpiryWarningEmail({ ...FDA, remaining_days: -12 }, 'expired')),

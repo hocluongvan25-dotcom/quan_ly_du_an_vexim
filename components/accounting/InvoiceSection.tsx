@@ -11,7 +11,7 @@ import { todayUtcIso } from "@/lib/utils";
 
 const STATE_META: Record<string, { label: string; cls: string }> = {
   issued: { label: "Đã xuất", cls: "bg-slate-100 text-slate-700" },
-  due_soon: { label: "Sắp đến hạn", cls: "bg-amber-100 text-amber-800" },
+  due_soon: { label: "Sắp đến hạn", cls: "bg-blue-100 text-blue-800" },
   overdue: { label: "Quá hạn", cls: "bg-red-100 text-red-700" },
   partial: { label: "Thu một phần", cls: "bg-blue-100 text-blue-700" },
   paid: { label: "Đã thu đủ", cls: "bg-emerald-100 text-emerald-700" },
@@ -335,7 +335,7 @@ export default function InvoiceSection({
         {[
           { label: "Đã xuất HĐ", value: totals.invoiced, cls: "text-navy-900" },
           { label: "Đã thu", value: totals.paid, cls: "text-emerald-600" },
-          { label: "Còn phải thu", value: totals.remaining, cls: "text-amber-600" },
+          { label: "Còn phải thu", value: totals.remaining, cls: "text-blue-600" },
         ].map((k) => (
           <div key={k.label} className="rounded-2xl bg-slate-50 px-4 py-3">
             <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400">{k.label}</div>
@@ -450,7 +450,7 @@ export default function InvoiceSection({
           <button
             onClick={submitNew}
             disabled={busy}
-            className="mt-3 rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-extrabold text-navy-950 disabled:opacity-50"
+            className="mt-3 rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-extrabold text-white disabled:opacity-50"
           >
             {busy ? "Đang tạo…" : `Tạo hóa đơn đợt ${inst} — ${formatMoney(preview.total)}`}
           </button>
@@ -495,7 +495,7 @@ export default function InvoiceSection({
                     đã thu {formatMoney(inv.paid_amount)} ({pct}%)
                   </div>
                   {inv.remaining > 0 && inv.status !== "cancelled" && (
-                    <div className="text-[11px] font-bold text-amber-600">
+                    <div className="text-[11px] font-bold text-blue-600">
                       còn lại {formatMoney(inv.remaining)}
                     </div>
                   )}
@@ -525,11 +525,11 @@ export default function InvoiceSection({
                     <div>VAT {inv.vat_rate}%: <b>{formatMoney(inv.vat_amount)}</b></div>
                     <div>Tổng: <b>{formatMoney(inv.total)}</b></div>
                     <div>
-                      Còn lại: <b className="text-amber-600">{formatMoney(inv.remaining)}</b>
+                      Còn lại: <b className="text-blue-600">{formatMoney(inv.remaining)}</b>
                     </div>
                   </div>
                   {(inv.prior_debts?.length || 0) > 0 && (
-                    <div className="mt-2 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    <div className="mt-2 rounded-xl bg-blue-50 px-3 py-2 text-xs text-blue-800">
                       <b>Còn nợ đợt trước:</b>{" "}
                       {(inv.prior_debts || []).map((d) => `đợt ${d.installment_no} (${formatMoney(d.remaining)})`).join(" · ")}
                       {" — "}tổng cần thu đợt này: <b>{formatMoney(totalCollectible(inv))}</b>
@@ -657,7 +657,7 @@ export default function InvoiceSection({
                     {inv.status !== "cancelled" && inv.paid_amount === 0 && (
                       <button
                         onClick={() => cancelInv(inv)}
-                        className="rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-amber-600 shadow-sm"
+                        className="rounded-xl bg-white px-3 py-1.5 text-xs font-bold text-blue-600 shadow-sm"
                       >
                         Hủy HĐ
                       </button>
@@ -684,7 +684,7 @@ export default function InvoiceSection({
           <div className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6">
             <h3 className="font-display text-lg font-extrabold text-navy-900">Sửa {editing.invoice_no}</h3>
             {editing.paid_amount > 0 && (
-              <p className="mt-1 text-xs font-bold text-amber-600">
+              <p className="mt-1 text-xs font-bold text-blue-600">
                 Đã thu tiền nên không sửa được số tiền — có thể sửa số hợp đồng, nội dung, hạn và ghi chú.
               </p>
             )}

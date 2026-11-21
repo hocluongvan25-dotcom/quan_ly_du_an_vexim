@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getQuote } from "@/lib/db";
 import { generateQuotePdf } from "@/lib/quote-pdf";
+import { quotePdfFilename } from "@/lib/quote-filename";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,11 +19,11 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     const quote = await getQuote(id);
     if (!quote) return NextResponse.json({ error: "Không tìm thấy báo giá." }, { status: 404 });
     const pdf = await generateQuotePdf(quote);
-    const safeNo = quote.quote_no.replace(/[^A-Za-z0-9._-]/g, "");
+    const filename = quotePdfFilename(quote);
     return new NextResponse(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="Bao-gia-${safeNo}.pdf"`,
+        "Content-Disposition": `attachment; filename="${filename}"`,
         "Cache-Control": "private, no-store, max-age=0",
         "X-Content-Type-Options": "nosniff",
       },

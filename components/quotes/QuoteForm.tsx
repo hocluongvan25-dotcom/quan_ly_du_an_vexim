@@ -451,7 +451,7 @@ export function QuoteForm({
         <button
           onClick={submit}
           disabled={busy || !form.company_name.trim()}
-          className="rounded-xl bg-teal-500 px-5 py-3 text-sm font-extrabold text-navy-950 disabled:opacity-50"
+          className="rounded-xl bg-teal-500 px-5 py-3 text-sm font-extrabold text-white disabled:opacity-50"
         >
           {busy ? "Đang lưu…" : "Lưu báo giá"}
         </button>

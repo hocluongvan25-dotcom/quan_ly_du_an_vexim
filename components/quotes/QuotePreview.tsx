@@ -17,19 +17,19 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
 
   return (
     <div className="rounded-3xl bg-white p-6 shadow-card print:rounded-none print:p-0 print:shadow-none md:p-9">
-      <div className="relative overflow-hidden rounded-2xl bg-[#0B1837] px-6 py-5 text-white print:rounded-none">
+      <div className="relative overflow-hidden rounded-2xl bg-[#1D1D1F] px-6 py-5 text-white print:rounded-none">
         {/* Logo chỉ chữ, không kèm slogan */}
         <img src="/quote/logo-wordmark-white.png" alt="Vexim Global" className="h-6 w-auto" />
         <div className="absolute right-6 top-5 text-right">
           <div className="font-display text-lg font-extrabold">BÁO GIÁ DỊCH VỤ</div>
-          <div className="mt-0.5 font-mono text-xs text-[#F2DA96]">Số: {quote.quote_no}</div>
+          <div className="mt-0.5 font-mono text-xs text-[#DCEBFF]">Số: {quote.quote_no}</div>
         </div>
-        <div className="absolute inset-x-0 bottom-0 h-[2px] bg-[#C99C25]" />
+        <div className="absolute inset-x-0 bottom-0 h-[2px] bg-[#0071E3]" />
       </div>
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
         <div>
-          <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#836514]">Đơn vị báo giá</div>
+          <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#075FBD]">Đơn vị báo giá</div>
           <div className="mt-1 text-sm font-bold text-navy-900">{COMPANY.legal}</div>
           <div className="mt-1 text-xs leading-5 text-navy-900/70">
             Địa chỉ: {COMPANY.address}
@@ -40,8 +40,8 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
           </div>
         </div>
         <div>
-          <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#836514]">Kính gửi quý khách hàng</div>
-          <div className="mt-1 text-sm font-bold text-navy-900">{quote.company_name}</div>
+          <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#075FBD]">Kính gửi quý khách hàng</div>
+          <div className="mt-1 text-sm font-bold text-navy-900">{quote.company_name || quote.contact_name || "Quý khách hàng"}</div>
           <div className="mt-1 text-xs leading-5 text-navy-900/70">
             {quote.company_address && <>Địa chỉ: {quote.company_address}<br /></>}
             {quote.company_tax_code && <>Mã số thuế: {quote.company_tax_code}<br /></>}
@@ -52,7 +52,7 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl border-l-[3px] border-[#C99C25] bg-[#F2F5FA] px-4 py-3 text-xs">
+      <div className="mt-5 grid grid-cols-3 gap-2 rounded-2xl border-l-[3px] border-[#0071E3] bg-[#F2F2F7] px-4 py-3 text-xs">
         <div>
           <div className="font-extrabold uppercase tracking-wider text-navy-900/45">Ngày báo giá</div>
           <div className="mt-0.5 font-bold text-navy-900">{quoteRefDate(quote.issue_date)}</div>
@@ -78,7 +78,7 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
       <div className="overflow-x-auto">
         <table className="w-full min-w-[620px] border-collapse text-left text-xs">
           <thead>
-            <tr className="bg-[#0B1837] text-white">
+            <tr className="bg-[#1D1D1F] text-white">
               <th className="w-10 px-2 py-2 text-center font-bold">STT</th>
               <th className="px-3 py-2 font-bold">Nội dung</th>
               <th className="w-16 px-2 py-2 text-center font-bold">ĐVT</th>
@@ -89,7 +89,7 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
           </thead>
           <tbody>
             {main.map((item, index) => (
-              <tr key={`main-${index}`} className="border-b border-slate-100 odd:bg-[#F2F5FA]">
+              <tr key={`main-${index}`} className="border-b border-slate-100 odd:bg-[#F2F2F7]">
                 <td className="px-2 py-2 text-center">{index + 1}</td>
                 <td className="px-3 py-2">
                   <div className="font-semibold text-navy-900">{item.name}</div>
@@ -104,7 +104,7 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
             {optional.length > 0 && (
               <>
                 <tr>
-                  <td colSpan={6} className="border-l-[3px] border-[#C99C25] bg-[#F8F4EC] px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-[#836514]">
+                  <td colSpan={6} className="border-l-[3px] border-[#0071E3] bg-[#F2F2F7] px-3 py-2 text-[11px] font-extrabold uppercase tracking-wide text-[#075FBD]">
                     Hạng mục tùy chọn — chưa tính vào tổng, áp dụng khi Quý khách chọn thêm
                   </td>
                 </tr>
@@ -143,9 +143,9 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
             <span className="text-navy-900/70">Thuế VAT {quote.vat_rate}%</span>
             <span className="font-bold">{formatMoney(quote.vat_amount)}</span>
           </div>
-          <div className="mt-1 flex items-center justify-between rounded-xl border-l-[3px] border-[#C99C25] bg-[#060E23] px-3 py-2.5 text-white">
+          <div className="mt-1 flex items-center justify-between rounded-xl border-l-[3px] border-[#0071E3] bg-[#1D1D1F] px-3 py-2.5 text-white">
             <span className="font-extrabold">TỔNG CỘNG (đã gồm VAT)</span>
-            <span className="font-display text-base font-extrabold text-[#F2DA96]">{formatMoney(quote.total)}</span>
+            <span className="font-display text-base font-extrabold text-[#DCEBFF]">{formatMoney(quote.total)}</span>
           </div>
           <div className="mt-1 px-2 text-[11px] italic text-navy-900/55">
             Bằng chữ: {quote.total_in_words || moneyInWords(quote.total)}.
@@ -219,17 +219,17 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
       )}
 
       {/* Thông tin thanh toán — 3 cột đúng tỉ lệ như trên PDF */}
-      <div className="mt-6 grid grid-cols-[52fr_20fr_28fr] border-l-[3px] border-[#C99C25] bg-[#F2F5FA]">
+      <div className="mt-6 grid grid-cols-[52fr_20fr_28fr] border-l-[3px] border-[#0071E3] bg-[#F2F2F7]">
         <div className="px-3 py-2.5">
-          <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#836514]">Đơn vị thụ hưởng</div>
+          <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#075FBD]">Đơn vị thụ hưởng</div>
           <div className="mt-0.5 text-[11px] font-bold text-navy-900">{QUOTE_DEFAULTS.issuer_name}</div>
         </div>
         <div className="px-3 py-2.5">
-          <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#836514]">Số tài khoản</div>
+          <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#075FBD]">Số tài khoản</div>
           <div className="mt-0.5 text-[11px] font-bold text-navy-900">{QUOTE_DEFAULTS.bank_account}</div>
         </div>
         <div className="px-3 py-2.5">
-          <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#836514]">Ngân hàng</div>
+          <div className="text-[9px] font-extrabold uppercase tracking-wider text-[#075FBD]">Ngân hàng</div>
           <div className="mt-0.5 text-[11px] font-bold text-navy-900">{QUOTE_DEFAULTS.bank_name}</div>
         </div>
       </div>
@@ -272,7 +272,7 @@ export function QuotePreview({ quote }: { quote: QuoteView }) {
 function SectionTitle({ children }: { children: React.ReactNode }) {
   return (
     <div className="mt-6 mb-2 flex items-center gap-2">
-      <span className="h-3.5 w-1 rounded-full bg-[#C99C25]" />
+      <span className="h-3.5 w-1 rounded-full bg-[#0071E3]" />
       <span className="text-[11px] font-extrabold uppercase tracking-wider text-navy-900">{children}</span>
     </div>
   );

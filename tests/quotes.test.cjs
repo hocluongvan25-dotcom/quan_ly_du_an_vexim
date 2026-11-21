@@ -36,6 +36,7 @@ const templates = require('../lib/quote-templates.ts');
 const { QUOTE_DEFAULTS: QUOTE_DEFAULTS_FOR_TEST } = require('../lib/quotes.ts');
 const { moneyInWords, numberToVietnameseWords } = require('../lib/money-words.ts');
 const { generateQuotePdf } = require('../lib/quote-pdf.ts');
+const { quotePdfFilename } = require('../lib/quote-filename.ts');
 const listApi = require('../app/api/quotes/route.ts');
 const priceListApi = require('../app/api/quote-templates/route.ts');
 const priceItemApi = require('../app/api/quote-templates/[key]/route.ts');
@@ -48,9 +49,13 @@ const request = (body, method = 'POST') =>
 const bare = (path, method = 'GET') => new Request(`http://test${path}`, { method });
 after(() => { process.chdir(cwd); fs.rmSync(temp, { recursive: true, force: true }); });
 
+// Keep default test quotes unexpired regardless of the calendar date.
+const DEFAULT_TEST_ISSUE_DATE = new Date().toISOString().slice(0, 10);
+const DEFAULT_TEST_VALID_UNTIL = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
 const quickCreate = (patch = {}) => {
   const input = {
-    template_key: 'FDA', company_name: 'CÔNG TY ABC', issue_date: '2026-09-21', valid_until: '2026-10-06', ...patch,
+    template_key: 'FDA', company_name: 'CÔNG TY ABC', issue_date: DEFAULT_TEST_ISSUE_DATE, valid_until: DEFAULT_TEST_VALID_UNTIL, ...patch,
   };
   const template = templates.getQuoteTemplate(input.template_key);
   return db.createQuote(quotes.prepareQuoteInput({
@@ -70,6 +75,29 @@ test('đọc số tiền thành chữ đúng chuẩn tiếng Việt', () => {
   assert.equal(numberToVietnameseWords(1250000), 'Một triệu hai trăm năm mươi nghìn');
   assert.equal(moneyInWords(128040000), 'Một trăm hai mươi tám triệu không trăm bốn mươi nghìn đồng');
   assert.equal(moneyInWords(1_000_000_000), 'Một tỷ đồng');
+});
+
+test('tên PDF báo giá có khách hàng và dịch vụ, dùng người liên hệ khi thiếu công ty', () => {
+  const details = {
+    company_name: 'CÔNG TY Ánh Đường',
+    contact_name: 'Nguyễn An',
+    service_name: 'Đăng ký GACC (Trung Quốc)',
+    title: 'Báo giá GACC',
+    template_key: 'GACC',
+    quote_no: 'VXM-BG-2026-0290',
+  };
+  assert.equal(
+    quotePdfFilename(details),
+    'Bao-gia-CONG-TY-Anh-Duong-Dang-ky-GACC-Trung-Quoc-VXM-BG-2026-0290.pdf',
+  );
+  assert.equal(
+    quotePdfFilename({ ...details, company_name: ' ', contact_name: 'Đỗ Ánh / Mai', service_name: '' }),
+    'Bao-gia-Do-Anh-Mai-Bao-gia-GACC-VXM-BG-2026-0290.pdf',
+  );
+  assert.equal(
+    quotePdfFilename({ ...details, company_name: '', contact_name: '', service_name: '', title: '', quote_no: '' }),
+    'Bao-gia-Khach-hang-GACC.pdf',
+  );
 });
 
 test('DB cũ (bảng quotes chưa có cột documents) tự nâng cấp, giữ nguyên báo giá đã lưu', () => {
@@ -246,7 +274,7 @@ test('kiểm tra dữ liệu: chặn hạng mục sai, ngày/hiệu lực sai v�
 test('bản nháp sửa được; bản đã gửi khách bị khóa và phải nhân bản mới sửa được', () => {
   const id = quickCreate();
   db.updateQuote(id, quotes.prepareQuoteInput({
-    template_key: 'FDA', company_name: 'CÔNG TY ABC (đổi tên)', issue_date: '2026-09-21',
+    template_key: 'FDA', company_name: 'CÔNG TY ABC (đổi tên)', issue_date: DEFAULT_TEST_ISSUE_DATE,
     items: templates.templateItems('FDA'), discount_percent: 5, vat_rate: 8,
   }));
   assert.equal(db.getQuote(id).company_name, 'CÔNG TY ABC (đổi tên)');
@@ -256,7 +284,7 @@ test('bản nháp sửa được; bản đã gửi khách bị khóa và phải 
   const sent = db.getQuote(id);
   assert.equal(sent.state, 'sent');
   assert.throws(() => db.updateQuote(id, quotes.prepareQuoteInput({
-    template_key: 'FDA', company_name: 'Đổi trộm', issue_date: '2026-09-21', items: templates.templateItems('FDA'),
+    template_key: 'FDA', company_name: 'Đổi trộm', issue_date: DEFAULT_TEST_ISSUE_DATE, items: templates.templateItems('FDA'),
   })), /LOCKED_QUOTE/);
   assert.throws(() => db.setQuoteStatus(id, 'draft'), /INVALID_STATUS/);
   assert.equal(db.getQuote(id).company_name, 'CÔNG TY ABC (đổi tên)');
@@ -345,6 +373,8 @@ test('bản xem trước trên màn hình khớp dữ liệu đã lưu (không t
   const html = renderToStaticMarkup(React.createElement(QuotePreview, { quote }));
   assert.ok(html.includes(quote.quote_no));
   assert.ok(html.includes('CÔNG TY ABC'));
+  const personalPreview = renderToStaticMarkup(React.createElement(QuotePreview, { quote: { ...quote, company_name: '' } }));
+  assert.ok(personalPreview.includes('<div class="mt-1 text-sm font-bold text-navy-900">Anh E</div>'), 'dùng tên người liên hệ khi thiếu tên công ty');
   assert.ok(html.includes('TỔNG CỘNG (đã gồm VAT)'));
   assert.ok(html.includes(formatMoney(quote.total)));
   assert.ok(html.includes(formatMoney(quote.discount_amount)), 'chiết khấu hiển thị đúng');
@@ -406,7 +436,9 @@ test('nội dung gửi khách và PDF: đủ số tiền, bằng chữ, hạng m
   const delivered = await pdfApi.GET(new Request('http://test'), ctx(id));
   assert.equal(delivered.status, 200);
   assert.equal(delivered.headers.get('Content-Type'), 'application/pdf');
-  assert.ok(delivered.headers.get('Content-Disposition').includes('Bao-gia-'));
+  const contentDisposition = delivered.headers.get('Content-Disposition');
+  assert.ok(contentDisposition.startsWith('attachment; filename="Bao-gia-CONG-TY-ABC-Dang-ky-FDA-Hoa-Ky-VXM-BG-'));
+  assert.ok(contentDisposition.endsWith('.pdf"'));
   session = null;
   assert.equal((await pdfApi.GET(new Request('http://test'), ctx(id))).status, 401);
   session = { id: 1, role: 'admin', name: 'Test Admin' };
@@ -530,7 +562,7 @@ test('Supabase adapter (mock): tạo, đọc, sửa, đổi trạng thái và nh
   }});
   try {
     const input = quotes.prepareQuoteInput({
-      template_key: 'AMAZON_OPS', company_name: 'CLOUD COMPANY', issue_date: '2026-09-21', valid_until: '2026-10-06',
+      template_key: 'AMAZON_OPS', company_name: 'CLOUD COMPANY', issue_date: DEFAULT_TEST_ISSUE_DATE, valid_until: DEFAULT_TEST_VALID_UNTIL,
       items: templates.templateItems('AMAZON_OPS'), discount_percent: 0, vat_rate: 8,
     });
     const id = await cloud.createQuote(input, 1);

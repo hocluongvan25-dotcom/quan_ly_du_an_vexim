@@ -44,7 +44,7 @@ export function MobileNav({ user }: { user: SessionUser }) {
   return (
     <div className="md:hidden">
       <button type="button" onClick={() => setOpen(true)}
-        className="rounded-xl border border-navy-900/10 p-2"
+        className="rounded-xl border border-[#d2d2d7] bg-white/80 p-2 text-[#1d1d1f] transition-colors hover:bg-[#f2f2f7] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0071e3]"
         aria-label={t("nav.openMenu")} aria-expanded={open} aria-controls={id}
       ><Menu aria-hidden="true" className="h-5 w-5" /></button>
       {open && createPortal(
@@ -54,7 +54,7 @@ export function MobileNav({ user }: { user: SessionUser }) {
           <div className="flex-1 bg-black/40" aria-hidden="true" onClick={() => setOpen(false)} />
           <button ref={closeButton} type="button" onClick={() => setOpen(false)}
             aria-label={t("nav.closeMenu")}
-            className="absolute right-2 top-3 rounded-full bg-white p-2.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-navy-900"
+            className="absolute right-2 top-3 rounded-full bg-white p-2.5 text-[#1d1d1f] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#0071e3]"
           ><X aria-hidden="true" className="h-4 w-4" /></button>
         </div>, document.body
       )}

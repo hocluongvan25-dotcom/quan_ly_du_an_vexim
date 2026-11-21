@@ -172,7 +172,7 @@ function NewContractForm() {
         <button
           onClick={submit}
           disabled={busy || !company.trim() || !started}
-          className="w-full rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-navy-950 disabled:opacity-50"
+          className="w-full rounded-xl bg-teal-500 py-3 text-sm font-extrabold text-white disabled:opacity-50"
         >
           {busy ? "Đang tạo…" : "Tạo hợp đồng"}
         </button>

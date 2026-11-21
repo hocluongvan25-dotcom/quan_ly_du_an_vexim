@@ -69,7 +69,7 @@ function ServiceContractsInner() {
             key={s}
             onClick={() => setSt(s)}
             className={`rounded-xl px-4 py-2 text-sm font-semibold ${
-              st === s ? "bg-teal-500 text-navy-950" : "bg-white text-navy-900"
+              st === s ? "bg-teal-500 text-white" : "bg-white text-navy-900"
             }`}
           >
             {s === "ALL" ? "Mọi trạng thái" : s === "active" ? "Đang hiệu lực" : s === "expired" ? "Hết hạn" : "Đã chấm dứt"}
@@ -80,7 +80,7 @@ function ServiceContractsInner() {
       <div className="mt-5 overflow-hidden rounded-3xl bg-white shadow-card">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-left text-sm">
-            <thead className="bg-[#fffaf0] text-[11px] uppercase tracking-wider text-navy-900/45">
+            <thead className="bg-[#f2f2f7] text-[11px] uppercase tracking-wider text-navy-900/45">
               <tr>
                 <th className="px-4 py-3">Mã HĐ</th>
                 <th className="px-4 py-3">Công ty</th>
@@ -102,7 +102,7 @@ function ServiceContractsInner() {
                   <td className="px-4 py-3">
                     <span
                       className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
-                        c.service_type === "SALE_EXPORT" ? "bg-blue-100 text-blue-700" : "bg-amber-100 text-amber-800"
+                        c.service_type === "SALE_EXPORT" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-700"
                       }`}
                     >
                       {SERVICE_NAMES[c.service_type]}

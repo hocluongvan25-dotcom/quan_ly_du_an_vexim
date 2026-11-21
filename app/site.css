@@ -1,30 +1,30 @@
 /* =========================================================================
-   Vexim Global — website công khai
-   Hướng thiết kế: giấy hồ sơ, đường kẻ mảnh, chữ serif cho tiêu đề,
-   nhãn nhỏ in hoa, màu mực navy lấy từ logo. Không gradient, không bóng lớn.
+   Vexim Global — public pages use the same clean neutral/blue interface theme.
+   Fine separators and restrained typography remain; colors share the Apple-like
+   canvas, ink, and blue accents used throughout the dashboard.
    Toàn bộ selector nằm trong .site để không ảnh hưởng giao diện nội bộ.
    ========================================================================= */
 
 .site {
-  --s-paper: #f6f3ec;
-  --s-paper-soft: #fbf9f4;
+  --s-paper: #f5f5f7;
+  --s-paper-soft: #f2f2f7;
   --s-white: #ffffff;
-  --s-ink: #111d33;
-  --s-ink-2: #24324a;
-  --s-muted: #5b6270;
-  --s-line: #dcd6c8;
-  --s-line-strong: #c6bda9;
-  --s-brass: #8a6124;
-  --s-blue: #1f4a7c;
-  --s-valid: #175c42;
-  --s-valid-bg: #eaf2ec;
-  --s-valid-line: #bfd7c9;
-  --s-warn: #815410;
-  --s-warn-bg: #f8f0dd;
-  --s-warn-line: #e3d2a8;
-  --s-danger: #8b2e25;
-  --s-danger-bg: #f7e9e6;
-  --s-danger-line: #e2c4bf;
+  --s-ink: #1d1d1f;
+  --s-ink-2: #424245;
+  --s-muted: #6e6e73;
+  --s-line: #e5e5ea;
+  --s-line-strong: #d2d2d7;
+  --s-accent: #0071e3;
+  --s-blue: #0071e3;
+  --s-valid: #1d7135;
+  --s-valid-bg: #edf7f1;
+  --s-valid-line: #bcdcc9;
+  --s-warn: #075fbd;
+  --s-warn-bg: #e8f2ff;
+  --s-warn-line: #cce4ff;
+  --s-danger: #a8333d;
+  --s-danger-bg: #fff2f2;
+  --s-danger-line: #ecc6ca;
   --s-font: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
   --s-serif: "Source Serif 4", "Iowan Old Style", Georgia, "Times New Roman", serif;
   --s-mono: ui-monospace, "SFMono-Regular", "Roboto Mono", Menlo, monospace;
@@ -233,7 +233,7 @@
   right: 100%;
   bottom: 0;
   height: 1.5px;
-  background: var(--s-brass);
+  background: var(--s-accent);
   transition: right 0.22s ease;
 }
 
@@ -514,14 +514,14 @@
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
-  color: var(--s-brass);
+  color: var(--s-accent);
 }
 
 .eyebrow::before {
   content: "";
   width: 26px;
   height: 1px;
-  background: var(--s-brass);
+  background: var(--s-accent);
 }
 
 .hero__title {
@@ -620,7 +620,7 @@
   font-family: var(--s-mono);
   font-size: 11px;
   letter-spacing: 0.14em;
-  color: var(--s-brass);
+  color: var(--s-accent);
 }
 
 .lookup__kicker {
@@ -708,7 +708,7 @@
   padding: 12px 14px;
   border: 1px solid var(--s-line-strong);
   border-radius: 2px;
-  background: #fdfcf9;
+  background: #fafafc;
   font-family: inherit;
   font-size: 16px;
   line-height: 1.4;
@@ -769,7 +769,7 @@
 .results__count {
   font-family: var(--s-mono);
   letter-spacing: 0.06em;
-  color: var(--s-brass);
+  color: var(--s-accent);
 }
 
 .result {
@@ -861,7 +861,7 @@
   padding: 13px 15px;
   border: 1px solid var(--s-warn-line);
   border-left: 3px solid var(--s-warn);
-  background: #fbf6ea;
+  background: var(--s-warn-bg);
   font-size: 13px;
   line-height: 1.6;
   color: var(--s-ink-2);
@@ -986,7 +986,7 @@
   margin-top: 16px;
   padding: 16px;
   border: 1px solid var(--s-line);
-  border-left: 3px solid var(--s-brass);
+  border-left: 3px solid var(--s-accent);
   background: var(--s-paper-soft);
   font-size: 13px;
   line-height: 1.7;
@@ -1032,7 +1032,7 @@
   font-family: var(--s-mono);
   font-size: 11px;
   letter-spacing: 0.16em;
-  color: var(--s-brass);
+  color: var(--s-accent);
 }
 
 .site-section__title {
@@ -1080,7 +1080,7 @@
 }
 
 .service:hover {
-  background: #fcfaf5;
+  background: #f7f7fa;
 }
 
 .service__top {
@@ -1094,7 +1094,7 @@
   font-family: var(--s-mono);
   font-size: 11px;
   letter-spacing: 0.14em;
-  color: var(--s-brass);
+  color: var(--s-accent);
 }
 
 .service__tag {
@@ -1147,7 +1147,7 @@
   top: 0.62em;
   width: 5px;
   height: 5px;
-  background: var(--s-brass);
+  background: var(--s-accent);
 }
 
 .service__cta {
@@ -1771,7 +1771,7 @@
   padding: 10px 12px;
   border: 1px solid var(--s-line-strong);
   border-radius: 2px;
-  background: #fdfcf9;
+  background: #fafafc;
   font-family: inherit;
   font-size: 16px;
   color: var(--s-ink);
@@ -1836,7 +1836,7 @@
 .auth-card__foot span[aria-hidden="true"] {
   width: 4px;
   height: 4px;
-  background: var(--s-brass);
+  background: var(--s-accent);
 }
 
 .auth-back {

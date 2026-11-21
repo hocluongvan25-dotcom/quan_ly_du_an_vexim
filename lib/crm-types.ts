@@ -84,7 +84,7 @@ export const PIPELINE_DEFS: CrmPipelineDef[] = [
       {
         key: "da_gui_bao_gia",
         name: "Đã gửi báo giá",
-        color: "#f59e0b",
+        color: "#0071e3",
         sla_days: 7,
         exit_criteria: [
           { key: "quote_sent", label: "Báo giá đã gửi (Zalo / Email)", required: true },
@@ -97,7 +97,7 @@ export const PIPELINE_DEFS: CrmPipelineDef[] = [
       {
         key: "dang_can_nhac",
         name: "Đang cân nhắc",
-        color: "#f97316",
+        color: "#005fbd",
         sla_days: 7,
         exit_criteria: [
           { key: "followup_done", label: "Đã follow-up ít nhất 1 lần", required: true },
@@ -188,7 +188,7 @@ export const PIPELINE_DEFS: CrmPipelineDef[] = [
       {
         key: "da_gui_bao_gia",
         name: "Đã gửi báo giá",
-        color: "#f59e0b",
+        color: "#0071e3",
         sla_days: 7,
         exit_criteria: [
           { key: "quote_sent", label: "Báo giá đã gửi (Zalo / Email)", required: true },
@@ -201,7 +201,7 @@ export const PIPELINE_DEFS: CrmPipelineDef[] = [
       {
         key: "dang_can_nhac",
         name: "Đang cân nhắc",
-        color: "#f97316",
+        color: "#005fbd",
         sla_days: 7,
         exit_criteria: [
           { key: "followup_done", label: "Đã follow-up ít nhất 1 lần", required: true },
@@ -289,7 +289,7 @@ export const PIPELINE_DEFS: CrmPipelineDef[] = [
       {
         key: "da_gui_bao_gia",
         name: "Đã gửi báo giá",
-        color: "#f59e0b",
+        color: "#0071e3",
         sla_days: 5,
         exit_criteria: [
           { key: "quote_sent", label: "Báo giá / proposal đã gửi", required: true },
@@ -301,7 +301,7 @@ export const PIPELINE_DEFS: CrmPipelineDef[] = [
       {
         key: "thuong_thao",
         name: "Thương thảo",
-        color: "#f97316",
+        color: "#005fbd",
         sla_days: 7,
         exit_criteria: [
           { key: "terms_ok", label: "Đã thống nhất điều khoản chính", required: true },
@@ -374,7 +374,7 @@ export const PIPELINE_DEFS: CrmPipelineDef[] = [
       {
         key: "de_xuat_phuong_an",
         name: "Đề xuất phương án",
-        color: "#f59e0b",
+        color: "#0071e3",
         sla_days: 5,
         exit_criteria: [
           { key: "proposal_sent", label: "Proposal / báo giá đã gửi", required: true },
@@ -386,7 +386,7 @@ export const PIPELINE_DEFS: CrmPipelineDef[] = [
       {
         key: "thuong_thao",
         name: "Thương thảo",
-        color: "#f97316",
+        color: "#005fbd",
         sla_days: 7,
         exit_criteria: [
           { key: "terms_ok", label: "Đã thống nhất điều khoản chính", required: true },

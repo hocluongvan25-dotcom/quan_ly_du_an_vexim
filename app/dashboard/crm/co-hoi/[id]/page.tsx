@@ -111,7 +111,7 @@ export default function OppDetailPage() {
       {opp.is_won && (opp.pipeline_key === "FDA" || opp.pipeline_key === "GACC") && (
         <Link
           href={`/dashboard/ho-so/moi?standard=${opp.pipeline_key}&company=${encodeURIComponent(opp.company_name)}${opp.contact_email ? `&email=${encodeURIComponent(opp.contact_email)}` : ""}${opp.estimated_value ? `&price=${opp.estimated_value}` : ""}`}
-          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-400 p-5 text-navy-950 shadow-lift transition hover:shadow-card"
+          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-600 p-5 text-white shadow-lift transition hover:shadow-card"
         >
           <div>
             <div className="font-display text-base font-extrabold">
@@ -129,7 +129,7 @@ export default function OppDetailPage() {
       {opp.is_won && (opp.pipeline_key === "SALE_EXPORT" || opp.pipeline_key === "AMAZON_OPS") && (
         <Link
           href={`/dashboard/dich-vu?q=${encodeURIComponent(opp.company_name)}`}
-          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-400 p-5 text-navy-950 shadow-lift transition hover:shadow-card"
+          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-600 p-5 text-white shadow-lift transition hover:shadow-card"
         >
           <div>
             <div className="font-display text-base font-extrabold">
@@ -246,7 +246,7 @@ export default function OppDetailPage() {
                 (opp.contact_email ? `&email=${encodeURIComponent(opp.contact_email)}` : "") +
                 (opp.contact_name ? `&name=${encodeURIComponent(opp.contact_name)}` : "") +
                 (opp.contact_phone ? `&phone=${encodeURIComponent(opp.contact_phone)}` : "")}
-              className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-extrabold text-navy-950 hover:bg-teal-400"
+              className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-extrabold text-white hover:bg-teal-600"
             >
               <FileText className="h-4 w-4" /> Tạo báo giá
             </Link>
@@ -423,11 +423,11 @@ export default function OppDetailPage() {
 
 function InfoBox({ icon, label, value, sub, alert }: { icon: React.ReactNode; label: string; value: string; sub?: string; alert?: boolean }) {
   return (
-    <div className={`rounded-2xl border p-3 ${alert ? "border-amber-300 bg-amber-50" : "border-navy-900/10 bg-[#fffaf0]"}`}>
+    <div className={`rounded-2xl border p-3 ${alert ? "border-blue-300 bg-blue-50" : "border-navy-900/10 bg-[#f2f2f7]"}`}>
       <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-navy-900/45">
         {icon} {label}
       </div>
-      <div className={`mt-1 truncate text-sm font-extrabold ${alert ? "text-amber-800" : ""}`} title={value}>
+      <div className={`mt-1 truncate text-sm font-extrabold ${alert ? "text-blue-800" : ""}`} title={value}>
         {value}
       </div>
       {sub && <div className="truncate text-[11px] text-navy-900/50">{sub}</div>}

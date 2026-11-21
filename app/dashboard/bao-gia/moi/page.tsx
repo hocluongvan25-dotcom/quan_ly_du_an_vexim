@@ -380,7 +380,7 @@ function NewQuoteInner() {
                 {items.map((line, index) => (
                   <div
                     key={index}
-                    className={`rounded-2xl border p-3 ${line.optional ? "border-dashed border-navy-900/20 bg-[#fffdf7]" : "border-navy-900/10"}`}
+                    className={`rounded-2xl border p-3 ${line.optional ? "border-dashed border-navy-900/20 bg-[#fafafc]" : "border-navy-900/10"}`}
                   >
                     <div className="flex items-start gap-2">
                       <div className="min-w-0 flex-1 space-y-2">
@@ -389,7 +389,7 @@ function NewQuoteInner() {
                             {index + 1}
                           </span>
                           {line.optional && (
-                            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                            <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-bold text-teal-700">
                               Tùy chọn — không cộng vào tổng
                             </span>
                           )}
@@ -589,7 +589,7 @@ function NewQuoteInner() {
                                 </span>
                               )}
                               {registrationHint(c) && (
-                                <span className="mt-0.5 block text-[10px] font-semibold text-amber-700">
+                                <span className="mt-0.5 block text-[10px] font-semibold text-blue-700">
                                   {registrationHint(c)}
                                 </span>
                               )}
@@ -727,7 +727,7 @@ function NewQuoteInner() {
                   <button
                     onClick={submit}
                     disabled={busy || !company.trim() || mainItems.length === 0}
-                    className="rounded-2xl bg-teal-500 px-6 py-3 text-sm font-extrabold text-navy-950 shadow-lift disabled:opacity-50"
+                    className="rounded-2xl bg-teal-500 px-6 py-3 text-sm font-extrabold text-white shadow-lift disabled:opacity-50"
                   >
                     {busy ? "Đang tạo…" : "Tạo báo giá & xem bản in"}
                   </button>
@@ -747,7 +747,7 @@ function NewQuoteInner() {
               {items.map((line, index) => (
                 <div key={index} className="text-[11px]">
                   <div className="font-semibold text-navy-900">
-                    {line.optional && <span className="text-amber-700">[Tùy chọn] </span>}
+                    {line.optional && <span className="text-blue-700">[Tùy chọn] </span>}
                     {line.name || "(chưa đặt tên)"}
                   </div>
                   <div className="text-navy-900/50">
@@ -794,7 +794,7 @@ function NewQuoteInner() {
             <button
               onClick={submit}
               disabled={busy || !company.trim() || mainItems.length === 0}
-              className="w-full rounded-2xl bg-teal-500 py-3.5 text-sm font-extrabold text-navy-950 shadow-lift disabled:opacity-50"
+              className="w-full rounded-2xl bg-teal-500 py-3.5 text-sm font-extrabold text-white shadow-lift disabled:opacity-50"
             >
               {busy ? "Đang tạo…" : "Tạo báo giá & xem bản in"}
             </button>

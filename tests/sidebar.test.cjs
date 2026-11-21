@@ -58,6 +58,14 @@ test('expanded desktop is 228px with full branding, labels, account and collapse
   assert.match(html, /Kế Toán Thu Chi/); assert.match(html, /aria-current="page"/);
 });
 
+test('sidebar uses the neutral Apple-style palette with blue navigation accents', () => {
+  const html = render();
+  assert.ok(html.includes('bg-[#f5f5f7]'));
+  assert.ok(html.includes('bg-[#e8f2ff]'));
+  assert.ok(html.includes('text-[#0071e3]'));
+  assert.doesNotMatch(html, /bg-navy-900|text-gold-400|text-teal-400|focus-visible:outline-gold-400/);
+});
+
 test('collapsed desktop is 64px but retains accessible link/logout names and full text brand', () => {
   const html = render({ initialCollapsed: true });
   assert.match(html, /w-\[64px\]/); assert.match(html, /data-collapsed="true"/);

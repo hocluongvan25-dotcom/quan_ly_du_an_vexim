@@ -22,7 +22,7 @@ export default async function PaymentRequestPage({ params }: { params: { id: str
       <Link className="text-sm font-bold text-teal-700" href={`/dashboard/ke-toan/hoa-don/${inv.id}`}>← Về hóa đơn</Link>
       {!error && <PaymentRequestDownload id={inv.id} />}
     </div>
-    {error ? <div role="alert" className="rounded-2xl bg-amber-50 p-5 text-sm">{error}</div> : p && <>
+    {error ? <div role="alert" className="rounded-2xl bg-blue-50 p-5 text-sm">{error}</div> : p && <>
       <p className="text-xs text-slate-500">Bản xem nội dung. Tải PDF để nhận văn bản A4 đã dàn trang, nhúng phông tiếng Việt. Nếu đã thu một phần, đề nghị chỉ ghi số còn phải thu tại thời điểm xuất. Kiểm tra thông tin trước khi gửi khách.</p>
       <article className="break-words rounded-sm bg-white px-5 py-8 text-[16px] leading-relaxed text-black shadow-card sm:px-12 sm:py-12" style={{ fontFamily: '"Times New Roman", Times, serif', overflowWrap: "anywhere" }}>
         <header className="grid gap-6 text-center sm:grid-cols-[2fr_3fr]">

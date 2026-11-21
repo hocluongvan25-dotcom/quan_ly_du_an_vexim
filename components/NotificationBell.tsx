@@ -315,14 +315,14 @@ export function NotificationBell() {
                       onClick={() => setOpen(false)}
                       className="flex gap-3 border-b border-slate-50 px-4 py-3 transition-colors last:border-0 hover:bg-slate-50"
                     >
-                      <div className={`mt-1 h-2 w-2 shrink-0 animate-pulse rounded-full ${f.days_to_followup !== null && f.days_to_followup < 0 ? "bg-red-500" : "bg-amber-500"}`} />
+                      <div className={`mt-1 h-2 w-2 shrink-0 animate-pulse rounded-full ${f.days_to_followup !== null && f.days_to_followup < 0 ? "bg-red-500" : "bg-blue-500"}`} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[13px] font-bold">{f.company_name}</div>
                         <div className="mt-0.5 truncate text-xs text-slate-600">
                           → {f.next_action || "Có hẹn follow-up"}
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-                          <span className={`rounded-full px-2 py-0.5 font-bold ${f.days_to_followup !== null && f.days_to_followup < 0 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"}`}>
+                          <span className={`rounded-full px-2 py-0.5 font-bold ${f.days_to_followup !== null && f.days_to_followup < 0 ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-800"}`}>
                             {followupLabel(f.days_to_followup)}
                             {f.next_action_date ? ` · ${formatDate(f.next_action_date)}` : ""}
                           </span>
@@ -396,7 +396,7 @@ export function NotificationBell() {
                             <span className="rounded-full bg-navy-900 px-2 py-0.5 font-bold text-white">
                               {r.pipeline_key}
                             </span>
-                            <span className="font-semibold text-amber-700">
+                            <span className="font-semibold text-blue-700">
                               Chờ tạo hồ sơ {r.waiting_days} ngày
                             </span>
                             {scope === "all" && <span className="text-slate-400">· {r.owner_name}</span>}
@@ -407,7 +407,7 @@ export function NotificationBell() {
                               setOpen(false);
                               router.push(createHref);
                             }}
-                            className="mt-2 rounded-full bg-teal-500 px-3 py-1.5 text-[11px] font-extrabold text-navy-950 hover:bg-teal-400"
+                            className="mt-2 rounded-full bg-teal-500 px-3 py-1.5 text-[11px] font-extrabold text-white hover:bg-teal-600"
                           >
                             📁 Tạo {isService ? "hợp đồng" : "hồ sơ"} {svcLabel} →
                           </button>
@@ -431,7 +431,7 @@ export function NotificationBell() {
                     </div>
                   )}
                   {alerts.length > 0 && (
-                    <div className="border-b border-amber-100 bg-amber-50/70 px-4 py-2.5 text-xs font-bold text-amber-800">
+                    <div className="border-b border-blue-100 bg-blue-50/70 px-4 py-2.5 text-xs font-bold text-blue-800">
                       💛 Có {counts.alerts} khách cần bạn quan tâm thêm chút nữa
                     </div>
                   )}
@@ -442,14 +442,14 @@ export function NotificationBell() {
                       onClick={() => setOpen(false)}
                       className="flex gap-3 border-b border-slate-50 px-4 py-3 transition-colors last:border-0 hover:bg-slate-50"
                     >
-                      <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${a.health === "danger" ? "bg-red-500" : "bg-amber-400"}`} />
+                      <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${a.health === "danger" ? "bg-red-500" : "bg-blue-400"}`} />
                       <div className="min-w-0 flex-1">
                         <div className="truncate text-[13px] font-bold">{a.company_name}</div>
                         <div className="mt-1 flex flex-wrap gap-1">
                           {a.alerts.map((al, i) => (
                             <span
                               key={i}
-                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${al.type === "sla" || al.type === "stale" ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-800"}`}
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${al.type === "sla" || al.type === "stale" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-800"}`}
                             >
                               {al.label}
                             </span>
@@ -481,13 +481,13 @@ export function NotificationBell() {
                         key={l.id}
                         href="/dashboard/leads"
                         onClick={() => setOpen(false)}
-                        className={`flex gap-3 border-b border-slate-50 px-4 py-3 transition-colors last:border-0 hover:bg-slate-50 ${isUnseen ? "bg-amber-50/70" : ""}`}
+                        className={`flex gap-3 border-b border-slate-50 px-4 py-3 transition-colors last:border-0 hover:bg-slate-50 ${isUnseen ? "bg-blue-50/70" : ""}`}
                       >
                         <div className={`mt-1 h-2 w-2 shrink-0 rounded-full ${isUnseen ? "animate-pulse bg-red-500" : "bg-slate-300"}`} />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <span className="truncate text-[13px] font-semibold">{l.name}</span>
-                            <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold ${l.service_type === "sales" ? "bg-amber-100 text-amber-800" : "bg-slate-900 text-white"}`}>
+                            <span className={`inline-flex rounded-full px-1.5 py-0.5 text-[10px] font-bold ${l.service_type === "sales" ? "bg-blue-100 text-blue-800" : "bg-slate-900 text-white"}`}>
                               {l.service_type === "sales" ? "Sale" : "Amazon"}
                             </span>
                             {isUnseen && <span className="text-[10px] font-bold text-red-600">NEW</span>}

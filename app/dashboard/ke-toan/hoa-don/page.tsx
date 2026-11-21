@@ -88,7 +88,7 @@ export default function InvoicesPage() {
       <div className="mt-5 overflow-hidden rounded-3xl bg-white shadow-card">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1000px] text-left text-sm">
-            <thead className="bg-[#fffaf0] text-[11px] uppercase tracking-wider text-navy-900/45">
+            <thead className="bg-[#f2f2f7] text-[11px] uppercase tracking-wider text-navy-900/45">
               <tr>
                 <th className="px-4 py-3">Số HĐ</th>
                 <th className="px-4 py-3">Nội dung</th>
@@ -124,7 +124,7 @@ export default function InvoicesPage() {
                   <td className="px-4 py-3 text-xs">{i.due_date || "—"}</td>
                   <td className="px-4 py-3 text-right font-extrabold">{formatMoney(i.total)}</td>
                   <td className="px-4 py-3 text-right font-bold text-emerald-600">{formatMoney(i.paid_amount)}</td>
-                  <td className="px-4 py-3 text-right font-bold text-amber-600">{formatMoney(i.remaining)}</td>
+                  <td className="px-4 py-3 text-right font-bold text-blue-600">{formatMoney(i.remaining)}</td>
                   <td className="px-4 py-3 text-xs font-bold">
                     {i.state === "paid" ? "Đã thu đủ" : i.state === "overdue" ? `Quá hạn ${i.days_overdue} ngày` : i.state === "partial" ? "Thu một phần" : i.state === "due_soon" ? "Sắp đến hạn" : i.state === "cancelled" ? "Đã hủy" : "Đã xuất"}
                   </td>

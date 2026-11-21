@@ -25,10 +25,10 @@ export function LanguageSwitcher({ className, variant = "default", size = "md" }
   };
 
   const variantClasses = {
-    default: "bg-white border border-navy-900/10 text-navy-900 hover:bg-slate-50 shadow-sm",
+    default: "bg-white border border-[#d2d2d7] text-[#1d1d1f] hover:bg-[#f5f5f7] shadow-sm",
     light: "bg-white/10 text-white hover:bg-white/20 border border-white/20",
-    dark: "bg-navy-900 text-white hover:bg-navy-800",
-    ghost: "bg-transparent text-navy-900/60 hover:text-navy-900 hover:bg-navy-900/5",
+    dark: "bg-[#1d1d1f] text-white hover:bg-[#3a3a3c]",
+    ghost: "bg-transparent text-[#6e6e73] hover:text-[#1d1d1f] hover:bg-[#e8e8ed]",
   };
 
   return (
@@ -44,16 +44,16 @@ export function LanguageSwitcher({ className, variant = "default", size = "md" }
         <span
           className={cn(
             "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors",
-            locale === "en" ? "bg-navy-900 text-white" : "bg-slate-200 text-slate-600"
+            locale === "en" ? "bg-[#1d1d1f] text-white" : "bg-[#e8e8ed] text-[#6e6e73]"
           )}
         >
           EN
         </span>
-        <span className="mx-0.5 text-[10px] text-navy-900/30">/</span>
+        <span className="mx-0.5 text-[10px] text-[#8e8e93]">/</span>
         <span
           className={cn(
             "rounded-full px-1.5 py-0.5 text-[10px] font-bold transition-colors",
-            locale === "vi" ? "bg-navy-900 text-white" : "bg-slate-200 text-slate-600"
+            locale === "vi" ? "bg-[#1d1d1f] text-white" : "bg-[#e8e8ed] text-[#6e6e73]"
           )}
         >
           VI
@@ -71,7 +71,7 @@ export function LanguageSwitcherCompact({ className }: { className?: string }) {
         onClick={() => setLocale("en")}
         className={cn(
           "rounded-full px-2.5 py-1 text-[11px] font-bold transition-all",
-          locale === "en" ? "bg-navy-900 text-white shadow-sm" : "text-navy-900/60 hover:text-navy-900"
+          locale === "en" ? "bg-[#0071e3] text-white shadow-sm" : "text-[#6e6e73] hover:text-[#1d1d1f]"
         )}
       >
         EN
@@ -80,7 +80,7 @@ export function LanguageSwitcherCompact({ className }: { className?: string }) {
         onClick={() => setLocale("vi")}
         className={cn(
           "rounded-full px-2.5 py-1 text-[11px] font-bold transition-all",
-          locale === "vi" ? "bg-navy-900 text-white shadow-sm" : "text-navy-900/60 hover:text-navy-900"
+          locale === "vi" ? "bg-[#0071e3] text-white shadow-sm" : "text-[#6e6e73] hover:text-[#1d1d1f]"
         )}
       >
         VI

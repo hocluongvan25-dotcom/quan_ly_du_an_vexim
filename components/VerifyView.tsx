@@ -148,7 +148,7 @@ export function VerifyView({ cert, checkedAt, locale }: Props) {
 
       <main className={styles.main}>
         <div className={styles.documentHeading}>
-          <span><span className={styles.goldLine} /> {t("documentHeading")}</span>
+          <span><span className={styles.accentLine} /> {t("documentHeading")}</span>
           <span>{cert.standard} / {t("countryHeading")}</span>
         </div>
 
