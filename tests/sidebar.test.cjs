@@ -7,6 +7,7 @@ const ts = require('typescript');
 const React = require('react');
 const { renderToStaticMarkup } = require('react-dom/server');
 const root = path.resolve(__dirname, '..');
+require.extensions['.css'] = () => {};
 const resolve = Module._resolveFilename;
 Module._resolveFilename = function(request, ...args) {
   return resolve.call(this, request.startsWith('@/') ? path.join(root, request.slice(2)) : request, ...args);
@@ -41,10 +42,10 @@ test('only the known cookie value collapses the sidebar; persistence is dashboar
   assert.match(sidebarPreferenceCookie(false, true), /^vexim-sidebar=expanded;.*; Secure$/);
 });
 
-test('active states cover nested dossiers/services/accounting without matching unrelated prefixes', () => {
+test('active states cover nested dossiers/accounting without matching unrelated prefixes', () => {
   assert.equal(isSidebarItemActive('/dashboard', '/dashboard'), true);
   assert.equal(isSidebarItemActive('/dashboard/ho-so', '/dashboard'), false);
-  for (const route of ['ho-so', 'dich-vu', 'bao-gia', 'ke-toan', 'doanh-nghiep']) assert.equal(isSidebarItemActive(`/dashboard/${route}/12`, `/dashboard/${route}`), true);
+  for (const route of ['ho-so', 'bao-gia', 'ke-toan', 'doanh-nghiep']) assert.equal(isSidebarItemActive(`/dashboard/${route}/12`, `/dashboard/${route}`), true);
   assert.equal(isSidebarItemActive('/dashboard/ho-so-other', '/dashboard/ho-so'), false);
   assert.equal(isSidebarItemActive('/dashboard/crm/co-hoi/1', '/dashboard/crm'), false);
   assert.equal(isSidebarItemActive('/dashboard/crm/co-hoi/1', '/dashboard/crm/pipeline'), true);
@@ -81,9 +82,10 @@ test('admin-only links remain hidden for specialists in either sidebar size', ()
   for (const initialCollapsed of [true, false]) {
     const html = render({ user: { ...user, role: 'specialist' }, initialCollapsed });
     for (const route of ['ke-toan', 'nguoi-dung', 'doanh-thu', 'tong-quan']) assert.ok(!html.includes(`href="/dashboard/${route}"`));
-    assert.ok(html.includes('href="/dashboard/ho-so"')); assert.ok(html.includes('href="/dashboard/dich-vu"'));
+    assert.ok(html.includes('href="/dashboard/ho-so"'));
+    assert.ok(!html.includes('href="/dashboard/dich-vu"'));
     // Nhân viên cũng lập được báo giá — đây không phải mục chỉ dành cho admin.
-    assert.ok(html.includes('href="/dashboard/bao-gia"')); assert.ok(html.includes('Báo Giá Dịch Vụ'));
+    assert.ok(html.includes('href="/dashboard/bao-gia"'));
   }
 });
 

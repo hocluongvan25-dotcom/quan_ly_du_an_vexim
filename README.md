@@ -11,7 +11,7 @@ Internal system of **Vexim Global Co., Ltd**: FDA / GACC record management, QR v
 - Data managed on **Supabase** (PostgreSQL)
 - Deploy on **Vercel**
 
-Font: **Be Vietnam Pro** (full Vietnamese diacritics support, but UI is English).
+Font: **Be Vietnam Pro** (full Vietnamese diacritics support).
 
 ## 1. Flexible Validity + DUNS (New)
 
@@ -58,12 +58,12 @@ If **no** Supabase vars, app falls back to SQLite `data/vexim.db` for UI preview
 
 ## 3a. Public website — `/` and `/en`
 
-The root domain is now the public site: look up FDA / GACC codes, read the four services, and read the FAQ.
+The root domain is now the public site: look up FDA / GACC codes, read the FDA and GACC services, and read the FAQ.
 The internal app stays behind `/login` and `/dashboard`.
 
 - Vietnamese at `/` (canonical, `hreflang="vi"`), English at `/en` (`hreflang="en"`), both declared in metadata,
   `sitemap.xml` and `robots.txt`.
-- Title, meta description, H1/H2/H3 order, the four services, the seven FAQs and the footer follow the content
+- Title, meta description, H1/H2/H3 order, the two services, the seven FAQs and the footer follow the content
   specification. All copy lives in `lib/public-content.ts` (`vi` / `en` branches).
 - The lookup box searches published records by registration code or company name (Vietnamese diacritics ignored),
   shows company, code type, status (valid / expiring soon / expired) and the next deadline, and links to the
@@ -76,10 +76,10 @@ The internal app stays behind `/login` and `/dashboard`.
 
 ## 3b. Service Quotes (New) — `/dashboard/bao-gia`
 
-Pre-built quote templates per service so staff only enter customer details and export a PDF:
+Pre-built FDA and GACC quote templates so staff only enter customer details and export a PDF:
 
-- 4 templates: **FDA**, **GACC**, **Sale xuất khẩu Mỹ**, **Vận hành Amazon US** — line items, unit prices,
-  scope of work, documents to be provided, timeline, payment terms and general terms are pre-filled.
+- 2 templates: **FDA** and **GACC** — line items, unit prices, scope of work, documents to be provided,
+  timeline, payment terms and general terms are pre-filled.
 - **Two-step create screen** with a *Tiếp tục* (next) button under the line items: **(1)** items & unit prices →
   **(2)** customer details + quote conditions.
 - **Customer details auto-map** from the company directory: typing a company name already in the system fills in
@@ -108,7 +108,7 @@ Pre-built quote templates per service so staff only enter customer details and e
 - See `docs/bao-gia.md`. Prices shipped in `lib/quote-templates.ts` are **sample prices** — set the real ones
   in the in-app price list before sending real quotes.
 
-Migration: run `supabase/schema.sql` or `supabase/migrations/20260921_quotes.sql`, then `NOTIFY pgrst, 'reload schema';`
+Migration: run `supabase/schema.sql` or `supabase/migrations/20260921_quotes.sql`, then `NOTIFY pgrst, 'reload schema';`. Existing installations should also apply `supabase/migrations/20261121_remove_sale_amazon.sql` to delete discontinued service data safely.
 
 ## 4. Deploy to Vercel
 
@@ -172,3 +172,7 @@ Visit `/api/health` endpoint to see:
 ## Contact Vexim Global
 
 No. 25/6/51 Ngoa Long, Tay Tuu, Bac Tu Liem, Hanoi · 0373 685 634 · contact@veximglobal.com
+
+## 3c. Invoice workflow
+
+Invoices are managed separately from certificate record editing. The certificate detail page `/dashboard/ho-so/[id]` only stores the FDA/GACC record; Admins create and manage certificate invoices under `/dashboard/ke-toan/hoa-don`, using `/dashboard/ke-toan/hoa-don/moi` to select a certificate and manage its installments. The cleanup migration removes legacy service-contract invoices before restricting invoice references to certificates.

@@ -61,7 +61,7 @@ export async function POST() {
           <p>Thời gian test: ${new Date().toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}</p>
           <p>SMTP: ${process.env.ZOHO_SMTP_HOST || "smtp.zoho.com"}:${process.env.ZOHO_SMTP_PORT || "465"}</p>
           <hr style="margin:16px 0; border:none; border-top:1px solid #e2e8f0"/>
-          <p style="font-size:12px; color:#64748b">Hệ thống sẽ tự động gửi email khi có khách đăng ký tư vấn 2 dịch vụ:<br/>- Phòng Sale Xuất Khẩu Mỹ (veximtrade.com)<br/>- Vận Hành Amazon US (veximops.com)<br/>Dữ liệu đổ về: DB consultation_leads + Email contact@veximglobal.com + Dashboard /dashboard/leads</p>
+          <p style="font-size:12px; color:#64748b">Hệ thống dùng email để gửi thông báo liên quan đến hồ sơ chứng nhận FDA và GACC.</p>
         </div>
       `,
       text: "Zoho Email Test - contact@veximglobal.com hoạt động",

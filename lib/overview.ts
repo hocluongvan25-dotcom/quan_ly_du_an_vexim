@@ -1,7 +1,6 @@
 /* ============================================================================
  * TOÀN CẢNH VẬN HÀNH (Admin Overview)
- * Tổng hợp đa nguồn: CRM opportunities + certificates revenue + leads,
- * ra tăng trưởng theo tháng/quý/năm + KPI từng nhân viên theo kỳ.
+ * Tổng hợp cơ hội CRM và doanh thu chứng nhận theo tháng, quý, năm.
  * Hàm buildOverview là pure function — cả SQLite và Supabase đều dùng chung.
  * ========================================================================== */
 
@@ -22,7 +21,6 @@ export type OverviewInput = {
     published_at: string | null;
     revenue_recorded: unknown;
   }>;
-  leads: Array<{ created_at: string }>;
 };
 
 export type GrowthBucket = {
@@ -33,7 +31,6 @@ export type GrowthBucket = {
   wonValue: number;
   lost: number;
   recordedRevenue: number;
-  leads: number;
   activities: number;
   conversion: number;
 };
@@ -65,12 +62,11 @@ export type OverviewStats = {
     wonValue12m: number;
     recordedRevenue12m: number;
     recordedRevenueTotal: number;
-    leads12m: number;
     oppsCreated12m: number;
     conversion12m: number;
     activeEmployees: number;
   };
-  funnel12m: { leads: number; opps: number; won: number; leadToOpp: number; oppToWon: number };
+  funnel12m: { opps: number; won: number; oppToWon: number };
   growth: {
     months: GrowthBucket[];
     quarters: GrowthBucket[];
@@ -98,7 +94,6 @@ function emptyBucket(key: string, label: string): GrowthBucket {
     wonValue: 0,
     lost: 0,
     recordedRevenue: 0,
-    leads: 0,
     activities: 0,
     conversion: 0,
   };
@@ -220,11 +215,6 @@ export function buildOverview(input: OverviewInput, openOpps: number, openValue:
     if (eb) eb.recordedRevenue += amt;
   }
 
-  // Leads tư vấn
-  for (const l of input.leads) {
-    bumpMonth(String(l.created_at).slice(0, 7), (b) => (b.leads += 1));
-  }
-
   const finalize = (b: GrowthBucket): GrowthBucket => ({
     ...b,
     conversion: b.won + b.lost > 0 ? Math.round((b.won / (b.won + b.lost)) * 100) : 0,
@@ -241,7 +231,6 @@ export function buildOverview(input: OverviewInput, openOpps: number, openValue:
       cur.wonValue += b.wonValue;
       cur.lost += b.lost;
       cur.recordedRevenue += b.recordedRevenue;
-      cur.leads += b.leads;
       cur.activities += b.activities;
       map.set(key, cur);
     }
@@ -262,10 +251,9 @@ export function buildOverview(input: OverviewInput, openOpps: number, openValue:
         wonValue: t.wonValue + r.wonValue,
         lost: t.lost + r.lost,
         recordedRevenue: t.recordedRevenue + r.recordedRevenue,
-        leads: t.leads + r.leads,
         activities: t.activities + r.activities,
       }),
-      { oppsCreated: 0, won: 0, wonValue: 0, lost: 0, recordedRevenue: 0, leads: 0, activities: 0 }
+      { oppsCreated: 0, won: 0, wonValue: 0, lost: 0, recordedRevenue: 0, activities: 0 }
     );
   const gTotal = sum(growthMonths);
   const conversion12m =
@@ -309,7 +297,6 @@ export function buildOverview(input: OverviewInput, openOpps: number, openValue:
       wonValue12m: gTotal.wonValue,
       recordedRevenue12m: gTotal.recordedRevenue,
       recordedRevenueTotal: recordedTotal,
-      leads12m: gTotal.leads,
       oppsCreated12m: gTotal.oppsCreated,
       conversion12m,
       activeEmployees: employees.filter(
@@ -317,10 +304,8 @@ export function buildOverview(input: OverviewInput, openOpps: number, openValue:
       ).length,
     },
     funnel12m: {
-      leads: gTotal.leads,
       opps: gTotal.oppsCreated,
       won: gTotal.won,
-      leadToOpp: gTotal.leads > 0 ? Math.round((gTotal.oppsCreated / gTotal.leads) * 100) : 0,
       oppToWon: gTotal.oppsCreated > 0 ? Math.round((gTotal.won / gTotal.oppsCreated) * 100) : 0,
     },
     growth: { months: growthMonths, quarters: growthQuarters, years: growthYears },

@@ -120,24 +120,6 @@ end $$;
 update public.certificates set validity_years = 2 where standard='FDA' and (validity_years is null or validity_years not between 1 and 10);
 update public.certificates set validity_years = 5 where standard='GACC' and (validity_years is null or validity_years not between 1 and 10);
 
--- Consultation Leads (B2B marketing from verify page)
-create table if not exists public.consultation_leads (
-  id bigint generated always as identity primary key,
-  service_type text not null check (service_type in ('sales','amazon')),
-  name text not null,
-  phone text not null,
-  email text not null default '',
-  company_name text not null default '',
-  certificate_no text not null default '',
-  public_code text not null default '',
-  message text not null default '',
-  source_url text not null default '',
-  ip text not null default '',
-  status text not null default 'new' check (status in ('new','contacted','converted','closed')),
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
-
 -- Companies / Business Profiles (official DB)
 create table if not exists public.companies (
   id bigint generated always as identity primary key,
@@ -253,37 +235,14 @@ create table if not exists public.crm_checklists (
   unique(opportunity_id, stage_key, criterion_key)
 );
 
--- ================= HỢP ĐỒNG DỊCH VỤ + KẾ TOÁN =================
--- Hợp đồng Sale XK / Amazon theo chu kỳ 3-6-12 tháng + hóa đơn từng đợt + VAT
-
-create table if not exists public.service_contracts (
-  id bigint generated always as identity primary key,
-  contract_no text unique not null,
-  service_type text not null check (service_type in ('SALE_EXPORT', 'AMAZON_OPS')),
-  company_name text not null default '',
-  company_email text not null default '',
-  contact_name text not null default '',
-  contact_phone text not null default '',
-  scope text not null default '',
-  cycle_months int not null default 6 check (cycle_months between 1 and 60),
-  started_at date not null,
-  ends_at date not null,
-  contract_value bigint not null default 0,
-  status text not null default 'draft' check (status in ('draft', 'active', 'expired', 'terminated')),
-  renewal_count int not null default 0,
-  last_renewed_at timestamptz,
-  opportunity_id bigint references public.crm_opportunities(id) on delete set null,
-  created_by bigint references public.staff_users(id) on delete set null,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
+-- ================= KẾ TOÁN THU CHI =================
 
 create table if not exists public.invoices (
   id bigint generated always as identity primary key,
   invoice_no text unique not null,
   contract_no text not null default '',
   payment_request jsonb,
-  ref_type text not null check (ref_type in ('certificate', 'service_contract')),
+  ref_type text not null check (ref_type in ('certificate')),
   ref_id bigint not null,
   installment_no int not null default 1,
   title text not null default '',
@@ -320,7 +279,7 @@ create table if not exists public.invoice_payments (
 create table if not exists public.quotes (
   id bigint generated always as identity primary key,
   quote_no text unique not null,
-  template_key text not null check (template_key in ('FDA','GACC','SALE_EXPORT','AMAZON_OPS')),
+  template_key text not null check (template_key in ('FDA','GACC')),
   service_name text not null default '',
   title text not null default '',
   company_name text not null default '',
@@ -355,7 +314,7 @@ create table if not exists public.quotes (
 
 -- Bảng giá dịch vụ: Admin chỉnh đơn giá ngay trong hệ thống; DB đè giá mặc định trong code.
 create table if not exists public.quote_templates (
-  template_key text primary key check (template_key in ('FDA','GACC','SALE_EXPORT','AMAZON_OPS')),
+  template_key text primary key check (template_key in ('FDA','GACC')),
   payload jsonb not null,
   updated_by bigint references public.staff_users(id) on delete set null,
   updated_at timestamptz not null default now()
@@ -373,9 +332,6 @@ create index if not exists certificates_created_by_idx on public.certificates (c
 create index if not exists certificates_validity_years_idx on public.certificates (validity_years);
 create index if not exists certificates_duns_code_idx on public.certificates (duns_code);
 create index if not exists certificates_us_agent_idx on public.certificates (us_agent);
-create index if not exists consultation_leads_service_type_idx on public.consultation_leads (service_type);
-create index if not exists consultation_leads_status_idx on public.consultation_leads (status);
-create index if not exists consultation_leads_created_at_idx on public.consultation_leads (created_at desc);
 create index if not exists companies_company_name_idx on public.companies (company_name);
 create index if not exists companies_tax_code_idx on public.companies (tax_code);
 create index if not exists companies_created_at_idx on public.companies (created_at desc);
@@ -390,9 +346,6 @@ create index if not exists crm_opportunities_next_action_idx on public.crm_oppor
 create index if not exists crm_opportunities_updated_idx on public.crm_opportunities (updated_at desc);
 create index if not exists crm_history_opp_idx on public.crm_stage_history (opportunity_id, created_at desc);
 create index if not exists crm_activities_opp_idx on public.crm_activities (opportunity_id, created_at desc);
-create index if not exists service_contracts_no_idx on public.service_contracts (contract_no);
-create index if not exists service_contracts_company_idx on public.service_contracts (company_name);
-create index if not exists service_contracts_status_idx on public.service_contracts (status);
 create index if not exists invoices_ref_idx on public.invoices (ref_type, ref_id);
 create index if not exists invoices_no_idx on public.invoices (invoice_no);
 create index if not exists invoices_due_idx on public.invoices (due_date);
@@ -405,7 +358,6 @@ create index if not exists quotes_created_idx on public.quotes (created_at desc)
 -- RLS
 alter table public.staff_users enable row level security;
 alter table public.certificates enable row level security;
-alter table public.consultation_leads enable row level security;
 alter table public.companies enable row level security;
 alter table public.expiry_notifications enable row level security;
 alter table public.crm_pipelines enable row level security;
@@ -414,7 +366,6 @@ alter table public.crm_opportunities enable row level security;
 alter table public.crm_stage_history enable row level security;
 alter table public.crm_activities enable row level security;
 alter table public.crm_checklists enable row level security;
-alter table public.service_contracts enable row level security;
 alter table public.invoices enable row level security;
 alter table public.invoice_payments enable row level security;
 alter table public.quotes enable row level security;
@@ -422,7 +373,6 @@ alter table public.quotes enable row level security;
 -- Grants
 grant all on table public.staff_users to service_role;
 grant all on table public.certificates to service_role;
-grant all on table public.consultation_leads to service_role;
 grant all on table public.companies to service_role;
 grant all on table public.expiry_notifications to service_role;
 grant all on table public.crm_pipelines to service_role;
@@ -431,13 +381,11 @@ grant all on table public.crm_opportunities to service_role;
 grant all on table public.crm_stage_history to service_role;
 grant all on table public.crm_activities to service_role;
 grant all on table public.crm_checklists to service_role;
-grant all on table public.service_contracts to service_role;
 grant all on table public.invoices to service_role;
 grant all on table public.invoice_payments to service_role;
 grant all on table public.quotes to service_role;
 grant all on table public.staff_users to postgres;
 grant all on table public.certificates to postgres;
-grant all on table public.consultation_leads to postgres;
 grant all on table public.companies to postgres;
 grant all on table public.expiry_notifications to postgres;
 grant all on table public.crm_pipelines to postgres;
@@ -446,7 +394,6 @@ grant all on table public.crm_opportunities to postgres;
 grant all on table public.crm_stage_history to postgres;
 grant all on table public.crm_activities to postgres;
 grant all on table public.crm_checklists to postgres;
-grant all on table public.service_contracts to postgres;
 grant all on table public.invoices to postgres;
 grant all on table public.invoice_payments to postgres;
 grant all on table public.quotes to postgres;

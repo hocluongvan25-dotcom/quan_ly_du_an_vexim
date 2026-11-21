@@ -125,27 +125,6 @@ export default function OppDetailPage() {
         </Link>
       )}
 
-      {/* Sale/Amazon: HĐ đã tự sinh khi chốt — link sang xem */}
-      {opp.is_won && (opp.pipeline_key === "SALE_EXPORT" || opp.pipeline_key === "AMAZON_OPS") && (
-        <Link
-          href={`/dashboard/dich-vu?q=${encodeURIComponent(opp.company_name)}`}
-          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-400 p-5 text-navy-950 shadow-lift transition hover:shadow-card"
-        >
-          <div>
-            <div className="font-display text-base font-extrabold">
-              ✅ Deal đã chốt — hợp đồng {opp.pipeline_key === "SALE_EXPORT" ? "Sale XK" : "Amazon"} đã tự
-              tạo!
-            </div>
-            <div className="mt-0.5 text-xs font-semibold opacity-70">
-              Bấm để xem hợp đồng, xác nhận ngày bắt đầu & chu kỳ
-            </div>
-          </div>
-          <div className="shrink-0 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-bold text-white">
-            Xem hợp đồng →
-          </div>
-        </Link>
-      )}
-
       {/* Header */}
       <div className="rounded-3xl bg-white p-6 shadow-card">
         <div className="flex flex-wrap items-start justify-between gap-3">

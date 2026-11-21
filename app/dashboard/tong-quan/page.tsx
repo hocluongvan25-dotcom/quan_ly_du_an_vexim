@@ -13,11 +13,12 @@ import {
   YAxis,
 } from "recharts";
 import {
+  ArrowDown,
+  ArrowRight,
   Briefcase,
   CheckCircle2,
   Filter,
   Globe,
-  MessageSquare,
   TrendingUp,
   Users,
   Wallet,
@@ -68,9 +69,9 @@ export default function OverviewPage() {
   if (forbidden) {
     return (
       <div className="rounded-3xl bg-white p-12 text-center shadow-card">
-        <div className="text-lg font-bold">🔒 Chỉ Admin mới được xem Toàn cảnh</div>
+        <div className="text-lg font-bold">Chỉ quản trị viên mới được xem trang này.</div>
         <Link href="/dashboard" className="mt-3 inline-block text-sm font-bold text-teal-700">
-          ← Về Tổng quan
+          Về trang chính
         </Link>
       </div>
     );
@@ -91,7 +92,7 @@ export default function OverviewPage() {
         </p>
         <h1 className="mt-1 font-display text-3xl font-extrabold text-navy-900">Toàn cảnh vận hành</h1>
         <p className="mt-1 text-sm text-navy-900/60">
-          Bao trùm mọi dịch vụ: CRM + doanh thu chứng nhận + leads — tăng trưởng & KPI nhân viên theo tháng, quý, năm.
+          Theo dõi cơ hội, doanh thu chứng nhận và hiệu quả nhân sự theo tháng, quý, năm.
         </p>
       </div>
 
@@ -100,7 +101,7 @@ export default function OverviewPage() {
         <Kpi icon={<Wallet className="h-5 w-5" />} label="Doanh thu đã ghi nhận" value={formatVnd(data.kpis.recordedRevenueTotal)} hint={`12 tháng gần nhất: ${formatCrmValue(data.kpis.recordedRevenue12m)}`} tone="navy" />
         <Kpi icon={<TrendingUp className="h-5 w-5" />} label="Giá trị chốt CRM (12T)" value={formatCrmValue(data.kpis.wonValue12m)} hint={`Tỷ lệ chốt ${data.kpis.conversion12m}%`} tone="green" />
         <Kpi icon={<Briefcase className="h-5 w-5" />} label="Cơ hội đang mở" value={String(data.kpis.openOpps)} hint={`Giá trị dự kiến ${formatCrmValue(data.kpis.openValue)}`} tone="navy" />
-        <Kpi icon={<MessageSquare className="h-5 w-5" />} label="Leads 12 tháng" value={String(data.kpis.leads12m)} hint={`${data.kpis.oppsCreated12m} cơ hội mới được tạo`} tone="amber" />
+        <Kpi icon={<Briefcase className="h-5 w-5" />} label="Cơ hội mới trong 12 tháng" value={String(data.kpis.oppsCreated12m)} hint="Đã ghi nhận trong CRM" tone="amber" />
         <Kpi icon={<CheckCircle2 className="h-5 w-5" />} label="Tỷ lệ chốt (12T)" value={`${data.kpis.conversion12m}%`} hint="Chốt / (Chốt + Mất)" tone="green" />
         <Kpi icon={<Users className="h-5 w-5" />} label="Nhân sự hoạt động" value={String(data.kpis.activeEmployees)} hint={`Tổng ${data.employees.length} tài khoản`} tone="amber" />
       </div>
@@ -108,34 +109,30 @@ export default function OverviewPage() {
       {/* Phễu 12 tháng */}
       <section className="rounded-3xl bg-navy-900 p-5 text-white shadow-card">
         <h2 className="flex items-center gap-2 font-display text-lg font-bold">
-          <Filter className="h-5 w-5 text-teal-400" /> Phễu bán hàng — 12 tháng gần nhất
+          <Filter className="h-5 w-5 text-teal-400" /> Kết quả CRM trong 12 tháng
         </h2>
         <div className="mt-4 flex flex-col items-stretch gap-2 md:flex-row md:items-center">
-          <FunnelBox label="Leads" value={data.funnel12m.leads} />
-          <FunnelArrow label={`${data.funnel12m.leadToOpp}%`} />
           <FunnelBox label="Cơ hội mới" value={data.funnel12m.opps} />
           <FunnelArrow label={`${data.funnel12m.oppToWon}%`} />
-          <FunnelBox label="Chốt" value={data.funnel12m.won} highlight />
+          <FunnelBox label="Đã chốt" value={data.funnel12m.won} highlight />
         </div>
-        <p className="mt-3 text-xs text-white/50">
-          Lead → Cơ hội: lead tư vấn được tạo thành cơ hội CRM. Cơ hội → Chốt: cơ hội đi đến ký hợp đồng.
-        </p>
+        <p className="mt-3 text-xs text-white/60">Tỷ lệ tính trên số cơ hội đã chốt hoặc không tiếp tục.</p>
       </section>
 
       {/* Tăng trưởng + KPI nhân viên — 2 tab ngang */}
       <section className="rounded-3xl bg-white p-5 shadow-card">
         <div className="no-scrollbar mb-4 flex gap-2 overflow-x-auto border-b border-navy-900/10 pb-3">
-          <MainTab active={mainTab === "growth"} onClick={() => setMainTab("growth")} label="📈 Tăng trưởng toàn công ty" />
-          <MainTab active={mainTab === "employees"} onClick={() => setMainTab("employees")} label={`👥 KPI nhân viên (${data.employees.length})`} />
+          <MainTab active={mainTab === "growth"} onClick={() => setMainTab("growth")} label="Tăng trưởng toàn công ty" />
+          <MainTab active={mainTab === "employees"} onClick={() => setMainTab("employees")} label={`Nhân sự (${data.employees.length})`} />
         </div>
         {mainTab === "growth" && (
           <>
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-              <p className="text-xs text-navy-900/55">Giá trị chốt CRM + doanh thu ghi nhận + leads theo kỳ.</p>
+              <p className="text-xs text-navy-900/55">Giá trị cơ hội đã chốt và doanh thu chứng nhận theo kỳ.</p>
               <PeriodTabs tab={growthTab} onTab={setGrowthTab} />
             </div>
         <GrowthCharts rows={growthRows} />
-        <GrowthTable rows={growthRows} showRevenue showLeads />
+        <GrowthTable rows={growthRows} showRevenue />
 
           </>
         )}
@@ -162,7 +159,7 @@ export default function OverviewPage() {
                     emp?.id === e.id ? "bg-teal-500 text-navy-950" : "bg-slate-100 text-slate-600"
                   }`}
                 >
-                  {e.role === "admin" ? "Admin" : "Sale"}
+                  {e.role === "admin" ? "Quản trị" : "Chuyên viên"}
                 </span>
               </div>
               <div className={`mt-2 grid grid-cols-3 gap-1 text-center text-xs ${emp?.id === e.id ? "text-white/80" : "text-navy-900/55"}`}>
@@ -256,7 +253,6 @@ function GrowthCharts({ rows, showActivities }: { rows: GrowthBucket[]; showActi
   }));
   const countData = rows.map((r) => ({
     label: r.label,
-    Leads: r.leads,
     "Cơ hội mới": r.oppsCreated,
     Chốt: r.won,
     ...(showActivities ? { "Hoạt động": r.activities } : {}),
@@ -286,7 +282,6 @@ function GrowthCharts({ rows, showActivities }: { rows: GrowthBucket[]; showActi
             <YAxis fontSize={11} allowDecimals={false} />
             <Tooltip />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Bar dataKey="Leads" fill="#8b5cf6" radius={[6, 6, 0, 0]} />
             <Bar dataKey="Cơ hội mới" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
             <Bar dataKey="Chốt" fill="#16a34a" radius={[6, 6, 0, 0]} />
             {showActivities && <Bar dataKey="Hoạt động" fill="#f59e0b" radius={[6, 6, 0, 0]} />}
@@ -300,12 +295,10 @@ function GrowthCharts({ rows, showActivities }: { rows: GrowthBucket[]; showActi
 function GrowthTable({
   rows,
   showRevenue,
-  showLeads,
   showActivities,
 }: {
   rows: GrowthBucket[];
   showRevenue?: boolean;
-  showLeads?: boolean;
   showActivities?: boolean;
 }) {
   const totals = rows.reduce(
@@ -315,10 +308,9 @@ function GrowthTable({
       lost: t.lost + r.lost,
       wonValue: t.wonValue + r.wonValue,
       recordedRevenue: t.recordedRevenue + r.recordedRevenue,
-      leads: t.leads + r.leads,
       activities: t.activities + r.activities,
     }),
-    { oppsCreated: 0, won: 0, lost: 0, wonValue: 0, recordedRevenue: 0, leads: 0, activities: 0 }
+    { oppsCreated: 0, won: 0, lost: 0, wonValue: 0, recordedRevenue: 0, activities: 0 }
   );
   const conv = totals.won + totals.lost > 0 ? Math.round((totals.won / (totals.won + totals.lost)) * 100) : 0;
   return (
@@ -327,7 +319,6 @@ function GrowthTable({
         <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-navy-900/45">
           <tr>
             <th className="px-4 py-2">Kỳ</th>
-            {showLeads && <th className="px-4 py-2 text-right">Leads</th>}
             <th className="px-4 py-2 text-right">Cơ hội mới</th>
             <th className="px-4 py-2 text-right">Chốt</th>
             <th className="px-4 py-2 text-right">Mất</th>
@@ -341,7 +332,6 @@ function GrowthTable({
           {rows.map((r) => (
             <tr key={r.key} className="border-t border-navy-900/5">
               <td className="px-4 py-2 font-bold">{r.label}</td>
-              {showLeads && <td className="px-4 py-2 text-right">{r.leads}</td>}
               <td className="px-4 py-2 text-right">{r.oppsCreated}</td>
               <td className="px-4 py-2 text-right font-bold text-emerald-600">{r.won}</td>
               <td className="px-4 py-2 text-right text-rose-600">{r.lost}</td>
@@ -353,7 +343,6 @@ function GrowthTable({
           ))}
           <tr className="border-t-2 border-navy-900/15 bg-[#fffaf0] font-extrabold">
             <td className="px-4 py-2">Tổng</td>
-            {showLeads && <td className="px-4 py-2 text-right">{totals.leads}</td>}
             <td className="px-4 py-2 text-right">{totals.oppsCreated}</td>
             <td className="px-4 py-2 text-right text-emerald-600">{totals.won}</td>
             <td className="px-4 py-2 text-right text-rose-600">{totals.lost}</td>
@@ -410,8 +399,8 @@ function FunnelArrow({ label }: { label: string }) {
   return (
     <div className="flex items-center justify-center gap-1 px-1 text-sm font-extrabold text-teal-400">
       <span className="rounded-full bg-teal-500/20 px-2 py-0.5 text-xs">{label}</span>
-      <span className="hidden md:inline">→</span>
-      <span className="md:hidden">↓</span>
+      <ArrowRight className="hidden h-4 w-4 md:block" />
+      <ArrowDown className="h-4 w-4 md:hidden" />
     </div>
   );
 }

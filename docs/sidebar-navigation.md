@@ -4,9 +4,10 @@
 - Khi thu gọn vẫn giữ chữ thương hiệu, biểu tượng menu, trạng thái mục đang chọn, tài khoản và đăng xuất. Tên mục hiển thị khi rê chuột hoặc focus bằng bàn phím; Escape đóng chú thích. Chuyển ngôn ngữ vẫn có ở header.
 - Trạng thái được lưu bằng cookie `vexim-sidebar` trong 1 năm, phạm vi `/dashboard`, `SameSite=Lax`, có `Secure` trên HTTPS. Server đọc trạng thái ngay khi render để tránh nháy sidebar lớn rồi nhỏ lúc tải lại. Không đọc/ghi preference qua localStorage; cookie bị chặn thì nút vẫn hoạt động trong phiên trang đang mở.
 - Điện thoại luôn mở drawer đủ nhãn (268px, tự giới hạn trên màn hình nhỏ), không dùng trạng thái thu gọn desktop. Bấm mục menu, nút đóng, vùng bên ngoài hoặc Escape đều đóng drawer. Chặn cuộn nền, giữ focus trong drawer và trả focus khi đóng. Drawer dùng portal để không bị khung header/backdrop-filter giới hạn chiều cao. Resize về desktop sẽ đóng drawer.
-- Menu có thêm mục **Báo Giá Dịch Vụ** (`/dashboard/bao-gia`) cho cả admin và specialist, đứng cạnh «Hợp Đồng Dịch Vụ»; trang con `/dashboard/bao-gia/[id]` và `/dashboard/bao-gia/moi` vẫn đánh dấu đúng mục đang chọn.
-- Menu có thêm mục **Bảng Giá Dịch Vụ** (`/dashboard/bao-gia/bang-gia`, chỉ admin) để chỉnh đơn giá dịch vụ trong app; khi đang ở trang này thì mục cha «Báo Giá Dịch Vụ» không sáng (mục con là nơi duy nhất được đánh dấu).
-- Quyền và đường dẫn chức năng không thay đổi; specialist không thấy menu chỉ dành cho admin. Mục đang chọn cũng được đánh dấu ở các trang con của dịch vụ/kế toán/doanh nghiệp.
+- Mục **Báo giá** (`/dashboard/bao-gia`) hiển thị cho admin và specialist; trang tạo/sửa báo giá thuộc FDA hoặc GACC.
+- Mục **Bảng giá** (`/dashboard/bao-gia/bang-gia`, chỉ admin) dùng để chỉnh mẫu FDA/GACC trong app.
+- Hóa đơn được tách khỏi trang lưu hồ sơ và quản lý tại **Kế toán** (`/dashboard/ke-toan/hoa-don`); trang `/dashboard/ke-toan/hoa-don/moi` chọn hồ sơ chứng nhận làm chứng từ gốc.
+- Quyền hiện tại được giữ: specialist không thấy menu chỉ dành cho admin. Mục đang chọn cũng được đánh dấu ở các trang con của báo giá/kế toán/doanh nghiệp.
 - Không cần migration database hoặc thay đổi dữ liệu nghiệp vụ.
 
 Kiểm tra tự động: `node --test tests/sidebar.test.cjs`; kiểm tra toàn bộ: `node --test tests/*.test.cjs`, `npx tsc --noEmit`, `npm run build`.

@@ -32,7 +32,7 @@ export default function InvoiceSection({
   defaultServiceDescription = "",
   defaultContractValue = 0,
 }: {
-  refType: "certificate" | "service_contract";
+  refType: "certificate";
   refId: number;
   defaultContractNo?: string;
   defaultCompanyName?: string;

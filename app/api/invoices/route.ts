@@ -25,8 +25,12 @@ export async function GET(req: NextRequest) {
   if (gate.error) return gate.error;
   try {
     const sp = req.nextUrl.searchParams;
+    const requestedRefType = sp.get("ref_type");
+    if (requestedRefType && requestedRefType !== "certificate") {
+      return NextResponse.json({ error: "Chỉ hỗ trợ hóa đơn cho hồ sơ chứng nhận." }, { status: 400 });
+    }
     const items = await listInvoices({
-      ref_type: sp.get("ref_type") || undefined,
+      ref_type: requestedRefType === "certificate" ? "certificate" : undefined,
       ref_id: sp.get("ref_id") ? Number(sp.get("ref_id")) : undefined,
       state: sp.get("state") || undefined,
       q: sp.get("q") || undefined,
@@ -46,12 +50,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const ref_type = String(body.ref_type || "");
     const ref_id = Number(body.ref_id || 0);
-    if (!["certificate", "service_contract"].includes(ref_type) || !ref_id) {
-      return NextResponse.json({ error: "Thiếu chứng từ gốc (hồ sơ / hợp đồng)." }, { status: 400 });
+    if (ref_type !== "certificate" || !ref_id) {
+      return NextResponse.json({ error: "Chọn hồ sơ chứng nhận cần lập hóa đơn." }, { status: 400 });
     }
     const id = await createInvoice(
       {
-        ref_type: ref_type as "certificate" | "service_contract",
+        ref_type,
         ref_id,
         installment_no: body.installment_no ? Number(body.installment_no) : undefined,
         title: String(body.title || ""),

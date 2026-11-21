@@ -15,10 +15,8 @@ import {
   LayoutDashboard,
   LogOut,
   Users,
-  MessageSquare,
   Building2,
   Bell,
-  Handshake,
   ReceiptText,
   ChevronsLeft,
   ChevronsRight,
@@ -72,21 +70,19 @@ export function Sidebar({ user, initialCollapsed = false, mobile = false, onNavi
       "aria-describedby": hint?.key === key ? tooltipId : undefined,
     };
   }
-  const profile = `${user.name} — ${user.role === "admin" ? t("nav.admin") : t("nav.specialist")}`;
+  const profile = `${user.name} (${user.role === "admin" ? t("nav.admin") : t("nav.specialist")})`;
 
   const NAV = [
     { href: "/dashboard", labelKey: "nav.overview", icon: LayoutDashboard, adminOnly: false },
     { href: "/dashboard/tong-quan", labelKey: "Toàn cảnh", icon: Globe, adminOnly: true },
-    { href: "/dashboard/crm", labelKey: "CRM Vận hành", icon: Briefcase, adminOnly: false },
-    { href: "/dashboard/crm/pipeline", labelKey: "CRM Pipeline", icon: KanbanSquare, adminOnly: false },
+    { href: "/dashboard/crm", labelKey: "CRM", icon: Briefcase, adminOnly: false },
+    { href: "/dashboard/crm/pipeline", labelKey: "Pipeline", icon: KanbanSquare, adminOnly: false },
     { href: "/dashboard/ho-so", labelKey: "nav.records", icon: FileBadge2, adminOnly: false },
-    { href: "/dashboard/dich-vu", labelKey: "Hợp Đồng Dịch Vụ", icon: Handshake, adminOnly: false },
-    { href: "/dashboard/bao-gia", labelKey: "Báo Giá Dịch Vụ", icon: FileText, adminOnly: false },
+    { href: "/dashboard/bao-gia", labelKey: "Báo giá", icon: FileText, adminOnly: false },
     { href: "/dashboard/bao-gia/bang-gia", labelKey: "Bảng Giá Dịch Vụ", icon: Tags, adminOnly: true },
     { href: "/dashboard/ke-toan", labelKey: "Kế Toán Thu Chi", icon: ReceiptText, adminOnly: true },
-    { href: "/dashboard/doanh-nghiep", labelKey: "Doanh Nghiệp", icon: Building2, adminOnly: false },
-    { href: "/dashboard/canh-bao", labelKey: "Cảnh Báo Hết Hạn", icon: Bell, adminOnly: false },
-    { href: "/dashboard/leads", labelKey: "Leads Tư Vấn", icon: MessageSquare, adminOnly: false },
+    { href: "/dashboard/doanh-nghiep", labelKey: "Doanh nghiệp", icon: Building2, adminOnly: false },
+    { href: "/dashboard/canh-bao", labelKey: "Cảnh báo hết hạn", icon: Bell, adminOnly: false },
     { href: "/dashboard/doanh-thu", labelKey: "nav.revenue", icon: BarChart3, adminOnly: true },
     { href: "/dashboard/nguoi-dung", labelKey: "nav.users", icon: Users, adminOnly: true },
   ];
@@ -106,7 +102,7 @@ export function Sidebar({ user, initialCollapsed = false, mobile = false, onNavi
       <div className={cn("shrink-0 border-b border-white/10 py-4", collapsed ? "px-2" : "px-3")}>
         <div className={cn("flex items-center gap-2", collapsed ? "flex-col" : "justify-between")}>
           <Link href="/dashboard" onClick={() => { setHint(null); onNavigate?.(); }}
-            aria-label={`Vexim Global — ${t("nav.overview")}`}
+            aria-label={`Vexim Global ${t("nav.overview")}`}
             className={cn("rounded font-display font-extrabold tracking-tight text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold-400",
               collapsed ? "text-center text-[11px] leading-4" : "whitespace-nowrap text-xl")}
           >

@@ -38,12 +38,20 @@ export default function AccountingPage() {
           <h1 className="font-display text-3xl font-extrabold text-navy-900">Kế toán — Thu chi</h1>
           <p className="mt-1 text-sm text-navy-900/55">Công nợ phải thu, hóa đơn đến hạn & dòng tiền</p>
         </div>
-        <Link
-          href="/dashboard/ke-toan/hoa-don"
-          className="rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white"
-        >
-          Tất cả hóa đơn →
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/dashboard/ke-toan/hoa-don/moi"
+            className="rounded-xl bg-teal-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-teal-800"
+          >
+            + Lập hóa đơn
+          </Link>
+          <Link
+            href="/dashboard/ke-toan/hoa-don"
+            className="rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            Tất cả hóa đơn →
+          </Link>
+        </div>
       </div>
 
       {/* KPI */}

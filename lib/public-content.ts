@@ -8,7 +8,7 @@
 export type SiteLang = "vi" | "en";
 
 export type SiteService = {
-  id: "fda" | "gacc" | "trade" | "website";
+  id: "fda" | "gacc";
   no: string;
   tag: string;
   title: string;
@@ -141,7 +141,7 @@ const vi: SiteCopy = {
   meta: {
     title: "Tra cứu mã FDA, đăng ký mã GACC | Vexim Global",
     description:
-      "Tra cứu mã FDA, mã GACC của doanh nghiệp bạn. Vexim Global hỗ trợ đăng ký FDA, đăng ký mã GACC, niêm yết miễn phí trên Vexim Trade và thiết kế website xuất khẩu.",
+      "Tra cứu mã FDA, mã GACC của doanh nghiệp bạn. Vexim Global hỗ trợ đăng ký, lưu trữ và theo dõi hồ sơ FDA, GACC.",
     siteName: "Tra cứu mã FDA, mã GACC | Vexim Global",
   },
   org: {
@@ -301,36 +301,6 @@ const vi: SiteCopy = {
       ],
       cta: "Đăng ký GACC",
     },
-    {
-      id: "trade",
-      no: "03",
-      tag: "Vexim Trade",
-      title: "Niêm yết miễn phí trên Vexim Trade",
-      desc: "Đưa doanh nghiệp và sản phẩm lên sàn Vexim Trade, không mất phí.",
-      schemaDescription:
-        "Tạo hồ sơ doanh nghiệp, đăng sản phẩm và nhận yêu cầu báo giá từ người mua.",
-      bullets: [
-        "Tạo hồ sơ doanh nghiệp.",
-        "Đăng sản phẩm, quy cách, giá tham khảo.",
-        "Nhận yêu cầu báo giá từ người mua.",
-      ],
-      cta: "Đăng ký niêm yết",
-    },
-    {
-      id: "website",
-      no: "04",
-      tag: "Website",
-      title: "Thiết kế website xuất khẩu",
-      desc: "Website giới thiệu doanh nghiệp và sản phẩm bằng nhiều ngôn ngữ.",
-      schemaDescription:
-        "Website giới thiệu doanh nghiệp và sản phẩm bằng nhiều ngôn ngữ, có biểu mẫu nhận yêu cầu báo giá.",
-      bullets: [
-        "Trình bày sản phẩm, quy cách đóng gói.",
-        "Có biểu mẫu nhận yêu cầu báo giá.",
-        "Hiển thị tốt trên máy tính và điện thoại.",
-      ],
-      cta: "Đăng ký thiết kế",
-    },
   ],
   faqs: [
     {
@@ -370,7 +340,7 @@ const en: SiteCopy = {
   meta: {
     title: "FDA and GACC code lookup | Vexim Global",
     description:
-      "Look up the FDA and GACC codes of your business. Vexim Global supports FDA registration, GACC registration, free listings on Vexim Trade and export website design.",
+      "Look up the FDA and GACC codes of your business. Vexim Global helps register, keep and track FDA and GACC records.",
     siteName: "FDA and GACC code lookup | Vexim Global",
   },
   org: {
@@ -530,36 +500,6 @@ const en: SiteCopy = {
       ],
       cta: "Register for GACC",
     },
-    {
-      id: "trade",
-      no: "03",
-      tag: "Vexim Trade",
-      title: "Free listing on Vexim Trade",
-      desc: "Put your business and products on Vexim Trade at no cost.",
-      schemaDescription:
-        "Create a company profile, publish products and receive quotation requests from buyers.",
-      bullets: [
-        "Create a company profile.",
-        "Publish products, specifications and reference prices.",
-        "Receive quotation requests from buyers.",
-      ],
-      cta: "Request a listing",
-    },
-    {
-      id: "website",
-      no: "04",
-      tag: "Website",
-      title: "Export website design",
-      desc: "A company and product website in more than one language.",
-      schemaDescription:
-        "A company and product website in more than one language, with a quotation request form.",
-      bullets: [
-        "Present products and packaging specifications.",
-        "Include a quotation request form.",
-        "Display well on desktop and mobile.",
-      ],
-      cta: "Request a website",
-    },
   ],
   faqs: [
     {
@@ -614,8 +554,6 @@ export function siteJsonLd(lang: SiteLang) {
   const schemaIds: Record<SiteService["id"], string> = {
     fda: "dich-vu-fda",
     gacc: "dich-vu-gacc",
-    trade: "dich-vu-niem-yet",
-    website: "dich-vu-website",
   };
   const serviceId = (id: SiteService["id"]) => `${SCHEMA_ORIGIN}/#${schemaIds[id]}`;
 
@@ -625,9 +563,6 @@ export function siteJsonLd(lang: SiteLang) {
     name: s.title,
     description: s.schemaDescription,
     provider: { "@id": orgId },
-    ...(s.id === "trade"
-      ? { offers: { "@type": "Offer", price: "0", priceCurrency: "VND" } }
-      : {}),
   }));
 
   return {

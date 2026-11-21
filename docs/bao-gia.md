@@ -7,14 +7,12 @@ mẫu báo giá của từng dịch vụ (hạng mục, đơn giá, phạm vi c�
 **Giá dịch vụ nằm ở màn hình `/dashboard/bao-gia/bang-gia` (Bảng giá dịch vụ, chỉ Admin)** — sửa ở đó là
 mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, không cần deploy.
 
-## 1. Bốn mẫu báo giá có sẵn
+## 1. Hai mẫu báo giá có sẵn
 
 | Mẫu (`template_key`) | Dịch vụ | Hạng mục chính | Hạng mục tùy chọn |
 | --- | --- | --- | --- |
 | `FDA` | Đăng ký FDA (Hoa Kỳ) | 3 | US Agent, mã DUNS, thêm nhóm sản phẩm/cơ sở, gia hạn 2 năm, rà soát nhãn 21 CFR |
 | `GACC` | Đăng ký GACC / CIFER (Trung Quốc) | 3 | Thêm ngành hàng/cơ sở, cập nhật thông tin, hỗ trợ thanh tra, tập huấn |
-| `SALE_EXPORT` | Sale xuất khẩu Mỹ | 2 (phí tháng × 3 + phí khởi tạo) | Catalogue, website tiếng Anh, company profile, hội chợ |
-| `AMAZON_OPS` | Vận hành Amazon US | 2 (phí tháng × 3 + setup) | A+ Content, ảnh sản phẩm, PPC, FBA, Brand Registry |
 
 > **⚠️ Giá trong mẫu (file `lib/quote-templates.ts`) chỉ là giá mẫu để chạy thử quy trình.**
 > Giá chính thức nhập tại **Bảng giá dịch vụ** (`/dashboard/bao-gia/bang-gia`) — giá trong DB luôn
@@ -40,7 +38,7 @@ mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, khô
 
 1. **Tạo**: `/dashboard/bao-gia/moi` — **2 bước** trên một màn hình, có nút **Tiếp tục** ngay dưới danh sách hạng mục:
    **(1) Hạng mục & đơn giá** → **(2) Thông tin khách hàng & điều kiện**.
-   Bước 1 chọn 1 trong 4 dịch vụ; hệ thống đổ sẵn hạng mục + đơn giá **theo bảng giá hiện hành**.
+   Bước 1 chọn FDA hoặc GACC; hệ thống đổ sẵn hạng mục + đơn giá **theo bảng giá hiện hành**.
    Bấm Tiếp tục chỉ chạy khi hạng mục đã có nội dung (báo lỗi ngay nếu còn dòng trống hoặc thiếu hạng mục chính);
    có thể quay lại bước 1 bất cứ lúc nào, dữ liệu đã nhập không mất.
 1b. **Tự mapping thông tin công ty**: ở bước 2, gõ tên công ty **đã có trong Danh mục doanh nghiệp** là hệ thống tự điền
@@ -51,16 +49,15 @@ mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, khô
    đã có chứng nhận FDA (vẫn hiện doanh nghiệp mới chỉ có GACC để bán chéo dịch vụ), và ngược lại với **GACC**.
    Doanh nghiệp đã đăng ký đúng dịch vụ đó bị **ẩn hoàn toàn**: không xuất hiện trong gợi ý *và* gõ đúng tên cũng
    không tự điền — tránh báo giá trùng cho khách đã đăng ký. Dòng dưới ô tên công ty ghi rõ
-   *“Đã ẩn N doanh nghiệp đã đăng ký FDA”*; mỗi gợi ý còn ghi doanh nghiệp đã có dịch vụ nào
-   (ví dụ *“Chưa đăng ký FDA (đã có: GACC)”*). Báo giá **Sale xuất khẩu Mỹ** và **Vận hành Amazon US** chưa gắn chứng
-   nhận nên vẫn hiện đầy đủ danh mục. Đổi dịch vụ ở bước 1 thì bộ lọc áp dụng lại ngay.
+   *“Đã ẩn N doanh nghiệp đã đăng ký FDA”*; mỗi gợi ý còn ghi doanh nghiệp đã có chứng nhận nào
+   (ví dụ *“Chưa đăng ký FDA (đã có: GACC)”*). Chỉ có hai mẫu FDA/GACC; đổi loại báo giá ở bước 1 thì bộ lọc áp dụng lại ngay.
 2. **Tự động tính toán (thấy ngay khi nhập)**: mọi ô *số lượng / đơn giá / chiết khấu / VAT* đều được tính lại
    tức thì — thành tiền từng dòng ở ngay cạnh dòng đó, và cột **Tổng kết tự tính** bên phải hiển thị
    tạm tính → chiết khấu → VAT → **TỔNG CỘNG** kèm *bằng chữ*, cập nhật theo từng phím gõ.
    Số tiền vẫn được **server tính lại lần nữa khi lưu** (client không thể gửi tổng sai).
 2b. **Thêm mục khác**: nút *Thêm hạng mục khác* cho phép thêm dòng tự do ngay trong báo giá (dịch vụ riêng lẻ,
    phí phát sinh…), sửa/xóa dòng, và nút *Nạp lại giá chuẩn của mẫu* để quay về giá trong bảng giá.
-2c. **Chọn hạng mục tùy chọn**: tick các mục như US Agent / PPC / catalogue… Chúng in trong báo giá với ghi chú
+2c. **Chọn hạng mục tùy chọn**: tick các mục như US Agent, mã DUNS, cập nhật hồ sơ… Chúng in trong báo giá với ghi chú
    *“chưa tính vào tổng, áp dụng khi Quý khách chọn thêm”* — không làm phồng tổng tiền chào. Bỏ tick để in ở
    khối riêng, hoặc sửa để đưa thành hạng mục chính nếu khách chốt.
 3. **Bản nháp**: báo giá luôn sinh ở trạng thái **Nháp**. Ở trạng thái này có thể sửa mọi thứ, kể cả đơn giá từng dòng.
@@ -112,7 +109,7 @@ mọi báo giá tạo mới dùng giá mới ngay, không cần sửa code, khô
 ## 4. Điểm kết nối trong CRM
 
 - Trang cơ hội (`/dashboard/crm/co-hoi/[id]`) có nút **Tạo báo giá** — điền sẵn dịch vụ theo pipeline
-  (FDA/GACC/Sale XK/Amazon), tên công ty, người liên hệ, SĐT, email và gắn `opportunity_id`.
+  (FDA/GACC), tên công ty, người liên hệ, SĐT, email và gắn `opportunity_id`.
 - Sidebar có mục **Báo Giá Dịch Vụ** cho cả Admin và nhân viên, và mục **Bảng Giá Dịch Vụ** (chỉ Admin) để sửa giá.
 - Nút **⚙️ Bảng giá dịch vụ** ở đầu danh sách báo giá và ở màn hình tạo báo giá.
 
