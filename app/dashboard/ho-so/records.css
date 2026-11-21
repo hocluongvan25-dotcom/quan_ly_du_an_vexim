@@ -18,12 +18,12 @@
   --rec-accent: #0071e3;
   --rec-green: #1d7a3a;
   --rec-green-bg: rgba(52, 199, 89, 0.12);
-  --rec-orange: #97530c;
-  --rec-orange-bg: rgba(255, 149, 0, 0.14);
+  --rec-warn: #075fbd;
+  --rec-warn-bg: rgba(0, 113, 227, 0.11);
   --rec-red: #b3261e;
   --rec-red-bg: rgba(255, 59, 48, 0.11);
-  --rec-blue: #0a5cbf;
-  --rec-blue-bg: rgba(0, 122, 255, 0.11);
+  --rec-blue: #6e6e73;
+  --rec-blue-bg: rgba(120, 120, 128, 0.12);
   --rec-gray: #5f6368;
   --rec-gray-bg: rgba(120, 120, 128, 0.12);
   --rec-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
@@ -142,6 +142,30 @@
 
 .rec-btn-link:hover {
   text-decoration: underline;
+}
+
+.rec-form-input {
+  display: block;
+  width: 100%;
+  min-height: 42px;
+  padding: 9px 12px;
+  border: 1px solid var(--rec-separator-strong);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--rec-label);
+  font: inherit;
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.rec-form-input::placeholder {
+  color: var(--rec-tertiary);
+}
+
+.rec-form-input:focus {
+  border-color: rgba(0, 113, 227, 0.65);
+  box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.14);
 }
 
 /* --------------------------------- Bộ lọc -------------------------------- */
@@ -373,6 +397,116 @@
   pointer-events: none;
 }
 
+/* ---------------------- Hành trình doanh nghiệp -------------------------- */
+
+.company-journey {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  list-style: none;
+  padding: 0;
+}
+
+.company-journey__step {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--rec-tertiary);
+}
+
+.company-journey__step::after {
+  position: absolute;
+  top: 17px;
+  left: calc(50% + 21px);
+  width: calc(100% - 42px);
+  height: 2px;
+  background: var(--rec-separator-strong);
+  content: "";
+}
+
+.company-journey__step:last-child::after {
+  display: none;
+}
+
+.company-journey__step.is-complete::after {
+  background: #34c759;
+}
+
+.company-journey__node {
+  z-index: 1;
+  display: flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--rec-separator-strong);
+  border-radius: 50%;
+  background: #fff;
+  color: var(--rec-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.company-journey__step.is-complete .company-journey__node {
+  border-color: #34c759;
+  background: #34c759;
+  color: #fff;
+}
+
+.company-journey__step.is-active .company-journey__node {
+  border: 2px solid var(--rec-accent);
+  background: #fff;
+  color: var(--rec-accent);
+  box-shadow: 0 0 0 4px rgba(0, 113, 227, 0.1);
+}
+
+.company-journey__label {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--rec-secondary);
+}
+
+.company-journey__step.is-active .company-journey__label {
+  color: var(--rec-label);
+  font-weight: 600;
+}
+
+.company-journey__step.is-complete .company-journey__label {
+  color: var(--rec-label);
+}
+
+@media (max-width: 520px) {
+  .company-journey {
+    gap: 0;
+  }
+
+  .company-journey__step {
+    gap: 6px;
+  }
+
+  .company-journey__step::after {
+    top: 15px;
+    left: calc(50% + 17px);
+    width: calc(100% - 34px);
+  }
+
+  .company-journey__node {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .company-journey__label {
+    font-size: 10px;
+  }
+}
+
 /* --------------------------------- Bảng ---------------------------------- */
 
 .rec-card {
@@ -555,7 +689,7 @@
 }
 
 .rec-remaining--soon {
-  color: var(--rec-orange);
+  color: var(--rec-warn);
 }
 
 .rec-remaining--past {
@@ -589,8 +723,8 @@
 }
 
 .rec-badge--expiring {
-  color: var(--rec-orange);
-  background: var(--rec-orange-bg);
+  color: var(--rec-warn);
+  background: var(--rec-warn-bg);
 }
 
 .rec-badge--expired {

@@ -125,27 +125,6 @@ export default function OppDetailPage() {
         </Link>
       )}
 
-      {/* Sale/Amazon: HĐ đã tự sinh khi chốt — link sang xem */}
-      {opp.is_won && (opp.pipeline_key === "SALE_EXPORT" || opp.pipeline_key === "AMAZON_OPS") && (
-        <Link
-          href={`/dashboard/dich-vu?q=${encodeURIComponent(opp.company_name)}`}
-          className="flex items-center justify-between gap-3 rounded-3xl bg-gradient-to-r from-teal-500 to-teal-400 p-5 text-navy-950 shadow-lift transition hover:shadow-card"
-        >
-          <div>
-            <div className="font-display text-base font-extrabold">
-              ✅ Deal đã chốt — hợp đồng {opp.pipeline_key === "SALE_EXPORT" ? "Sale XK" : "Amazon"} đã tự
-              tạo!
-            </div>
-            <div className="mt-0.5 text-xs font-semibold opacity-70">
-              Bấm để xem hợp đồng, xác nhận ngày bắt đầu & chu kỳ
-            </div>
-          </div>
-          <div className="shrink-0 rounded-xl bg-navy-900 px-4 py-2.5 text-sm font-bold text-white">
-            Xem hợp đồng →
-          </div>
-        </Link>
-      )}
-
       {/* Header */}
       <div className="rounded-3xl bg-white p-6 shadow-card">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -423,11 +402,11 @@ export default function OppDetailPage() {
 
 function InfoBox({ icon, label, value, sub, alert }: { icon: React.ReactNode; label: string; value: string; sub?: string; alert?: boolean }) {
   return (
-    <div className={`rounded-2xl border p-3 ${alert ? "border-amber-300 bg-amber-50" : "border-navy-900/10 bg-[#fffaf0]"}`}>
+    <div className={`rounded-2xl border p-3 ${alert ? "border-blue-300 bg-blue-50" : "border-navy-900/10 bg-[#f2f2f7]"}`}>
       <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-navy-900/45">
         {icon} {label}
       </div>
-      <div className={`mt-1 truncate text-sm font-extrabold ${alert ? "text-amber-800" : ""}`} title={value}>
+      <div className={`mt-1 truncate text-sm font-extrabold ${alert ? "text-blue-800" : ""}`} title={value}>
         {value}
       </div>
       {sub && <div className="truncate text-[11px] text-navy-900/50">{sub}</div>}

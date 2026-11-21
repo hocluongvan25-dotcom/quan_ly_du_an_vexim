@@ -1,5 +1,5 @@
 /* ============================================================================
- * BẢNG BÁO GIÁ CHUẨN THEO DỊCH VỤ — Vexim Global
+ * BẢNG BÁO GIÁ CHUẨN THEO DỊCH VỤ của Vexim Global
  * Một nguồn duy nhất cho mẫu báo giá: nhân viên chỉ chọn dịch vụ + nhập thông
  * tin khách hàng, toàn bộ hạng mục / đơn giá / điều khoản được điền sẵn.
  *
@@ -7,11 +7,11 @@
  * trong hệ thống tại /dashboard/bao-gia/bang-gia (Admin) và lưu ở bảng
  * quote_templates; giá trị trong DB luôn được ưu tiên hơn giá trong file này.
  *
- * ⚠️ Số trong file vẫn là giá mẫu để chạy thử quy trình — hãy chỉnh lại ở màn
+ * ⚠️ Số trong file vẫn là giá mẫu để chạy thử quy trình. Hãy chỉnh lại ở màn
  * hình Bảng giá dịch vụ trước khi gửi khách thật.
  * ========================================================================== */
 
-export type QuoteTemplateKey = "FDA" | "GACC" | "SALE_EXPORT" | "AMAZON_OPS";
+export type QuoteTemplateKey = "FDA" | "GACC";
 
 /** Một dòng hạng mục được lưu trong báo giá (snapshot, không phụ thuộc mẫu) */
 export type QuoteLine = {
@@ -64,16 +64,16 @@ export type QuoteTemplateDef = {
   terms: string[];
 };
 
-/** Vì sao chọn Vexim Global — phần giới thiệu ngắn in kèm báo giá. */
+/** Vì sao chọn Vexim Global. Phần giới thiệu ngắn in kèm báo giá. */
 export const QUOTE_STRENGTHS = [
-  "Đội ngũ trực tiếp xử lý hồ sơ FDA/GACC và vận hành bán hàng xuất khẩu, không qua trung gian",
+  "Đội ngũ trực tiếp xử lý hồ sơ FDA/GACC, không qua trung gian",
   "Theo dõi hiệu lực chứng nhận trên hệ thống riêng và chủ động nhắc gia hạn trước khi hết hạn",
   "Một đầu mối phụ trách xuyên suốt: báo cáo tiến độ định kỳ, phản hồi trong 24 giờ làm việc",
   "Tra cứu hồ sơ đã đăng ký bằng mã QR, minh bạch phạm vi công việc và chi phí ngay từ báo giá",
 ];
 
 export const QUOTE_PRICE_NOTE =
-  "Giá mẫu trong hệ thống — kiểm tra lại với bảng giá hiện hành trước khi gửi khách.";
+  "Giá mẫu trong hệ thống. Kiểm tra lại với bảng giá hiện hành trước khi gửi khách.";
 
 /* ------------------------- Giới hạn của bảng giá -------------------------- */
 
@@ -100,7 +100,7 @@ export const QUOTE_TEMPLATES: QuoteTemplateDef[] = [
     options: [
       {
         key: "us_agent",
-        label: "Đăng ký & duy trì US Agent (đại diện pháp lý tại Mỹ) — 12 tháng",
+        label: "Đăng ký & duy trì US Agent (đại diện pháp lý tại Mỹ), 12 tháng",
         unit: "Năm", qty: 1, unit_price: 8_500_000,
         note: "Bắt buộc theo quy định FDA đối với cơ sở nước ngoài",
         group: "Bắt buộc theo quy định",
@@ -223,148 +223,6 @@ export const QUOTE_TEMPLATES: QuoteTemplateDef[] = [
       "Khách hàng đảm bảo cơ sở đáp ứng điều kiện vệ sinh, an toàn thực phẩm và cung cấp đầy đủ tài liệu theo yêu cầu.",
       "Trường hợp GACC yêu cầu nội dung ngoài phạm vi báo giá, hai bên thống nhất khối lượng và chi phí bổ sung bằng phụ lục.",
       "Vexim Global bảo mật toàn bộ tài liệu của khách hàng trong và sau thời gian thực hiện dịch vụ.",
-    ],
-  },
-  {
-    key: "SALE_EXPORT",
-    name: "Sale xuất khẩu Mỹ",
-    short_name: "Sale XK",
-    tagline: "Đội Sale xuất khẩu phát triển khách hàng B2B tại thị trường Mỹ",
-    title: "BÁO GIÁ DỊCH VỤ SALE XUẤT KHẨU MỸ",
-    crm_pipeline_key: "SALE_EXPORT",
-    validity_days: 15,
-    vat_rate: 8,
-    items: [
-      {
-        name: "Phí dịch vụ phát triển khách hàng xuất khẩu Mỹ (KPI: tiếp cận tối thiểu 150 khách tiềm năng/tháng)",
-        unit: "Tháng", qty: 3, unit_price: 25_000_000, note: "Hợp đồng tối thiểu 03 tháng",
-      },
-      {
-        name: "Phí khởi tạo hồ sơ năng lực, dữ liệu thị trường và danh sách buyer lần đầu",
-        unit: "Lần", qty: 1, unit_price: 5_000_000,
-      },
-    ],
-    options: [
-      {
-        key: "catalog",
-        label: "Thiết kế bộ nhận diện & catalogue tiếng Anh chuẩn B2B",
-        unit: "Bộ", qty: 1, unit_price: 15_000_000, note: "", group: "Tài liệu bán hàng",
-      },
-      {
-        key: "website",
-        label: "Website/landing page tiếng Anh giới thiệu năng lực xuất khẩu",
-        unit: "Site", qty: 1, unit_price: 18_000_000, note: "", group: "Tài liệu bán hàng",
-      },
-      {
-        key: "profile",
-        label: "Company profile chuẩn B2B (PDF song ngữ)",
-        unit: "Bộ", qty: 1, unit_price: 8_000_000, note: "", group: "Tài liệu bán hàng",
-      },
-      {
-        key: "trade_show",
-        label: "Hỗ trợ tham gia hội chợ/xúc tiến thương mại tại Mỹ",
-        unit: "Đoàn", qty: 1, unit_price: 12_000_000,
-        note: "Chi phí công tác, vé, chỗ ở thanh toán theo thực tế", group: "Xúc tiến thương mại",
-      },
-    ],
-    scope: [
-      "Xây dựng danh sách khách hàng mục tiêu (nhà nhập khẩu, distributor, chuỗi bán lẻ) theo ngành hàng",
-      "Tiếp cận đa kênh: email B2B, LinkedIn, giới thiệu và kết nối qua hiệp hội ngành",
-      "Sàng lọc phản hồi, xác minh nhu cầu và đặt lịch họp với buyer",
-      "Chuẩn bị tài liệu bán hàng, báo giá và hỗ trợ đàm phán điều khoản cùng doanh nghiệp",
-      "Báo cáo tiến độ 02 tuần/lần, cập nhật pipeline bán hàng trên hệ thống CRM Vexim Global",
-    ],
-    documents: [
-      "Hồ sơ năng lực doanh nghiệp: catalogue, bảng giá xuất khẩu, chứng nhận chất lượng",
-      "Danh mục sản phẩm ưu tiên phát triển tại thị trường Mỹ và năng lực sản xuất",
-      "Thông tin đầu mối phụ trách (tên, email, số điện thoại) để phối hợp xử lý yêu cầu buyer",
-      "Chính sách giá, điều kiện giao hàng và phương thức thanh toán dự kiến",
-      "Tài khoản LinkedIn/website hiện có (nếu muốn tận dụng cho hoạt động tiếp cận)",
-    ],
-    timeline:
-      "Triển khai trong 03 tháng (tối thiểu), bắt đầu trong 03 ngày làm việc sau khi hai bên thống nhất nội dung và KPI.",
-    payment_terms:
-      "Thanh toán theo tháng trong vòng 07 ngày kể từ ngày xuất hóa đơn. Tháng đầu thanh toán ngay khi ký hợp đồng.",
-    terms: [
-      "KPI cam kết gồm số lượng khách hàng được tiếp cận và số cuộc trao đổi với buyer; không bao gồm việc buyer phải ký đơn hàng.",
-      "Chi phí quảng cáo, phí nền tảng, công tác phí và chi phí bên thứ ba (nếu có) do khách hàng chi trả trực tiếp.",
-      "Khách hàng cung cấp kịp thời tài liệu sản phẩm, mẫu, chứng nhận và người đầu mối xử lý yêu cầu từ buyer.",
-      "Dữ liệu khách hàng phát sinh thuộc quyền sử dụng của khách hàng trong và sau thời gian hợp tác.",
-      "Mỗi bên được chấm dứt hợp đồng trước 15 ngày bằng văn bản/email; hai bên thanh toán phần công việc đã thực hiện.",
-    ],
-  },
-  {
-    key: "AMAZON_OPS",
-    name: "Vận hành Amazon US",
-    short_name: "Amazon",
-    tagline: "Vận hành gian hàng Amazon US trọn gói theo tháng",
-    title: "BÁO GIÁ DỊCH VỤ VẬN HÀNH AMAZON US",
-    crm_pipeline_key: "AMAZON_OPS",
-    validity_days: 15,
-    vat_rate: 8,
-    items: [
-      {
-        name: "Phí vận hành gian hàng Amazon US theo tháng (đăng bán, tối ưu, chăm sóc khách hàng, theo dõi tồn kho)",
-        unit: "Tháng", qty: 3, unit_price: 20_000_000, note: "Hợp đồng tối thiểu 03 tháng",
-      },
-      {
-        name: "Thiết lập gian hàng ban đầu: cấu trúc listing, chính sách, cài đặt vận chuyển & thuế",
-        unit: "Lần", qty: 1, unit_price: 8_000_000,
-      },
-    ],
-    options: [
-      {
-        key: "a_plus",
-        label: "Thiết kế listing + A+ Content cho tối đa 05 sản phẩm",
-        unit: "Gói", qty: 1, unit_price: 6_000_000, note: "", group: "Nội dung & hình ảnh",
-      },
-      {
-        key: "images",
-        label: "Bộ ảnh sản phẩm chuẩn Amazon (07 ảnh/sản phẩm)",
-        unit: "SP", qty: 5, unit_price: 700_000, note: "", group: "Nội dung & hình ảnh",
-      },
-      {
-        key: "ppc",
-        label: "Tối ưu & quản lý quảng cáo PPC (chi phí theo tháng)",
-        unit: "Tháng", qty: 1, unit_price: 5_000_000,
-        note: "Chưa gồm ngân sách quảng cáo trả cho Amazon", group: "Tăng trưởng",
-      },
-      {
-        key: "logistics",
-        label: "Tư vấn nhập hàng, đóng gói và vận chuyển FBA",
-        unit: "Lần", qty: 1, unit_price: 6_000_000,
-        note: "Chưa gồm phí vận chuyển, thuế nhập khẩu thực tế", group: "Vận hành",
-      },
-      {
-        key: "brand",
-        label: "Đăng ký Brand Registry & bảo vệ thương hiệu trên Amazon",
-        unit: "Lần", qty: 1, unit_price: 7_500_000, note: "", group: "Tăng trưởng",
-      },
-    ],
-    scope: [
-      "Kiểm tra và hoàn thiện tài khoản Seller, chính sách gian hàng, cấu hình thuế và vận chuyển",
-      "Nghiên cứu từ khoá, tối ưu tiêu đề - bullet - mô tả - hình ảnh theo tiêu chuẩn Amazon",
-      "Quản lý giá bán, tồn kho FBA, xử lý đơn hàng và chăm sóc khách hàng bằng tiếng Anh",
-      "Theo dõi chỉ số tài khoản (Account Health), xử lý cảnh báo và khiếu nại của Amazon",
-      "Báo cáo hiệu quả kinh doanh theo tháng: doanh thu, ACOS, tồn kho, đề xuất tối ưu",
-    ],
-    documents: [
-      "Tài khoản Amazon Seller Central (quyền truy cập cho Vexim Global) hoặc uỷ quyền đăng ký mới",
-      "Thông tin thương hiệu, hình ảnh sản phẩm gốc, thông số kỹ thuật",
-      "Giá bán mong muốn, chi phí nhập hàng và ngân sách quảng cáo dự kiến",
-      "Chứng nhận sản phẩm/thương hiệu (nếu có) để phục vụ Brand Registry",
-      "Kế hoạch nhập hàng và năng lực cung ứng để kiểm soát tồn kho FBA",
-    ],
-    timeline:
-      "Thiết lập gian hàng trong 07–10 ngày làm việc; vận hành duy trì theo tháng, báo cáo vào ngày 05 hằng tháng.",
-    payment_terms:
-      "Thanh toán theo tháng trong vòng 07 ngày kể từ ngày xuất hóa đơn; phí thiết lập ban đầu thanh toán khi ký hợp đồng.",
-    terms: [
-      "Chi phí phí sàn Amazon, ngân sách quảng cáo, phí FBA, thuế nhập khẩu do khách hàng chi trả trực tiếp cho Amazon/đối tác vận chuyển.",
-      "Khách hàng đảm bảo sản phẩm hợp pháp, có đủ chứng nhận cần thiết và nguồn hàng đáp ứng tiêu chuẩn Amazon.",
-      "Thời gian xử lý cảnh báo/khiếu nại của Amazon phụ thuộc thời gian phản hồi của Amazon, không tính vào cam kết tiến độ.",
-      "Kết quả bán hàng phụ thuộc thị trường, ngân sách quảng cáo và giá bán; Vexim Global cam kết chất lượng vận hành theo phạm vi công việc.",
-      "Hai bên bàn giao đầy đủ tài khoản và dữ liệu khi kết thúc hợp đồng.",
     ],
   },
 ];

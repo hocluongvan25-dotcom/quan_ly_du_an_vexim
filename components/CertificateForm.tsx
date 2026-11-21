@@ -362,7 +362,7 @@ export function CertificateForm({ initial, prefill, role }: {
         </div>
 
         {item?.pending_changes && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
             <p className="font-semibold">{t("form.pendingApproval")}</p>
             <p className="mt-1 text-xs">{t("form.pendingApprovalHelp")}</p>
             <details className="mt-2">
@@ -563,7 +563,7 @@ export function CertificateForm({ initial, prefill, role }: {
                                     s === "FDA"
                                       ? "bg-blue-50 text-blue-700 border-blue-200"
                                       : s === "GACC"
-                                      ? "bg-amber-50 text-amber-700 border-amber-200"
+                                      ? "bg-blue-50 text-blue-700 border-blue-200"
                                       : "bg-slate-50 text-slate-600 border-slate-200"
                                   }`}
                                 >
@@ -608,7 +608,7 @@ export function CertificateForm({ initial, prefill, role }: {
               <div className="mt-1 text-[11px] text-navy-900/50">
                 Địa chỉ của khách hàng, hiển thị công khai ở mục 01 “Thông tin doanh nghiệp” khi khách quét mã QR.
                 {item && item.status !== "draft" && (
-                  <span className="text-amber-700">
+                  <span className="text-blue-700">
                     {" "}
                     Hồ sơ đã xuất bản: bấm <b>Lưu thay đổi</b> rồi <b>Duyệt và xuất bản</b> thì địa chỉ mới lên trang QR
                     (nếu chưa có, khách sẽ thấy “Chưa có thông tin địa chỉ”).
@@ -625,13 +625,13 @@ export function CertificateForm({ initial, prefill, role }: {
               placeholder={t("form.scopePlaceholder")}
             />
           </Field>
-          <div className="md:col-span-2 rounded-2xl border border-amber-200 bg-amber-50/60 p-4">
+          <div className="md:col-span-2 rounded-2xl border border-blue-200 bg-blue-50/60 p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="inline-flex items-center gap-2 font-display text-sm font-extrabold text-navy-900">
-                <Lock className="h-4 w-4 text-amber-600" />
+                <Lock className="h-4 w-4 text-blue-600" />
                 {t("form.portalSection")}
               </h3>
-              <span className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-white px-2.5 py-0.5 text-[10px] font-bold text-amber-700">
+              <span className="inline-flex items-center gap-1 rounded-full border border-blue-300 bg-white px-2.5 py-0.5 text-[10px] font-bold text-blue-700">
                 <EyeOff className="h-3 w-3" /> {t("form.internalOnly")}
               </span>
             </div>
@@ -768,7 +768,7 @@ export function CertificateForm({ initial, prefill, role }: {
                 setRenewFee("0");
                 setShowRenewDialog(true);
               }}
-              className="rounded-xl bg-gold-500 px-4 py-2.5 text-sm font-semibold text-navy-950"
+              className="rounded-xl bg-blue-500 px-4 py-2.5 text-sm font-semibold text-white"
             >
               {t("form.renew")}
             </button>
@@ -914,7 +914,7 @@ export function CertificateForm({ initial, prefill, role }: {
               <button
                 onClick={doRenew}
                 disabled={!!busy}
-                className="rounded-xl bg-gold-500 px-5 py-2.5 text-sm font-bold text-navy-950 disabled:opacity-50"
+                className="rounded-xl bg-blue-500 px-5 py-2.5 text-sm font-bold text-white disabled:opacity-50"
               >
                 {busy === "renew" ? (
                   <span className="inline-flex items-center gap-1">

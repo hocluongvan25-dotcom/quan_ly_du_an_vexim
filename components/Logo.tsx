@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Logo chữ "VeximGlobal" — dùng chữ của hệ thống thay cho ảnh logo.
- * `size` điều chỉnh cỡ chữ, `tone` chọn màu cho nền sáng (mực navy) hoặc nền navy (trắng + vàng).
+ * `size` điều chỉnh cỡ chữ, `tone` chọn màu cho nền sáng (mực graphite) hoặc nền tối (trắng + xanh dương).
  */
 export function LogoWordmark({
   className,
@@ -23,14 +23,14 @@ export function LogoWordmark({
   }[size];
 
   const brandClass = tone === "light" ? "text-white" : "text-navy-900";
-  const globalClass = tone === "light" ? "text-gold-400" : "text-teal-700";
+  const globalClass = tone === "light" ? "text-blue-400" : "text-blue-700";
 
   return (
     <span className={cn("inline-flex items-baseline gap-1", className)}>
       {withMark && (
         <span
           aria-hidden="true"
-          className="mr-1 inline-block h-[0.42em] w-[0.42em] rounded-full bg-gradient-to-br from-teal-500 via-navy-900 to-gold-400 align-middle"
+          className="mr-1 inline-block h-[0.42em] w-[0.42em] rounded-full bg-gradient-to-br from-teal-500 via-navy-900 to-blue-400 align-middle"
         />
       )}
       <span className={cn("font-display font-extrabold tracking-tight", sizeClass, brandClass)}>

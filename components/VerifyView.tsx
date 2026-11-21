@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowUpRight, Building2, CheckCircle2, ChevronDown, Clock3, Copy,
-  FileCheck2, Globe2, Info, Link2, Mail, MessageCircle, Phone, RefreshCw, ShieldCheck, ShieldX, X,
+  Building2, CheckCircle2, Clock3, Copy, FileCheck2, Globe2, Info, Link2, Mail, MessageCircle, Phone, RefreshCw, ShieldCheck, ShieldX,
 } from "lucide-react";
 import type { publicCertificate } from "@/lib/certificate-workflow";
 import { COMPANY } from "@/lib/types";
@@ -14,22 +13,8 @@ import { verificationText, verificationLanguageUrl, VERIFICATION_LOCALE_COOKIE, 
 import styles from "./VerifyView.module.css";
 
 type Props = { cert: ReturnType<typeof publicCertificate>; checkedAt: string; locale: VerificationLocale };
-type Service = "sales" | "amazon";
-const serviceLinks = {
-  sales: {
-    url: "https://veximtrade.com", website: "veximtrade.com",
-  },
-  amazon: {
-    url: "https://veximops.com", website: "veximops.com",
-  },
-};
-
 export function VerifyView({ cert, checkedAt, locale }: Props) {
   const t = (key: VerificationTextKey, params?: Record<string, string | number>) => verificationText(locale, key, params);
-  const services = {
-    sales: { ...serviceLinks.sales, title: t("salesTitle"), description: t("salesDescription") },
-    amazon: { ...serviceLinks.amazon, title: t("amazonTitle"), description: t("amazonDescription") },
-  };
   const router = useRouter();
   const [refreshing, startRefresh] = useTransition();
   const [switchingLanguage, startLanguageSwitch] = useTransition();
@@ -44,11 +29,6 @@ export function VerifyView({ cert, checkedAt, locale }: Props) {
     startLanguageSwitch(() => router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false }));
   }
   const [toast, setToast] = useState<VerificationTextKey | "">("");
-  const [modal, setModal] = useState<Service | null>(null);
-  const [contact, setContact] = useState({ name: "", phone: "" });
-  const [formError, setFormError] = useState<VerificationTextKey | "">("");
-  const [submitting, setSubmitting] = useState(false);
-  const dialogRef = useRef<HTMLDialogElement>(null);
   const result = verificationResult(cert, checkedAt, locale);
   const isGacc = cert.standard === "GACC";
   const StateIcon = result.state === "valid" ? ShieldCheck : result.state === "expired" ? ShieldX : Info;
@@ -62,17 +42,6 @@ export function VerifyView({ cert, checkedAt, locale }: Props) {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  useEffect(() => {
-    if (!modal) return;
-    const dialog = dialogRef.current;
-    dialog?.showModal();
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      dialog?.close();
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [modal]);
 
   async function copy(text: string) {
     try {
@@ -91,33 +60,6 @@ export function VerifyView({ cert, checkedAt, locale }: Props) {
       }
       setToast("copySuccess");
     } catch { setToast("copyFailure"); }
-  }
-
-  async function submitConsultation(event: FormEvent) {
-    event.preventDefault();
-    if (!modal || submitting) return;
-    if (!contact.name.trim() || contact.phone.replace(/\D/g, "").length < 9) {
-      setFormError("invalidContact");
-      return;
-    }
-    setSubmitting(true);
-    setFormError("");
-    try {
-      const res = await fetch("/api/consultation", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          service_type: modal, name: contact.name.trim(), phone: contact.phone.trim(),
-          company_name: cert.company_name, certificate_no: cert.certificate_no,
-          public_code: cert.public_code, source_url: window.location.href,
-        }),
-      });
-      if (!res.ok) throw new Error("CONSULTATION_FAILED");
-      setContact({ name: "", phone: "" });
-      setModal(null);
-      setToast("consultationSuccess");
-    } catch {
-      setFormError("sendFailed");
-    } finally { setSubmitting(false); }
   }
 
   const badge = (
@@ -148,7 +90,7 @@ export function VerifyView({ cert, checkedAt, locale }: Props) {
 
       <main className={styles.main}>
         <div className={styles.documentHeading}>
-          <span><span className={styles.goldLine} /> {t("documentHeading")}</span>
+          <span><span className={styles.accentLine} /> {t("documentHeading")}</span>
           <span>{cert.standard} / {t("countryHeading")}</span>
         </div>
 
@@ -277,40 +219,11 @@ export function VerifyView({ cert, checkedAt, locale }: Props) {
           <a href={`mailto:${COMPANY.email}`}><Mail size={15} aria-hidden="true" />{COMPANY.email}</a>
         </section>
 
-        <details className={styles.services}>
-          <summary><span>{t("servicesTitle")}<small>{t("servicesSubtitle")}</small></span><ChevronDown size={18} aria-hidden="true" /></summary>
-          <div className={styles.serviceGrid}>
-            {(Object.keys(services) as Service[]).map((key) => (
-              <div className={styles.serviceCard} key={key}>
-                <h3>{services[key].title}</h3><p>{services[key].description}</p>
-                <div><button type="button" className={styles.secondaryButton} onClick={() => { setFormError(""); setModal(key); }}>{t("consult")}</button><a href={services[key].url} target="_blank" rel="noopener noreferrer">{services[key].website}<ArrowUpRight size={14} aria-hidden="true" /></a></div>
-              </div>
-            ))}
-          </div>
-        </details>
 
         <footer className={styles.pageFooter}><span>© {new Date(checkedAt).getUTCFullYear()} Vexim Global</span><span>{t("footer")}</span></footer>
       </main>
 
       {toast && <div className={styles.toast} role="status">{t(toast)}</div>}
-      {modal && (
-        <dialog ref={dialogRef} className={styles.dialog} aria-labelledby="consultation-title" onCancel={(e) => { if (submitting) e.preventDefault(); else setModal(null); }} onClick={(e) => { if (e.target === e.currentTarget && !submitting) setModal(null); }}>
-          <div className={styles.dialogBody}>
-            <button type="button" className={styles.closeButton} onClick={() => setModal(null)} disabled={submitting} aria-label={t("close")}><X size={20} /></button>
-            <p className={styles.eyebrow}>{t("consultationHeading")}</p>
-            <h2 id="consultation-title">{services[modal].title}</h2>
-            <p>{services[modal].description}</p>
-            <form onSubmit={submitConsultation}>
-              <label htmlFor="consultation-name">{t("contactName")}</label>
-              <input id="consultation-name" autoComplete="name" required maxLength={150} value={contact.name} disabled={submitting} onChange={(e) => setContact({ ...contact, name: e.target.value })} />
-              <label htmlFor="consultation-phone">{t("contactPhone")}</label>
-              <input id="consultation-phone" type="tel" autoComplete="tel" required maxLength={30} value={contact.phone} disabled={submitting} onChange={(e) => setContact({ ...contact, phone: e.target.value })} />
-              {formError && <p className={styles.formError} role="alert">{t(formError)}</p>}
-              <button type="submit" className={styles.primaryButton} disabled={submitting}>{submitting ? t("sending") : t("send")}<ArrowUpRight size={16} aria-hidden="true" /></button>
-            </form>
-          </div>
-        </dialog>
-      )}
     </div>
   );
 }

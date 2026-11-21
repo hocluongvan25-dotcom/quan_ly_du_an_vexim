@@ -6,25 +6,25 @@
 
 /* Shared tokens and basic reset used by the public site and login screen. */
 .site {
-  --s-paper: #f6f3ec;
-  --s-paper-soft: #fbf9f4;
+  --s-paper: #f5f5f7;
+  --s-paper-soft: #f2f2f7;
   --s-white: #ffffff;
-  --s-ink: #111d33;
-  --s-ink-2: #24324a;
-  --s-muted: #5b6270;
-  --s-line: #dcd6c8;
-  --s-line-strong: #c6bda9;
-  --s-brass: #8a6124;
-  --s-blue: #1f4a7c;
-  --s-valid: #175c42;
-  --s-valid-bg: #eaf2ec;
-  --s-valid-line: #bfd7c9;
-  --s-warn: #815410;
-  --s-warn-bg: #f8f0dd;
-  --s-warn-line: #e3d2a8;
-  --s-danger: #8b2e25;
-  --s-danger-bg: #f7e9e6;
-  --s-danger-line: #e2c4bf;
+  --s-ink: #1d1d1f;
+  --s-ink-2: #424245;
+  --s-muted: #6e6e73;
+  --s-line: #e5e5ea;
+  --s-line-strong: #d2d2d7;
+  --s-accent: #0071e3;
+  --s-blue: #0071e3;
+  --s-valid: #1d7135;
+  --s-valid-bg: #edf7f1;
+  --s-valid-line: #bcdcc9;
+  --s-warn: #075fbd;
+  --s-warn-bg: #e8f2ff;
+  --s-warn-line: #cce4ff;
+  --s-danger: #a8333d;
+  --s-danger-bg: #fff2f2;
+  --s-danger-line: #ecc6ca;
   --s-font: "Be Vietnam Pro", system-ui, -apple-system, "Segoe UI", sans-serif;
   --s-serif: "Source Serif 4", "Iowan Old Style", Georgia, "Times New Roman", serif;
   --s-mono: ui-monospace, "SFMono-Regular", "Roboto Mono", Menlo, monospace;
@@ -1857,7 +1857,7 @@
   padding: 10px 12px;
   border: 1px solid var(--s-line-strong);
   border-radius: 2px;
-  background: #fdfcf9;
+  background: #fafafc;
   font-family: inherit;
   font-size: 16px;
   color: var(--s-ink);
@@ -1922,7 +1922,7 @@
 .auth-card__foot span[aria-hidden="true"] {
   width: 4px;
   height: 4px;
-  background: var(--s-brass);
+  background: var(--s-accent);
 }
 
 .auth-back {

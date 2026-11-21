@@ -36,6 +36,7 @@ const templates = require('../lib/quote-templates.ts');
 const { QUOTE_DEFAULTS: QUOTE_DEFAULTS_FOR_TEST } = require('../lib/quotes.ts');
 const { moneyInWords, numberToVietnameseWords } = require('../lib/money-words.ts');
 const { generateQuotePdf } = require('../lib/quote-pdf.ts');
+const TEST_TODAY = new Date().toISOString().slice(0, 10);
 const listApi = require('../app/api/quotes/route.ts');
 const priceListApi = require('../app/api/quote-templates/route.ts');
 const priceItemApi = require('../app/api/quote-templates/[key]/route.ts');
@@ -49,10 +50,16 @@ const bare = (path, method = 'GET') => new Request(`http://test${path}`, { metho
 after(() => { process.chdir(cwd); fs.rmSync(temp, { recursive: true, force: true }); });
 
 const quickCreate = (patch = {}) => {
+  const templateKey = patch.template_key || 'FDA';
+  const template = templates.getQuoteTemplate(templateKey);
+  const issueDate = patch.issue_date || TEST_TODAY;
   const input = {
-    template_key: 'FDA', company_name: 'CÔNG TY ABC', issue_date: new Date().toISOString().slice(0, 10), valid_until: null, ...patch,
+    template_key: templateKey,
+    company_name: 'CÔNG TY ABC',
+    issue_date: issueDate,
+    valid_until: patch.valid_until ?? quotes.quoteValidUntil(issueDate, template.validity_days),
+    ...patch,
   };
-  const template = templates.getQuoteTemplate(input.template_key);
   return db.createQuote(quotes.prepareQuoteInput({
     ...input,
     // Giống API: không gửi hạng mục/hồ sơ thì lấy nguyên mẫu dịch vụ.
@@ -107,8 +114,8 @@ test('DB cũ (bảng quotes chưa có cột documents) tự nâng cấp, giữ n
   assert.deepEqual(quote.documents, []);
 });
 
-test('mẫu báo giá có đủ 4 dịch vụ với hạng mục, đơn giá và điều khoản dựng sẵn', () => {
-  assert.deepEqual(templates.QUOTE_TEMPLATES.map((t) => t.key), ['FDA', 'GACC', 'SALE_EXPORT', 'AMAZON_OPS']);
+test('chỉ có mẫu FDA/GACC với hạng mục, đơn giá và điều khoản dựng sẵn', () => {
+  assert.deepEqual(templates.QUOTE_TEMPLATES.map((t) => t.key), ['FDA', 'GACC']);
   for (const template of templates.QUOTE_TEMPLATES) {
     assert.ok(template.items.length >= 1, `${template.key} thiếu hạng mục`);
     assert.ok(template.options.length >= 1, `${template.key} thiếu dịch vụ đi kèm`);
@@ -213,11 +220,11 @@ test('số báo giá đánh tiếp từ 0290 theo thực tế, không đánh l�
 
 test('báo giá không gửi VAT/hiệu lực vẫn lấy đúng mặc định của dịch vụ trong bảng giá', async () => {
   session = { id: ADMIN, role: 'admin', name: 'Test Admin' };
-  const edited = { ...(await store.loadQuoteTemplate('SALE_EXPORT')), validity_days: 30, vat_rate: 10 };
-  assert.equal((await priceItemApi.PUT(request(edited, 'PUT'), keyCtx('SALE_EXPORT'))).status, 200);
+  const edited = { ...(await store.loadQuoteTemplate('GACC')), validity_days: 30, vat_rate: 10 };
+  assert.equal((await priceItemApi.PUT(request(edited, 'PUT'), keyCtx('GACC'))).status, 200);
 
   const id = (await (await listApi.POST(request({
-    template_key: 'SALE_EXPORT', company_name: 'KHÁCH MẶC ĐỊNH', issue_date: '2026-09-21',
+    template_key: 'GACC', company_name: 'KHÁCH MẶC ĐỊNH', issue_date: '2026-09-21',
   }))).json()).id;
   const quote = db.getQuote(id);
   assert.equal(quote.valid_until, quotes.quoteValidUntil('2026-09-21', 30), 'hiệu lực lấy từ bảng giá');
@@ -226,12 +233,12 @@ test('báo giá không gửi VAT/hiệu lực vẫn lấy đúng mặc định c
 
   // Hiệu lực vượt 180 ngày vẫn bị chặn khi client tự gửi lên
   const tooLong = await listApi.POST(request({
-    template_key: 'SALE_EXPORT', company_name: 'KHÁCH QUÁ HẠN', issue_date: '2026-09-21', valid_until: '2027-12-31',
+    template_key: 'GACC', company_name: 'KHÁCH QUÁ HẠN', issue_date: '2026-09-21', valid_until: '2027-12-31',
   }));
   assert.equal(tooLong.status, 400);
 
-  await store.resetQuoteTemplate('SALE_EXPORT');
-  assert.equal((await store.loadQuoteTemplate('SALE_EXPORT')).validity_days, templates.getQuoteTemplate('SALE_EXPORT').validity_days);
+  await store.resetQuoteTemplate('GACC');
+  assert.equal((await store.loadQuoteTemplate('GACC')).validity_days, templates.getQuoteTemplate('GACC').validity_days);
 });
 
 test('server tự tính lại tiền: bỏ qua tổng do client gửi lên, có chiết khấu và dòng chưa cộng vào tổng', async () => {
@@ -264,17 +271,16 @@ test('kiểm tra dữ liệu: chặn hạng mục sai, ngày/hiệu lực sai v�
   mustThrow({ ...base, items: [{ name: 'A', qty: 1, unit_price: 1000 }], vat_rate: -1 }, /VAT/);
   mustThrow({ ...base, items: [{ name: 'A', qty: 1, unit_price: 1000 }], valid_until: '2026-09-20' }, /sau ngày báo giá/);
   mustThrow({ ...base, items: [{ name: 'A', qty: 1, unit_price: 1000 }], valid_until: '2027-09-21' }, /tối đa 180 ngày/);
-  mustThrow({ template_key: 'UNKNOWN', company_name: 'ABC', items: [{ name: 'A', qty: 1, unit_price: 1 }] }, /Dịch vụ không hợp lệ/);
+  mustThrow({ template_key: 'UNKNOWN', company_name: 'ABC', items: [{ name: 'A', qty: 1, unit_price: 1 }] }, /Chọn FDA hoặc GACC/);
   mustThrow({ ...base, company_name: '   ', items: [{ name: 'A', qty: 1, unit_price: 1000 }] }, /Tên công ty/);
   // Ghi chú/xuống dòng trong hạng mục không được chứa ký tự điều khiển
   mustThrow({ ...base, items: [{ name: 'A\u0000B', qty: 1, unit_price: 1000 }] }, /không hợp lệ/);
 });
 
 test('bản nháp sửa được; bản đã gửi khách bị khóa và phải nhân bản mới sửa được', () => {
-  const today = new Date().toISOString().slice(0, 10);
   const id = quickCreate();
   db.updateQuote(id, quotes.prepareQuoteInput({
-    template_key: 'FDA', company_name: 'CÔNG TY ABC (đổi tên)', issue_date: today,
+    template_key: 'FDA', company_name: 'CÔNG TY ABC (đổi tên)', issue_date: TEST_TODAY,
     items: templates.templateItems('FDA'), discount_percent: 5, vat_rate: 8,
   }));
   assert.equal(db.getQuote(id).company_name, 'CÔNG TY ABC (đổi tên)');
@@ -284,7 +290,7 @@ test('bản nháp sửa được; bản đã gửi khách bị khóa và phải 
   const sent = db.getQuote(id);
   assert.equal(sent.state, 'sent');
   assert.throws(() => db.updateQuote(id, quotes.prepareQuoteInput({
-    template_key: 'FDA', company_name: 'Đổi trộm', issue_date: today, items: templates.templateItems('FDA'),
+    template_key: 'FDA', company_name: 'Đổi trộm', issue_date: TEST_TODAY, items: templates.templateItems('FDA'),
   })), /LOCKED_QUOTE/);
   assert.throws(() => db.setQuoteStatus(id, 'draft'), /INVALID_STATUS/);
   assert.equal(db.getQuote(id).company_name, 'CÔNG TY ABC (đổi tên)');
@@ -321,7 +327,7 @@ test('API: phân quyền, trạng thái và lỗi dữ liệu trả về đúng 
   session = { id: STAFF_A, role: 'specialist', name: 'Nhân viên A' };
   assert.equal((await listApi.POST(request({ template_key: 'NOPE', company_name: 'X' }))).status, 400);
   assert.equal((await listApi.POST(request({ template_key: 'FDA' }))).status, 400);
-  const created = await listApi.POST(request({ template_key: 'AMAZON_OPS', company_name: 'CÔNG TY AMZ' }));
+  const created = await listApi.POST(request({ template_key: 'FDA', company_name: 'CÔNG TY ABC' }));
   const { id } = await created.json();
 
   // Người khác không sửa/xóa được báo giá của đồng nghiệp
@@ -337,7 +343,7 @@ test('API: phân quyền, trạng thái và lỗi dữ liệu trả về đúng 
   assert.equal(blocked.status, 409);
   const back = await itemApi.PATCH(request({ action: 'status', status: 'draft' }, 'PATCH'), ctx(id));
   assert.equal(back.status, 409);
-  assert.equal(db.getQuote(id).company_name, 'CÔNG TY AMZ');
+  assert.equal(db.getQuote(id).company_name, 'CÔNG TY ABC');
 
   // Nhân bản tạo bản nháp mới cho lần gửi tiếp theo
   const dup = await itemApi.PATCH(request({ action: 'duplicate' }, 'PATCH'), ctx(id));
@@ -353,16 +359,16 @@ test('API: phân quyền, trạng thái và lỗi dữ liệu trả về đúng 
   assert.equal(db.getQuote(id), undefined);
 });
 
-test('API danh sách: lọc theo dịch vụ, trạng thái và từ khóa', async () => {
+test('API danh sách: lọc theo FDA/GACC, trạng thái và từ khóa', async () => {
   session = { id: 1, role: 'admin', name: 'Test Admin' };
-  quickCreate({ template_key: 'SALE_EXPORT', company_name: 'CÔNG TY XUẤT KHẨU MỸ' });
-  assert.ok(db.listQuotes({ template_key: 'SALE_EXPORT' }).every((q) => q.template_key === 'SALE_EXPORT'));
-  assert.ok(db.listQuotes({ q: 'xuất khẩu' }).length >= 1);
+  quickCreate({ template_key: 'GACC', company_name: 'CÔNG TY GACC' });
+  assert.ok(db.listQuotes({ template_key: 'GACC' }).every((q) => q.template_key === 'GACC'));
+  assert.ok(db.listQuotes({ q: 'GACC' }).length >= 1);
   assert.ok(db.listQuotes({ status: 'draft' }).every((q) => q.status === 'draft'));
-  const response = await listApi.GET(new Request('http://test/api/quotes?template=SALE_EXPORT'));
+  const response = await listApi.GET(new Request('http://test/api/quotes?template=GACC'));
   assert.equal(response.status, 200);
   const payload = await response.json();
-  assert.ok(payload.count >= 1 && payload.items.every((q) => q.template_key === 'SALE_EXPORT'));
+  assert.ok(payload.count >= 1 && payload.items.every((q) => q.template_key === 'GACC'));
   assert.equal((await listApi.GET(new Request('http://test/api/quotes?template=BAD'))).status, 400);
 });
 
@@ -427,7 +433,7 @@ test('nội dung gửi khách và PDF: đủ số tiền, bằng chữ, dịch v
   assert.ok(message.includes('TỔNG CỘNG'));
   const { QuotePreview } = require('../components/quotes/QuotePreview.tsx');
   const preview = renderToStaticMarkup(React.createElement(QuotePreview, { quote }));
-  assert.ok(preview.includes('Dịch vụ đi kèm. Chưa tính vào tổng, khách hàng có thể chọn thêm.'));
+  assert.ok(preview.includes('Dịch vụ đi kèm — chưa tính vào tổng; Quý khách có thể chọn thêm.'));
   assert.ok(preview.includes('US Agent 12 tháng'), 'dòng chưa cộng vào tổng vẫn hiển thị riêng');
   assert.ok(message.includes(quote.total_in_words.replace(' đồng', '')));
 
@@ -518,18 +524,18 @@ test('bảng giá dịch vụ: kiểm tra dữ liệu và phân quyền API', as
   assert.equal((await priceItemApi.DELETE(request({}, 'DELETE'), keyCtx('FDA'))).status, 401);
   session = { id: STAFF_A, role: 'specialist', name: 'Nhân viên A' };
   const list = await (await priceListApi.GET()).json();
-  assert.equal(list.items.length, 4, 'nhân viên vẫn xem được bảng giá để lập báo giá');
+  assert.equal(list.items.length, 2, 'nhân viên vẫn xem được hai mẫu FDA/GACC để lập báo giá');
   assert.ok(Array.isArray(list.customized));
 });
 
 test('bảng giá dịch vụ: dữ liệu hỏng trong DB bị bỏ qua, dùng lại giá mặc định', async () => {
   session = { id: ADMIN, role: 'admin', name: 'Test Admin' };
-  db.saveQuoteTemplateRow('SALE_EXPORT', { items: [{ name: 'Rác', unit: 'Gói', qty: 0, unit_price: 1 }] }, ADMIN);
+  db.saveQuoteTemplateRow('FDA', { items: [{ name: 'Rác', unit: 'Gói', qty: 0, unit_price: 1 }] }, ADMIN);
   const merged = await store.listQuoteTemplates();
-  const sale = merged.find((t) => t.key === 'SALE_EXPORT');
-  assert.deepEqual(sale.items, templates.getQuoteTemplate('SALE_EXPORT').items, 'payload sai → rơi về mặc định');
-  db.deleteQuoteTemplateRow('SALE_EXPORT');
-  assert.equal((await store.loadQuoteTemplate('SALE_EXPORT')).items.length, templates.getQuoteTemplate('SALE_EXPORT').items.length);
+  const fda = merged.find((t) => t.key === 'FDA');
+  assert.deepEqual(fda.items, templates.getQuoteTemplate('FDA').items, 'payload sai → rơi về mặc định');
+  db.deleteQuoteTemplateRow('FDA');
+  assert.equal((await store.loadQuoteTemplate('FDA')).items.length, templates.getQuoteTemplate('FDA').items.length);
 });
 
 test('Supabase adapter (mock): tạo, đọc, sửa, đổi trạng thái và nhân bản báo giá', async () => {
@@ -562,15 +568,15 @@ test('Supabase adapter (mock): tạo, đọc, sửa, đổi trạng thái và nh
     return query;
   }});
   try {
-    const today = new Date().toISOString().slice(0, 10);
     const input = quotes.prepareQuoteInput({
-      template_key: 'AMAZON_OPS', company_name: 'CLOUD COMPANY', issue_date: today, valid_until: null,
-      items: templates.templateItems('AMAZON_OPS'), discount_percent: 0, vat_rate: 8,
+      template_key: 'GACC', company_name: 'CLOUD COMPANY', issue_date: TEST_TODAY,
+      valid_until: quotes.quoteValidUntil(TEST_TODAY, templates.getQuoteTemplate('GACC').validity_days),
+      items: templates.templateItems('GACC'), discount_percent: 0, vat_rate: 8,
     });
     const id = await cloud.createQuote(input, 1);
     const loaded = await cloud.getQuote(id);
     assert.equal(loaded.company_name, 'CLOUD COMPANY');
-    assert.equal(loaded.service_name, 'Vận hành Amazon US');
+    assert.equal(loaded.service_name, 'Đăng ký GACC (Trung Quốc)');
     assert.equal(loaded.items.length, input.items.length, 'jsonb items giữ nguyên');
     assert.equal(loaded.total, loaded.subtotal + loaded.vat_amount);
     assert.ok(tables.quotes[0].quote_no.startsWith('VXM-BG-'));
@@ -585,7 +591,7 @@ test('Supabase adapter (mock): tạo, đọc, sửa, đổi trạng thái và nh
     await assert.rejects(() => cloud.updateQuote(id, { ...input, company_name: 'KHÔNG ĐƯỢC' }), /LOCKED_QUOTE/);
     const copyId = await cloud.duplicateQuote(id, 1);
     assert.equal((await cloud.getQuote(copyId)).status, 'draft');
-    assert.equal((await cloud.listQuotes({ template_key: 'AMAZON_OPS' })).length, 2);
+    assert.equal((await cloud.listQuotes({ template_key: 'GACC' })).length, 2);
     await cloud.deleteQuote(copyId);
     assert.equal(await cloud.getQuote(copyId), undefined);
   } finally { supabase.supabaseAdmin = previous; }

@@ -3,7 +3,7 @@
 create table if not exists public.quotes (
   id bigint generated always as identity primary key,
   quote_no text unique not null,
-  template_key text not null check (template_key in ('FDA','GACC','SALE_EXPORT','AMAZON_OPS')),
+  template_key text not null check (template_key in ('FDA','GACC')),
   service_name text not null default '',
   title text not null default '',
   company_name text not null default '',

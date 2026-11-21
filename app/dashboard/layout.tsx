@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/Sidebar";
 import { cookies } from "next/headers";
 import { isSidebarCollapsed, SIDEBAR_COOKIE } from "@/lib/sidebar-preference";
 import { DashboardHeader } from "@/components/DashboardHeader";
+import "./ho-so/records.css";
 
 export const runtime = "nodejs";
 
@@ -14,7 +15,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const collapsed = isSidebarCollapsed(cookies().get(SIDEBAR_COOKIE)?.value);
 
   return (
-    <div className="flex min-h-screen bg-[#fff8ec]">
+    <div className="flex min-h-screen bg-[#f5f5f7]">
       <div className="sticky top-0 hidden h-dvh shrink-0 md:block">
         <Sidebar user={user} initialCollapsed={collapsed} />
       </div>

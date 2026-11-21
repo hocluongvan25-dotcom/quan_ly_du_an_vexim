@@ -57,11 +57,8 @@ export default function InvoiceDetailPage() {
 
         <div className="mt-4 grid gap-2 rounded-2xl bg-slate-50 p-4 text-sm">
           <div className="flex justify-between"><span className="text-slate-400">Chứng từ gốc</span>
-            <Link
-              href={inv.ref_type === "certificate" ? `/dashboard/ho-so/${inv.ref_id}` : `/dashboard/dich-vu/${inv.ref_id}`}
-              className="font-bold text-teal-700"
-            >
-              {inv.ref_type === "certificate" ? "Hồ sơ" : "Hợp đồng dịch vụ"} #{inv.ref_id} →
+            <Link href={`/dashboard/ho-so/${inv.ref_id}`} className="font-bold text-teal-700">
+              Hồ sơ chứng nhận #{inv.ref_id} →
             </Link>
           </div>
           <div className="flex justify-between gap-4"><span className="shrink-0 text-slate-400">Số hợp đồng</span><b className="min-w-0 break-all text-right font-mono">{inv.contract_no || "—"}</b></div>
@@ -69,7 +66,7 @@ export default function InvoiceDetailPage() {
           <div className="flex justify-between"><span className="text-slate-400">VAT {inv.vat_rate}%</span><b>{formatMoney(inv.vat_amount)}</b></div>
           <div className="flex justify-between border-t border-slate-200 pt-2 text-base"><span className="font-bold">Tổng cộng</span><b className="text-navy-900">{formatMoney(inv.total)}</b></div>
           <div className="flex justify-between"><span className="text-slate-400">Đã thu</span><b className="text-emerald-600">{formatMoney(inv.paid_amount)}</b></div>
-          <div className="flex justify-between"><span className="text-slate-400">Còn lại (đợt này)</span><b className="text-amber-600">{formatMoney(inv.remaining)}</b></div>
+          <div className="flex justify-between"><span className="text-slate-400">Còn lại (đợt này)</span><b className="text-blue-600">{formatMoney(inv.remaining)}</b></div>
           {(inv.prior_debts?.length || 0) > 0 && (
             <>
               <div className="flex justify-between">
@@ -94,11 +91,11 @@ export default function InvoiceDetailPage() {
 
         <section className="mt-5 rounded-2xl border border-navy-900/10 p-4">
           <h2 className="font-bold">Giấy đề nghị thanh toán</h2>
-          {inv.status === "cancelled" || totalCollectible(inv) <= 0 ? <p className="mt-2 text-sm text-slate-500">Hóa đơn đã hủy hoặc đã thu đủ tiền, không xuất đề nghị thanh toán.</p>
-            : inv.payment_request ? <div className="mt-3 flex flex-wrap items-center gap-3">
-              <PaymentRequestDownload id={inv.id} />
-              <Link className="text-sm font-bold text-teal-700" href={`/dashboard/ke-toan/hoa-don/${inv.id}/de-nghi-thanh-toan`}>Xem nội dung đề nghị →</Link>
-            </div> : <p className="mt-2 text-sm text-slate-500">Chưa có thông tin đề nghị thanh toán. Mở chứng từ gốc → Sửa hóa đơn để bổ sung ngày ký, giá trị hợp đồng và thông tin nhận tiền.</p>}
+            {inv.status === "cancelled" || totalCollectible(inv) <= 0 ? <p className="mt-2 text-sm text-slate-500">Hóa đơn đã hủy hoặc đã thu đủ tiền, không xuất đề nghị thanh toán.</p>
+              : inv.payment_request ? <div className="mt-3 flex flex-wrap items-center gap-3">
+                <PaymentRequestDownload id={inv.id} />
+                <Link className="text-sm font-bold text-teal-700" href={`/dashboard/ke-toan/hoa-don/${inv.id}/de-nghi-thanh-toan`}>Xem nội dung đề nghị →</Link>
+              </div> : <p className="mt-2 text-sm text-slate-500">Chưa có thông tin đề nghị thanh toán. Vào mục Kế toán để sửa hóa đơn và bổ sung thông tin cần thiết.</p>}
           <p className="mt-2 text-xs text-slate-500">PDF A4 gửi khách; số tiền đề nghị là số còn phải thu tại thời điểm tải. Không thay thế hóa đơn điện tử thuế.</p>
         </section>
         <h2 className="mt-5 font-display text-base font-extrabold text-navy-900">
@@ -118,8 +115,11 @@ export default function InvoiceDetailPage() {
             </div>
           ))}
         </div>
-        <p className="mt-4 text-xs text-slate-400">
-          Thu tiền / sửa / hủy hóa đơn thực hiện tại trang chứng từ gốc (link ở trên).
+        <p className="mt-4 text-xs text-slate-500">
+          Thu tiền, sửa hoặc hủy hóa đơn trong khu vực Kế toán: {" "}
+          <Link className="font-bold text-teal-700" href={`/dashboard/ke-toan/hoa-don/moi?certificate_id=${inv.ref_id}`}>
+            Quản lý hóa đơn cho hồ sơ này →
+          </Link>
         </p>
       </div>
     </div>

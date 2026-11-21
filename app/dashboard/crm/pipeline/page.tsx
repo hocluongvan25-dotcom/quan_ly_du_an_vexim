@@ -135,7 +135,7 @@ function PipelineBoard() {
           </Link>
           <Link
             href={`/dashboard/crm/co-hoi/moi${pipelineKey ? `?pipeline=${pipelineKey}` : ""}`}
-            className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-bold text-navy-950 hover:bg-teal-400"
+            className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-teal-600"
           >
             <Plus className="h-4 w-4" /> Cơ hội mới
           </Link>
@@ -163,7 +163,7 @@ function PipelineBoard() {
         <div className="flex gap-1 rounded-full border bg-white p-1 shadow-sm">
           <button
             onClick={() => setScope("mine")}
-            className={`rounded-full px-3 py-1.5 text-xs font-bold ${scope === "mine" ? "bg-teal-500 text-navy-950" : "text-slate-600 hover:bg-slate-100"}`}
+            className={`rounded-full px-3 py-1.5 text-xs font-bold ${scope === "mine" ? "bg-teal-500 text-white" : "text-slate-600 hover:bg-slate-100"}`}
           >
             Của tôi
           </button>

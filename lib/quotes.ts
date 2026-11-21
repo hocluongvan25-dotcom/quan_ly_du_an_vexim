@@ -278,7 +278,7 @@ export function prepareQuoteInput(
 ): QuoteDraft {
   const templateKey = raw.template_key;
   if (!isQuoteTemplateKey(templateKey)) {
-    throw new Error("Dịch vụ không hợp lệ. Chọn một trong: FDA, GACC, Sale xuất khẩu, Vận hành Amazon.");
+    throw new Error("Chọn FDA hoặc GACC.");
   }
   // Bảng giá đã resolve (DB ưu tiên hơn file) — dùng làm giá trị mặc định cho các trường client bỏ trống.
   const fallback = template || getQuoteTemplate(templateKey)!;

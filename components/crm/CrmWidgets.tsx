@@ -30,7 +30,7 @@ export function HealthDot({ health }: { health: "good" | "warning" | "danger" })
     health === "danger"
       ? "bg-rose-500"
       : health === "warning"
-        ? "bg-amber-400"
+        ? "bg-blue-400"
         : "bg-emerald-500";
   return <span className={`inline-block h-2.5 w-2.5 rounded-full ${cls}`} title={health} />;
 }
@@ -46,7 +46,7 @@ export function AlertBadges({ opp }: { opp: CrmOpportunityEnriched }) {
           className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${
             a.type === "sla" || a.type === "stale"
               ? "bg-rose-100 text-rose-700 border border-rose-200"
-              : "bg-amber-100 text-amber-800 border border-amber-200"
+              : "bg-blue-100 text-blue-800 border border-blue-200"
           }`}
         >
           <AlertTriangle className="h-3 w-3" />
@@ -59,14 +59,14 @@ export function AlertBadges({ opp }: { opp: CrmOpportunityEnriched }) {
 
 export function MigrationWarning({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+    <div className="rounded-2xl border border-blue-300 bg-blue-50 p-4 text-sm text-blue-900">
       <div className="flex items-center gap-2 font-bold">⚠️ Chưa chạy migration CRM trên Supabase</div>
       <div className="mt-2 leading-relaxed">{text}</div>
       <div className="mt-3 rounded-xl bg-slate-900 p-3 font-mono text-xs leading-relaxed text-white">
         <div>1. Vào Supabase Dashboard → SQL Editor</div>
         <div>2. Mở file supabase/schema.sql, copy toàn bộ và chạy</div>
         <div>
-          3. Chạy thêm lệnh: <span className="text-amber-300">NOTIFY pgrst, 'reload schema';</span>
+          3. Chạy thêm lệnh: <span className="text-blue-300">NOTIFY pgrst, 'reload schema';</span>
         </div>
         <div>4. Đợi 10s rồi reload trang này</div>
       </div>
@@ -151,7 +151,7 @@ export function OppCard({
               )}
             </>
           ) : (
-            <div className="font-bold text-amber-700">— Chưa có, cần bổ sung —</div>
+            <div className="font-bold text-blue-700">— Chưa có, cần bổ sung —</div>
           )}
         </div>
       )}
@@ -207,7 +207,6 @@ export function MoveStageModal({
     owner: string;
     email: string;
     rawValue: number;
-    autoContract: { id: number; contract_no: string; started_at: string; cycle_months: number } | null;
   } | null>(null);
 
   const target = stages.find((s) => s.id === targetId);
@@ -240,7 +239,6 @@ export function MoveStageModal({
           owner: d.opp.owner_name || "",
           email: d.opp.contact_email || "",
           rawValue: d.opp.estimated_value || 0,
-          autoContract: d.autoContract || null,
         });
       } else {
         onClose();
@@ -263,7 +261,6 @@ export function MoveStageModal({
           pipelineKey={pipeline.key}
           contactEmail={wonInfo.email}
           estimatedValue={wonInfo.rawValue}
-          autoContract={wonInfo.autoContract}
           onClose={onClose}
         />
       )}
@@ -310,7 +307,7 @@ export function MoveStageModal({
         )}
 
         {needCriteria && current && (
-          <div className="mt-4 rounded-2xl border border-navy-900/10 bg-[#fffaf0] p-4">
+          <div className="mt-4 rounded-2xl border border-navy-900/10 bg-[#f2f2f7] p-4">
             <div className="text-xs font-bold uppercase tracking-wider text-navy-900/50">
               Điều kiện rời “{current.name}”
             </div>
@@ -325,7 +322,7 @@ export function MoveStageModal({
                       type="checkbox"
                       checked={!!checklist[c.key]}
                       onChange={(e) => setChecklist({ ...checklist, [c.key]: e.target.checked })}
-                      className="mt-1 h-4 w-4 accent-amber-600"
+                      className="mt-1 h-4 w-4 accent-blue-600"
                     />
                     <span className="font-medium">
                       {c.label}

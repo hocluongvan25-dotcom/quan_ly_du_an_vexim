@@ -17,23 +17,23 @@ import type { QuoteLine } from "./quote-templates";
  * Cùng bộ font Tinos đã bundle (đủ dấu tiếng Việt), không phụ thuộc font hệ thống.
  * ========================================================================== */
 
-/* Bảng màu thương hiệu: xanh navy chủ đạo, điểm xuyết vàng đồng sang trọng. */
-const NAVY = rgb(0.043, 0.094, 0.216);          // #0B1837 — dải nhận diện, chữ tiêu đề, khối tổng
-const NAVY_DEEP = rgb(0.024, 0.055, 0.137);     // #060E23 — nền khối tổng cộng
-const INK = rgb(0.075, 0.118, 0.235);           // #131E3C — chữ nội dung
-const GOLD = rgb(0.788, 0.612, 0.145);          // #C99C25 — điểm nhấn vàng đồng
-const GOLD_DEEP = rgb(0.514, 0.396, 0.075);     // #836514 — chữ vàng đậm trên nền sáng
-const GOLD_LIGHT = rgb(0.949, 0.855, 0.588);    // #F2DA96 — chữ vàng trên nền navy
-const IVORY = rgb(0.973, 0.957, 0.925);         // #F8F4EC — dải phụ
-const NAVY_TINT = rgb(0.949, 0.961, 0.980);     // #F2F5FA — dòng kẻ chẵn
-const GREY = rgb(0.42, 0.45, 0.52);
-const LINE_GREY = rgb(0.85, 0.87, 0.91);
+/* Neutral ink, cool grays and Apple-style blue accents for the quote document. */
+const GRAPHITE = rgb(0.114, 0.114, 0.122);         // #1D1D1F — headings and document bands
+const GRAPHITE_DEEP = rgb(0.071, 0.071, 0.075);    // #121213 — total panel
+const INK = rgb(0.114, 0.114, 0.122);          // #1D1D1F — body copy
+const ACCENT = rgb(0, 0.443, 0.890);             // #0071E3 — blue accent
+const ACCENT_DARK = rgb(0.027, 0.373, 0.741);    // #075FBD — blue labels on light backgrounds
+const ACCENT_LIGHT = rgb(0.863, 0.922, 1);       // #DCEBFF — accent text on dark backgrounds
+const PANEL_TINT = rgb(0.949, 0.949, 0.969);        // #F2F2F7 — secondary panels
+const NEUTRAL_TINT = rgb(0.949, 0.949, 0.969);    // #F2F2F7 — alternating rows
+const GREY = rgb(0.42, 0.42, 0.45);
+const LINE_GREY = rgb(0.85, 0.85, 0.88);
 const WHITE = rgb(1, 1, 1);
 
 // Giữ tên cũ để phần thân file không phải đổi hết, nhưng trỏ về bảng màu mới.
-const BRAND_DARK = NAVY;
-const BRAND_GOLD = GOLD;
-const BRAND_LIGHT = NAVY_TINT;
+const BRAND_INK = GRAPHITE;
+const BRAND_ACCENT = ACCENT;
+const BRAND_TINT = NEUTRAL_TINT;
 
 /**
  * Font đi kèm repo (đủ dấu tiếng Việt). Thử theo thư mục làm việc rồi tới thư mục
@@ -123,7 +123,7 @@ class QuotePdf {
     // Full embedding avoids composite-glyph loss in Vietnamese when subsetting Tinos.
     const [regular, bold, italic] = await Promise.all(bytes.map((b) => this.pdf.embedFont(b, { subset: false })));
     this.fonts = { regular, bold, italic };
-    // Logo wordmark "VeximGlobal" (bản trắng cho dải navy; bản mực cho nền sáng).
+    // Logo wordmark "VeximGlobal" (bản trắng cho dải graphite; bản mực cho nền sáng).
     const [wordmarkWhite, wordmarkInk] = await Promise.all([readAsset("logo-wordmark-white.png"), readAsset("logo-wordmark.png")]);
     this.logos = {
       white: await this.pdf.embedPng(wordmarkWhite),
@@ -133,8 +133,8 @@ class QuotePdf {
   }
 
   /** Vẽ logo wordmark với chiều cao cho trước, giữ đúng tỉ lệ gốc. */
-  drawLogo(x: number, centerY: number, height: number, onNavy = true) {
-    const logo = onNavy ? this.logos.white : this.logos.ink;
+  drawLogo(x: number, centerY: number, height: number, onDark = true) {
+    const logo = onDark ? this.logos.white : this.logos.ink;
     const width = (logo.width / logo.height) * height;
     this.page.drawImage(logo, { x, y: centerY - height / 2, width, height });
     return width;
@@ -150,12 +150,12 @@ class QuotePdf {
   }
 
   /**
-   * Dải nhận diện thương hiệu ở đầu trang: nền navy, chỉ logo (không slogan),
-   * một dòng kẻ vàng đồng mảnh phía dưới và bên phải là tiêu đề báo giá.
+   * Dải nhận diện thương hiệu ở đầu trang: nền graphite, chỉ logo (không slogan),
+   * một dòng kẻ xanh dương mảnh phía dưới và bên phải là tiêu đề báo giá.
    */
   band(height: number, full = false) {
-    this.page.drawRectangle({ x: 0, y: this.H - height, width: this.W, height, color: NAVY });
-    this.page.drawRectangle({ x: 0, y: this.H - height, width: this.W, height: 1.6, color: GOLD });
+    this.page.drawRectangle({ x: 0, y: this.H - height, width: this.W, height, color: GRAPHITE });
+    this.page.drawRectangle({ x: 0, y: this.H - height, width: this.W, height: 1.6, color: ACCENT });
     const centerY = this.H - height / 2;
     if (full) {
       // Logo lớn, đặt giữa dải; tiêu đề báo giá nằm bên phải (vẽ ở generateQuotePdf).
@@ -166,7 +166,7 @@ class QuotePdf {
     const label = "BÁO GIÁ DỊCH VỤ";
     this.page.drawText(label, {
       x: this.right - this.fonts.bold.widthOfTextAtSize(label, 10),
-      y: centerY - 3.5, font: this.fonts.bold, size: 10, color: GOLD_LIGHT,
+      y: centerY - 3.5, font: this.fonts.bold, size: 10, color: ACCENT_LIGHT,
     });
     void logoWidth;
   }
@@ -229,9 +229,9 @@ class QuotePdf {
     this.y -= gapBefore;
     // Chừa đủ chỗ cho tiêu đề + 2 dòng nội dung để tiêu đề không bị lạc ở cuối trang.
     this.ensure(46);
-    this.page.drawRectangle({ x: this.left, y: this.y - 15, width: 3, height: 13, color: BRAND_GOLD });
+    this.page.drawRectangle({ x: this.left, y: this.y - 15, width: 3, height: 13, color: BRAND_ACCENT });
     this.page.drawText(text.toUpperCase(), {
-      x: this.left + 8, y: this.y - 13, font: this.fonts.bold, size: 10, color: BRAND_DARK,
+      x: this.left + 8, y: this.y - 13, font: this.fonts.bold, size: 10, color: BRAND_INK,
     });
     this.y -= 20;
   }
@@ -254,7 +254,7 @@ class QuotePdf {
     const bulletWidth = 14;
     for (const item of items) {
       this.ensure(2 * 13.5 + 4);
-      this.write("•", { x: this.left, width: bulletWidth, size: 10, color: BRAND_GOLD });
+      this.write("•", { x: this.left, width: bulletWidth, size: 10, color: BRAND_ACCENT });
       this.y += 13.5;
       this.write(item, { x: this.left, width: this.width, indent: bulletWidth, size: 10 });
       this.y -= gap;
@@ -276,7 +276,7 @@ class QuotePdf {
     const header = () => {
       const height = 18;
       this.ensure(height + 6);
-      this.page.drawRectangle({ x: this.left, y: this.y - height, width: this.width, height, color: BRAND_DARK });
+      this.page.drawRectangle({ x: this.left, y: this.y - height, width: this.width, height, color: BRAND_INK });
       let x = this.left;
       for (const col of cols) {
         const w = col.width * scale;
@@ -300,16 +300,16 @@ class QuotePdf {
       if (this.pdf.getPageCount() !== pageBefore) header();
       const top = this.y;
       if (kind === "caption") {
-        this.page.drawRectangle({ x: this.left, y: top - height, width: this.width, height, color: IVORY });
-        this.page.drawRectangle({ x: this.left, y: top - height, width: 2.5, height, color: GOLD });
+this.page.drawRectangle({ x: this.left, y: top - height, width: this.width, height, color: PANEL_TINT });
+        this.page.drawRectangle({ x: this.left, y: top - height, width: 2.5, height, color: ACCENT });
         this.page.drawText("DỊCH VỤ ĐI KÈM — chưa tính vào tổng, Quý khách có thể chọn thêm", {
-          x: this.left + 8, y: top - height / 2 - 3, font: this.fonts.bold, size: 8.5, color: GOLD_DEEP,
+          x: this.left + 8, y: top - height / 2 - 3, font: this.fonts.bold, size: 8.5, color: ACCENT_DARK,
         });
         this.y = top - height;
         return;
       }
       if (!item) return;
-      if (index % 2 === 1) this.page.drawRectangle({ x: this.left, y: top - height, width: this.width, height, color: NAVY_TINT });
+      if (index % 2 === 1) this.page.drawRectangle({ x: this.left, y: top - height, width: this.width, height, color: NEUTRAL_TINT });
       const cells = [
         String(index + 1),
         "",
@@ -375,12 +375,12 @@ class QuotePdf {
       [`Thuế VAT ${quote.vat_rate}%`, formatMoney(quote.vat_amount)],
     ];
     this.y -= 6;
-    // Panel tạm tính: nền xanh navy rất nhạt, viền trái vàng đồng, đường kẻ mảnh phân dòng.
+    // Panel tạm tính: nền xám lạnh rất nhạt, viền trái xanh dương, đường kẻ mảnh phân dòng.
     const panelTop = this.y;
     const panelHeight = rows.length * 17 + 8;
     this.ensure(panelHeight + 4);
-    this.page.drawRectangle({ x, y: panelTop - panelHeight, width: blockWidth, height: panelHeight, color: NAVY_TINT });
-    this.page.drawRectangle({ x, y: panelTop - panelHeight, width: 2.5, height: panelHeight, color: GOLD });
+    this.page.drawRectangle({ x, y: panelTop - panelHeight, width: blockWidth, height: panelHeight, color: NEUTRAL_TINT });
+    this.page.drawRectangle({ x, y: panelTop - panelHeight, width: 2.5, height: panelHeight, color: ACCENT });
     this.y = panelTop - 4;
     rows.forEach(([label, value], index) => {
       const top = this.y;
@@ -397,13 +397,13 @@ class QuotePdf {
     });
     this.ensure(28);
     const height = 24;
-    this.page.drawRectangle({ x, y: this.y - height, width: blockWidth, height, color: NAVY_DEEP });
-    this.page.drawRectangle({ x, y: this.y - height, width: 3, height, color: GOLD });
+    this.page.drawRectangle({ x, y: this.y - height, width: blockWidth, height, color: GRAPHITE_DEEP });
+    this.page.drawRectangle({ x, y: this.y - height, width: 3, height, color: ACCENT });
     this.page.drawText("TỔNG CỘNG (đã gồm VAT)", { x: x + 10, y: this.y - 16, font: this.fonts.bold, size: 10.5, color: WHITE });
     const totalText = formatMoney(quote.total);
     this.page.drawText(totalText, {
       x: x + blockWidth - 10 - this.fonts.bold.widthOfTextAtSize(totalText, 12),
-      y: this.y - 17, font: this.fonts.bold, size: 12, color: GOLD_LIGHT,
+      y: this.y - 17, font: this.fonts.bold, size: 12, color: ACCENT_LIGHT,
     });
     this.y -= height + 6;
     this.write(`Bằng chữ: ${quote.total_in_words}.`, { x, width: blockWidth, font: this.fonts.italic, size: 9, color: GREY });
@@ -422,7 +422,7 @@ class QuotePdf {
         start: { x: this.left, y: 14 * this.mm + 14 },
         end: { x: this.right, y: 14 * this.mm + 14 },
         thickness: 0.6,
-        color: GOLD,
+        color: ACCENT,
       });
       const text = `${COMPANY.legal} · ${COMPANY.address}`;
       page.drawText(text, { x: this.left, y: 14 * this.mm, font: this.fonts.regular, size: 7.5, color: GREY });
@@ -460,7 +460,7 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
   doc.page.drawText(noText, {
     x: doc.right - doc.fonts.regular.widthOfTextAtSize(noText, 9.5),
     y: doc.H - 55,
-    font: doc.fonts.regular, size: 9.5, color: GOLD_LIGHT,
+    font: doc.fonts.regular, size: 9.5, color: ACCENT_LIGHT,
   });
   doc.y = doc.H - 30 * doc.mm - 22;
 
@@ -468,7 +468,7 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
   const rightX = doc.left + columnWidth + 16;
   const startY = doc.y;
 
-  doc.write("ĐƠN VỊ BÁO GIÁ", { width: columnWidth, font: doc.fonts.bold, size: 9, color: BRAND_GOLD, gap: 2 });
+  doc.write("ĐƠN VỊ BÁO GIÁ", { width: columnWidth, font: doc.fonts.bold, size: 9, color: BRAND_ACCENT, gap: 2 });
   doc.write(COMPANY.legal, { width: columnWidth, font: doc.fonts.bold, size: 11 });
   doc.write(`Địa chỉ: ${COMPANY.address}`, { width: columnWidth, size: 9.5, gap: 1 });
   doc.write(`Điện thoại: ${COMPANY.phone}   ·   Email: ${COMPANY.email}`, { width: columnWidth, size: 9.5, gap: 1 });
@@ -476,7 +476,7 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
   const leftBottom = doc.y;
 
   doc.y = startY;
-  doc.write("KÍNH GỬI QUÝ KHÁCH HÀNG", { x: rightX, width: columnWidth, font: doc.fonts.bold, size: 9, color: BRAND_GOLD, gap: 2 });
+  doc.write("KÍNH GỬI QUÝ KHÁCH HÀNG", { x: rightX, width: columnWidth, font: doc.fonts.bold, size: 9, color: BRAND_ACCENT, gap: 2 });
   doc.write(quote.company_name, { x: rightX, width: columnWidth, font: doc.fonts.bold, size: 11, gap: 1 });
   if (quote.company_address) doc.write(`Địa chỉ: ${quote.company_address}`, { x: rightX, width: columnWidth, size: 9.5, gap: 1 });
   if (quote.company_tax_code) doc.write(`Mã số thuế: ${quote.company_tax_code}`, { x: rightX, width: columnWidth, size: 9.5, gap: 1 });
@@ -501,12 +501,12 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
   const infoTop = doc.y;
   const infoCol = doc.width / infoRows.length;
   // Nền trước, chữ sau — nhãn và giá trị nằm gọn trong dải nhấn.
-  doc.page.drawRectangle({ x: doc.left, y: infoTop - 32, width: doc.width, height: 32, color: NAVY_TINT });
-  doc.page.drawRectangle({ x: doc.left, y: infoTop - 32, width: 3, height: 32, color: GOLD });
+  doc.page.drawRectangle({ x: doc.left, y: infoTop - 32, width: doc.width, height: 32, color: NEUTRAL_TINT });
+  doc.page.drawRectangle({ x: doc.left, y: infoTop - 32, width: 3, height: 32, color: ACCENT });
   infoRows.forEach(([label, value], index) => {
     const x = doc.left + infoCol * index;
-    doc.page.drawText(label.toUpperCase(), { x: x + 8, y: infoTop - 12, font: doc.fonts.bold, size: 7.5, color: GOLD_DEEP });
-    doc.page.drawText(value, { x: x + 8, y: infoTop - 25, font: doc.fonts.bold, size: 10, color: BRAND_DARK });
+    doc.page.drawText(label.toUpperCase(), { x: x + 8, y: infoTop - 12, font: doc.fonts.bold, size: 7.5, color: ACCENT_DARK });
+    doc.page.drawText(value, { x: x + 8, y: infoTop - 25, font: doc.fonts.bold, size: 10, color: BRAND_INK });
   });
   doc.y = infoTop - 42;
 
@@ -569,8 +569,8 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
   if (bankRows.length && doc.y - bankHeight - 150 - SIGNATURE_TOP_GAP >= doc.bottom) {
     doc.y -= 6;
     const bankTop = doc.y;
-    doc.page.drawRectangle({ x: doc.left, y: bankTop - bankHeight, width: doc.width, height: bankHeight, color: NAVY_TINT });
-    doc.page.drawRectangle({ x: doc.left, y: bankTop - bankHeight, width: 3, height: bankHeight, color: GOLD });
+    doc.page.drawRectangle({ x: doc.left, y: bankTop - bankHeight, width: doc.width, height: bankHeight, color: NEUTRAL_TINT });
+    doc.page.drawRectangle({ x: doc.left, y: bankTop - bankHeight, width: 3, height: bankHeight, color: ACCENT });
     let bankX = doc.left;
     for (const [label, value, ratio] of bankRows) {
       const colWidth = doc.width * ratio;
@@ -581,7 +581,7 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
         text = text.slice(0, -2);
       }
       if (text !== value) text = `${text.trimEnd()}…`;
-      doc.page.drawText(label.toUpperCase(), { x: bankX + 8, y: bankTop - 12, font: doc.fonts.bold, size: 7.5, color: GOLD_DEEP });
+      doc.page.drawText(label.toUpperCase(), { x: bankX + 8, y: bankTop - 12, font: doc.fonts.bold, size: 7.5, color: ACCENT_DARK });
       doc.page.drawText(text, { x: bankX + 8, y: bankTop - 25, font: doc.fonts.bold, size, color: INK });
       bankX += colWidth;
     }
@@ -605,14 +605,14 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
   const signRightX = doc.left + doc.width * sumRatios([PAYMENT_COL_RATIOS[0], PAYMENT_COL_RATIOS[1]]);
   const signRightWidth = doc.right - signRightX;
 
-  doc.page.drawText("ĐẠI DIỆN KHÁCH HÀNG", { x: doc.left, y: signTop - 12, font: doc.fonts.bold, size: 10, color: NAVY });
-  doc.page.drawLine({ start: { x: doc.left, y: signTop - 15.5 }, end: { x: doc.left + 52, y: signTop - 15.5 }, thickness: 1.4, color: GOLD });
+  doc.page.drawText("ĐẠI DIỆN KHÁCH HÀNG", { x: doc.left, y: signTop - 12, font: doc.fonts.bold, size: 10, color: GRAPHITE });
+  doc.page.drawLine({ start: { x: doc.left, y: signTop - 15.5 }, end: { x: doc.left + 52, y: signTop - 15.5 }, thickness: 1.4, color: ACCENT });
   doc.page.drawText("(Ký, ghi rõ họ tên, đóng dấu nếu có)", { x: doc.left, y: signTop - 24, font: doc.fonts.italic, size: 8.5, color: GREY });
   doc.page.drawText(
     "ĐẠI DIỆN VEXIM GLOBAL",
-    { x: signRightX, y: signTop - 12, font: doc.fonts.bold, size: 10, color: NAVY }
+    { x: signRightX, y: signTop - 12, font: doc.fonts.bold, size: 10, color: GRAPHITE }
   );
-  doc.page.drawLine({ start: { x: signRightX, y: signTop - 15.5 }, end: { x: signRightX + 52, y: signTop - 15.5 }, thickness: 1.4, color: GOLD });
+  doc.page.drawLine({ start: { x: signRightX, y: signTop - 15.5 }, end: { x: signRightX + 52, y: signTop - 15.5 }, thickness: 1.4, color: ACCENT });
   doc.page.drawText(
     QUOTE_DEFAULTS.signer_title,
     { x: signRightX, y: signTop - 24, font: doc.fonts.bold, size: 8.5, color: GREY }
@@ -623,7 +623,7 @@ export async function generateQuotePdf(quote: QuoteView): Promise<Uint8Array> {
   doc.page.drawLine({ start: { x: signRightX, y: lineY }, end: { x: signRightX + signRightWidth, y: lineY }, thickness: 0.5, color: LINE_GREY });
   doc.page.drawText(
     QUOTE_DEFAULTS.signer_name,
-    { x: signRightX, y: lineY - 14, font: doc.fonts.bold, size: 11, color: BRAND_DARK }
+    { x: signRightX, y: lineY - 14, font: doc.fonts.bold, size: 11, color: BRAND_INK }
   );
   doc.y = lineY - 24;
 

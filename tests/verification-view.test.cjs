@@ -97,7 +97,7 @@ test('expired and unconfirmed records never display Certificate Verified or a va
 test('hồ sơ hết hạn trên trang QR phải có khối gọi gia hạn ngay (tel + Zalo)', () => {
   const expired = render({ expires_at: '2026-09-19' });
   assert.ok(expired.includes('renewCallout'), 'phải có khối gia hạn');
-  assert.ok(expired.includes('Đăng ký đã hết hiệu lực — cần gia hạn trước lô hàng tiếp theo'));
+  assert.ok(expired.includes('Đăng ký đã hết hiệu lực. Hãy gia hạn trước lô hàng tiếp theo.'));
   assert.ok(expired.includes('nguy cơ bị giữ hoặc bị từ chối nhập khẩu'), 'phải nêu hậu quả lô hàng');
   assert.ok(expired.includes('href="tel:0373685634"'), 'nút gọi hotline');
   assert.ok(expired.includes('Gọi gia hạn ngay · 0373 685 634'));
@@ -106,7 +106,7 @@ test('hồ sơ hết hạn trên trang QR phải có khối gọi gia hạn ngay
 
   // Bản tiếng Anh cũng phải có, không lẫn tiếng Việt
   const expiredEn = render({ expires_at: '2026-09-19' }, 'en');
-  assert.ok(expiredEn.includes('Registration expired — renew before your next shipment'));
+  assert.ok(expiredEn.includes('Registration expired. Renew before your next shipment.'));
   assert.ok(expiredEn.includes('Call to renew now') && expiredEn.includes('Chat on Zalo'));
   assert.ok(expiredEn.includes('refused at import'), 'nội dung rủi ro bản tiếng Anh');
   assert.ok(!expiredEn.includes('Gọi gia hạn ngay') && !expiredEn.includes('Chat Zalo'), 'không lẫn chữ tiếng Việt');
@@ -123,10 +123,9 @@ test('rendered public record retains the approved snapshot and no private data',
   const html = renderToStaticMarkup(React.createElement(VerifyView, { cert: publicCertificate(input), checkedAt, locale: "vi" }));
   for (const secret of ['999123', 'private@example.test', 'UNAPPROVED NAME', 'UNAPPROVED SCOPE']) assert.ok(!html.includes(secret));
   assert.ok(html.includes('Example Foods'));
-  assert.ok(html.includes('Hồ sơ đã sẵn sàng bạn đã có phương án đưa sản phẩm vào Mỹ chưa?'));
-  assert.ok(html.includes('Khám phá mô hình phòng sale xuất khẩu &amp; Vận hành Amazon tại Vexim'));
-  assert.ok(html.includes('https://veximtrade.com'));
-  assert.ok(html.includes('https://veximops.com'));
+  for (const removed of ['Amazon', 'Export Sales', 'veximtrade.com', 'veximops.com', 'consultation', 'Đăng ký tư vấn']) {
+    assert.ok(!html.toLowerCase().includes(removed.toLowerCase()), `public verification must not promote ${removed}`);
+  }
 });
 
 const { resolveVerificationLocale, verificationLanguageUrl, verificationText } = require('../lib/verification-i18n.ts');
@@ -156,17 +155,17 @@ test('language/share URLs keep the same QR and unrelated query parameters', () =
   assert.equal(result.searchParams.getAll('lang').length, 1);
 });
 
-test('English translates both FDA/GACC UI and service descriptions, without translating stored data', () => {
+test('English translates FDA/GACC verification UI without translating stored data or adding service promotions', () => {
   for (const standard of ['FDA', 'GACC']) {
     const patch = { standard, company_name: 'Công ty Việt Nam', scope: 'Nông sản và thực phẩm đông lạnh',
       duns_code: '123456789', us_agent: 'Registered Agent LLC', renewal_count: 1, last_renewed_at: '2026-08-01' };
     const html = render(patch, 'en');
     assert.ok(html.includes('lang="en"'));
     for (const text of ['Company information', 'Registration details', 'Registration authority', 'Country of registration',
-      'Registration date', 'Expiry date', 'Validity status', 'Share result', 'Check again', 'Last renewed',
-      'U.S. Export Sales Team', 'Amazon U.S. Operations', 'Request a consultation']) assert.ok(html.includes(text), text);
+      'Registration date', 'Expiry date', 'Validity status', 'Share result', 'Check again', 'Last renewed']) assert.ok(html.includes(text), text);
+    for (const removed of ['Amazon', 'Export Sales', 'consultation', 'veximtrade.com', 'veximops.com']) assert.ok(!html.toLowerCase().includes(removed.toLowerCase()), removed);
     for (const text of [patch.company_name, patch.scope, patch.registration_code || cert.registration_code, cert.public_code]) assert.ok(html.includes(text));
-    for (const text of ['Thông tin doanh nghiệp', 'Chi tiết đăng ký', 'Còn hiệu lực', 'Đăng ký tư vấn', 'Hồ sơ đã sẵn sàng']) assert.ok(!html.includes(text));
+    for (const text of ['Thông tin doanh nghiệp', 'Chi tiết đăng ký', 'Còn hiệu lực']) assert.ok(!html.includes(text));
     if (standard === 'FDA') assert.ok(html.includes('U.S. Agent'));
     else assert.ok(!html.includes('DUNS® number'));
     // Language changes text, not the table/section structure or styling.
@@ -192,8 +191,8 @@ test('every validity state has English text but identical state and dates', () =
   assert.equal(formatRegistrationDate('', 'en'), '—');
 });
 
-test('feedback and form validation messages are available in both languages', () => {
-  for (const key of ['copySuccess', 'copyFailure', 'invalidContact', 'sendFailed', 'consultationSuccess', 'contactName', 'contactPhone', 'send', 'sending', 'close']) {
+test('copy feedback messages are available in both languages', () => {
+  for (const key of ['copySuccess', 'copyFailure']) {
     assert.ok(verificationText('en', key));
     assert.ok(!/[À-ỹ]/.test(verificationText('en', key)));
     assert.notEqual(verificationText('en', key), verificationText('vi', key));

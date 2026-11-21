@@ -93,11 +93,9 @@ function groupTrend(
 }
 
 const PIPELINE_TABS = [
-  { key: "", label: "Tất cả dịch vụ" },
+  { key: "", label: "Tất cả" },
   { key: "FDA", label: "FDA" },
   { key: "GACC", label: "GACC" },
-  { key: "SALE_EXPORT", label: "Sale XK Mỹ" },
-  { key: "AMAZON_OPS", label: "Amazon US" },
 ];
 
 export default function CrmDashboardPage() {
@@ -173,7 +171,7 @@ export default function CrmDashboardPage() {
           </Link>
           <Link
             href="/dashboard/crm/co-hoi/moi"
-            className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-bold text-navy-950 hover:bg-teal-400"
+            className="flex items-center gap-1.5 rounded-xl bg-teal-500 px-4 py-2.5 text-sm font-bold text-white hover:bg-teal-600"
           >
             <Plus className="h-4 w-4" /> Cơ hội mới
           </Link>
@@ -214,7 +212,7 @@ export default function CrmDashboardPage() {
               label="Cần follow-up"
               value={String(data.followupToday)}
               hint="Đến hạn hôm nay hoặc đã trễ"
-              tone={data.followupToday > 0 ? "amber" : "green"}
+              tone={data.followupToday > 0 ? "blue" : "green"}
             />
             <Kpi
               icon={<Flame className="h-5 w-5" />}
@@ -228,7 +226,7 @@ export default function CrmDashboardPage() {
               label="Thiếu bước tiếp theo"
               value={String(data.missingAction)}
               hint="Cơ hội mở nhưng chưa có next action"
-              tone={data.missingAction > 0 ? "amber" : "green"}
+              tone={data.missingAction > 0 ? "blue" : "green"}
             />
           </div>
 
@@ -257,7 +255,7 @@ export default function CrmDashboardPage() {
                       {p.name}
                       <span
                         className={`rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
-                          active ? "bg-teal-500 text-navy-950" : "bg-white text-navy-900"
+                          active ? "bg-teal-500 text-white" : "bg-white text-navy-900"
                         }`}
                       >
                         {p.openCount}
@@ -372,7 +370,7 @@ export default function CrmDashboardPage() {
                           className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                             a.type === "sla" || a.type === "stale"
                               ? "bg-rose-100 text-rose-700"
-                              : "bg-amber-100 text-amber-800"
+                              : "bg-blue-100 text-blue-800"
                           }`}
                         >
                           {a.label}
@@ -409,7 +407,7 @@ export default function CrmDashboardPage() {
                     <div className="mt-0.5 text-[11px] text-white/60">
                       {o.stage_name} · {o.pipeline_name}
                     </div>
-                    <div className="mt-1 text-xs font-semibold text-amber-300">
+                    <div className="mt-1 text-xs font-semibold text-blue-300">
                       {o.next_action || "⚠ Chưa có bước tiếp theo"}
                     </div>
                     {o.next_action_date && (
@@ -596,7 +594,7 @@ function PeriodSummary({
                   <XAxis dataKey="label" fontSize={11} />
                   <YAxis fontSize={11} />
                   <Tooltip formatter={(v: any) => [`${v} tr`, ""]} />
-                  <Bar dataKey="Giá trị chốt (tr)" fill="#E8B22A" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="Giá trị chốt (tr)" fill="#0071E3" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -642,7 +640,7 @@ function PeriodSummary({
                           r.conversion >= 50
                             ? "bg-emerald-100 text-emerald-700"
                             : r.conversion > 0
-                              ? "bg-amber-100 text-amber-800"
+                              ? "bg-blue-100 text-blue-800"
                               : "bg-slate-100 text-slate-500"
                         }`}
                       >
@@ -652,7 +650,7 @@ function PeriodSummary({
                     <td className="py-2 text-right font-bold text-teal-700">{formatCrmValue(r.wonValue)}</td>
                   </tr>
                 ))}
-                <tr className="border-t-2 border-navy-900/15 bg-[#fffaf0] font-extrabold">
+                <tr className="border-t-2 border-navy-900/15 bg-[#f2f2f7] font-extrabold">
                   <td className="py-2">Tổng</td>
                   <td className="py-2 text-right">{totals.created}</td>
                   <td className="py-2 text-right text-emerald-600">{totals.won}</td>
@@ -680,13 +678,13 @@ function Kpi({
   label: string;
   value: string;
   hint: string;
-  tone: "navy" | "amber" | "red" | "green";
+  tone: "navy" | "blue" | "red" | "green";
 }) {
   const toneCls =
     tone === "red"
       ? "bg-rose-50 text-rose-600"
-      : tone === "amber"
-        ? "bg-amber-50 text-amber-600"
+      : tone === "blue"
+        ? "bg-blue-50 text-blue-600"
         : tone === "green"
           ? "bg-emerald-50 text-emerald-600"
           : "bg-teal-50 text-teal-700";

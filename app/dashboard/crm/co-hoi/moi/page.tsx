@@ -19,7 +19,7 @@ function CreateForm() {
     company_name: sp.get("company") || "",
     contact_name: sp.get("contact") || "",
     contact_phone: sp.get("phone") || "",
-    contact_email: "",
+    contact_email: sp.get("email") || "",
     industry: "",
     source: sp.get("source") || "",
     estimated_value: "",
@@ -81,7 +81,7 @@ function CreateForm() {
         <p className="text-xs font-semibold uppercase tracking-[0.24em] text-teal-700">CRM Vận hành</p>
         <h1 className="mt-1 font-display text-3xl font-extrabold text-navy-900">Tạo cơ hội mới</h1>
         <p className="mt-1 text-sm text-navy-900/60">
-          Cơ hội mới luôn bắt đầu ở “Lead mới”. Hãy gán Owner và hẹn bước tiếp theo ngay.
+          Cơ hội mới luôn bắt đầu ở “Mới tiếp nhận”. Hãy gán Owner và hẹn bước tiếp theo ngay.
         </p>
       </div>
 

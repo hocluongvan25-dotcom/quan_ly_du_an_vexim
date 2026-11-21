@@ -68,22 +68,6 @@ test('manual contract number persists, is searchable and does not change VAT', (
   assert.equal(db.listInvoices({ q: 'hđdv-vexim' }).find(i => i.id === id).contract_no, inv.contract_no);
 });
 
-test('service invoices snapshot the source number, allow override/clear, never rename the source', () => {
-  const ref_id = db.createServiceContract({ service_type: 'AMAZON_OPS', company_name: 'Test company', started_at: '2026-09-20', cycle_months: 6 }, 1);
-  const contractNo = db.getServiceContract(ref_id).contract_no;
-  const id = create({ ref_type: 'service_contract', ref_id });
-  assert.equal(db.getInvoice(id).contract_no, contractNo);
-  const override = create({ ref_type: 'service_contract', ref_id, contract_no: 'CLIENT-002' });
-  assert.equal(db.getInvoice(override).contract_no, 'CLIENT-002');
-  db.updateInvoice(override, { contract_no: '' });
-  assert.equal(db.getInvoice(override).contract_no, '');
-  assert.equal(db.getServiceContract(ref_id).contract_no, contractNo);
-  const raw = new DatabaseSync('data/vexim.db');
-  raw.prepare('UPDATE service_contracts SET contract_no=? WHERE id=?').run('SOURCE-RENAMED', ref_id);
-  raw.close();
-  assert.equal(db.getInvoice(id).contract_no, contractNo, 'historical reference stays fixed');
-});
-
 test('optional field does not block old clients and unrelated edits preserve it', () => {
   const id = create();
   assert.equal(db.getInvoice(id).contract_no, '');
@@ -122,6 +106,9 @@ test('API admin create/read/update contract number; employee writes remain forbi
   session = null;
   assert.equal((await createApi.POST(request(data))).status, 401);
   session = { id: 1, role: 'admin', name: 'Test Admin' };
+  assert.equal((await createApi.POST(request({ ...data, ref_type: 'service_contract' }))).status, 400, 'invoices only reference certificates');
+  const invalidFilter = await createApi.GET({ nextUrl: new URL('http://test/api/invoices?ref_type=service_contract') });
+  assert.equal(invalidFilter.status, 400, 'unsupported invoice reference filters are rejected');
   const response = await createApi.POST(request({ ...data, contract_no: ' API-REF ' }));
   assert.equal(response.status, 200);
   const { id } = await response.json();
@@ -148,7 +135,6 @@ test('Supabase adapter (mock): create, snapshot default, update and read referen
   const previous = supabase.supabaseAdmin;
   const tables = {
     certificates: [{ id: 1, certificate_no: 'CERT-001', company_name: 'Company', standard: 'FDA' }],
-    service_contracts: [{ id: 1, contract_no: 'SOURCE-001', company_name: 'Company', service_type: 'AMAZON_OPS' }],
     staff_users: [{ id: 1, name: 'Admin', email: 'test@example.com', role: 'admin' }],
     invoices: [], invoice_payments: [],
   };
@@ -182,10 +168,6 @@ test('Supabase adapter (mock): create, snapshot default, update and read referen
     assert.equal(tables.invoices[0].total, total);
     await cloud.updateInvoice(id, { notes: 'Keep reference' });
     assert.equal((await cloud.getInvoice(id)).contract_no, 'CLOUD/EDIT');
-    const service = await cloud.createInvoice({ ...data, ref_type: 'service_contract' }, 1);
-    assert.equal((await cloud.getInvoice(service)).contract_no, 'SOURCE-001');
-    await cloud.updateInvoice(service, { contract_no: '' });
-    assert.equal((await cloud.getInvoice(service)).contract_no, '');
     delete tables.invoices[0].contract_no;
     assert.equal((await cloud.getInvoice(id)).contract_no, '', 'old API row has safe empty fallback');
   } finally { supabase.supabaseAdmin = previous; }

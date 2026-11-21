@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { formatDate, formatVnd, remainingDays, statusLabel, getValidityYears } from "@/lib/utils";
 import { FDA_FIXED_YEARS, GACC_FIXED_YEARS } from "@/lib/types";
 import { certificateRecordState } from "@/lib/certificate-workflow";
-import { AlertTriangle, FileBadge2, ShieldCheck, Wallet, MessageSquare } from "lucide-react";
+import { AlertTriangle, FileBadge2, ShieldCheck, Wallet } from "lucide-react";
 import { useI18n } from "@/lib/i18n/context";
 import type { Certificate } from "@/lib/types";
 
@@ -20,7 +20,6 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [role, setRole] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
-  const [leadsCount, setLeadsCount] = useState<number>(0);
 
   useEffect(() => {
     fetch("/api/certificates")
@@ -38,10 +37,6 @@ export default function DashboardPage() {
         setRole(d.user?.role || "");
         setUserName(d.user?.name || "");
       });
-    fetch("/api/consultation")
-      .then((r) => r.json())
-      .then((d) => setLeadsCount(d.count || 0))
-      .catch(() => {});
   }, []);
 
   // Cùng định nghĩa với bộ lọc ở trang danh sách hồ sơ (certificateRecordState)
@@ -66,21 +61,6 @@ export default function DashboardPage() {
         <h1 className="mt-1 font-display text-3xl font-extrabold text-navy-900">{t("dashboard.overview")}</h1>
         <p className="mt-1 text-sm text-navy-900/60">{t("dashboard.flexibleDesc")}</p>
       </div>
-
-      <Link href="/dashboard/leads" className="block rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-[1px] shadow-card hover:shadow-lg transition-shadow">
-        <div className="rounded-[22px] bg-gradient-to-br from-slate-900 to-slate-800 px-5 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center text-slate-900">
-              <MessageSquare className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-white">Leads Tư Vấn - 2 Dịch Vụ Xuất Khẩu Mỹ {leadsCount > 0 ? `(${leadsCount})` : ""}</div>
-              <div className="text-xs text-white/60">Dữ liệu từ form verify B2B đổ về contact@veximglobal.com + DB + veximtrade.com / veximops.com</div>
-            </div>
-          </div>
-          <div className="text-xs font-bold text-amber-300">Xem ngay →</div>
-        </div>
-      </Link>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
@@ -158,12 +138,12 @@ export default function DashboardPage() {
                         </span>
                       </td>
                       <td className="py-3">
-                        <span className="rounded-full bg-gold-100 px-2 py-0.5 text-xs font-bold text-gold-700">
+                        <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-700">
                           {vy} {vy === 1 ? t("common.year") : t("common.years")}
                         </span>
                       </td>
                       <td className="py-3">{formatDate(c.expires_at)}</td>
-                      <td className={`py-3 font-semibold ${left < 0 ? "text-rose-600" : left <= 90 ? "text-amber-600" : "text-emerald-600"}`}>
+                      <td className={`py-3 font-semibold ${left < 0 ? "text-rose-600" : left <= 90 ? "text-blue-600" : "text-emerald-600"}`}>
                         {left < 0 ? t("dashboard.expired") : `${left} ${t("common.days")}`}
                       </td>
                     </tr>
@@ -187,11 +167,11 @@ export default function DashboardPage() {
               </div>
             </div>
             <div className="rounded-2xl bg-white/10 p-4">
-              <div className="text-xs uppercase tracking-wider text-gold-400">{t("dashboard.gaccFlexible")}</div>
+              <div className="text-xs uppercase tracking-wider text-blue-400">{t("dashboard.gaccFlexible")}</div>
               <div className="mt-1 text-2xl font-extrabold">{t("dashboard.gaccYears")}</div>
               <p className="mt-1 text-sm text-white/65">{t("dashboard.gaccDesc")}</p>
               <div className="mt-2">
-                <span className="rounded-full bg-gold-400/20 px-2 py-0.5 text-[10px] font-bold text-gold-300">
+                <span className="rounded-full bg-blue-400/20 px-2 py-0.5 text-[10px] font-bold text-blue-300">
                   {t("dashboard.fixedYears", { years: GACC_FIXED_YEARS })}
                 </span>
               </div>
@@ -220,8 +200,8 @@ export default function DashboardPage() {
           >
             {t("dashboard.createNew")}
           </Link>
-          <Link href="/dashboard/leads" className="mt-3 block rounded-2xl bg-amber-400 py-3 text-center text-sm font-bold text-slate-900">
-            Leads Tư Vấn ({leadsCount})
+          <Link href="/dashboard/doanh-nghiep" className="mt-3 block rounded-2xl bg-white/10 py-3 text-center text-sm font-semibold text-white hover:bg-white/15">
+            Mở hành trình doanh nghiệp
           </Link>
         </section>
       </div>
