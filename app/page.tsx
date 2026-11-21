@@ -37,7 +37,7 @@ export const metadata: Metadata = {
 
 export default function HomePage() {
   return (
-    <div className="site" lang="vi">
+    <div className="site public-site" lang="vi">
       <HtmlLang lang="vi" />
       <JsonLd lang="vi" />
       <a className="skip-link" href="#main">

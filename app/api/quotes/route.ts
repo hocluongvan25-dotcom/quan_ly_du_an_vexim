@@ -61,12 +61,12 @@ export async function POST(req: NextRequest) {
     // Giá lấy từ Bảng giá dịch vụ (DB) nếu Admin đã chỉnh, nếu không dùng giá mặc định.
     const template = (await loadQuoteTemplate(templateKey))!;
 
-    // Client không gửi items → dùng nguyên mẫu (kèm hạng mục tùy chọn đã chọn).
-    // Có gửi → kiểm tra từng dòng, server vẫn tự tính lại tiền.
+    // Dịch vụ đi kèm được chọn sẽ thành hạng mục chính và được tính vào tổng.
+    // Có gửi danh sách dòng → kiểm tra từng dòng, server vẫn tự tính lại tiền.
     const optionKeys = Array.isArray(body.selected_options) ? body.selected_options.map(String) : [];
-    const optionalLines = template.options.filter((o) => optionKeys.includes(o.key)).map(optionLine);
+    const serviceLines = template.options.filter((o) => optionKeys.includes(o.key)).map(optionLine);
     const items: QuoteLine[] = body.items === undefined
-      ? [...itemsFromTemplate(template), ...optionalLines]
+      ? [...itemsFromTemplate(template), ...serviceLines]
       : normalizeQuoteItems(body.items);
 
     const prepared = {

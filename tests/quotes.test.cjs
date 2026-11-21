@@ -118,7 +118,7 @@ test('chỉ có mẫu FDA/GACC với hạng mục, đơn giá và điều khoả
   assert.deepEqual(templates.QUOTE_TEMPLATES.map((t) => t.key), ['FDA', 'GACC']);
   for (const template of templates.QUOTE_TEMPLATES) {
     assert.ok(template.items.length >= 1, `${template.key} thiếu hạng mục`);
-    assert.ok(template.options.length >= 1, `${template.key} thiếu hạng mục tùy chọn`);
+    assert.ok(template.options.length >= 1, `${template.key} thiếu dịch vụ đi kèm`);
     assert.ok(template.scope.length >= 3 && template.terms.length >= 3, `${template.key} thiếu phạm vi/điều khoản`);
     assert.ok(template.items.every((i) => i.qty > 0 && i.unit_price > 0), `${template.key} có dòng 0 đồng`);
     assert.ok(template.payment_terms.length > 20 && template.timeline.length > 20);
@@ -151,6 +151,32 @@ test('nhân viên tạo báo giá chỉ với thông tin khách hàng — hạng
   assert.deepEqual(quote.documents, templates.getQuoteTemplate('GACC').documents);
 });
 
+test('dịch vụ đi kèm được thêm thành hạng mục chính và cộng vào tổng', async () => {
+  session = { id: STAFF_A, role: 'specialist', name: 'Nhân viên A' };
+  const template = templates.getQuoteTemplate('FDA');
+  const service = template.options[0];
+  const response = await listApi.POST(request({
+    template_key: 'FDA',
+    company_name: 'CÔNG TY CÓ DỊCH VỤ ĐI KÈM',
+    selected_options: [service.key],
+  }));
+  assert.equal(response.status, 200);
+  const { id } = await response.json();
+  const quote = db.getQuote(id);
+  const mainItems = templates.templateItems('FDA');
+  const mainSubtotal = mainItems.reduce((sum, item) => sum + item.qty * item.unit_price, 0);
+  assert.equal(quote.items.length, mainItems.length + 1);
+  assert.equal(quote.items.at(-1).name, service.label);
+  assert.equal(quote.items.at(-1).optional, false);
+  assert.equal(quote.optional_total, 0);
+  assert.equal(quote.subtotal, mainSubtotal + service.qty * service.unit_price);
+  assert.equal(quote.vat_amount, Math.round(quote.subtotal * quote.vat_rate / 100));
+  assert.equal(quote.total, quote.subtotal + quote.vat_amount);
+  const message = quotes.buildQuoteMessage(quote);
+  assert.ok(message.includes(service.label), 'dịch vụ đi kèm nằm trong nội dung hạng mục chính');
+  assert.ok(message.indexOf(service.label) < message.indexOf('Tạm tính:'), 'dịch vụ được liệt kê trước phần tính tổng');
+});
+
 test('số báo giá đánh tiếp từ 0290 theo thực tế, không đánh lại từ 0001', async () => {
   session = { id: ADMIN, role: 'admin', name: 'Test Admin' };
   assert.equal(quotes.QUOTE_NO_START, 290, 'mốc bắt đầu là 290');
@@ -177,8 +203,9 @@ test('số báo giá đánh tiếp từ 0290 theo thực tế, không đánh l�
     const clean = require(modulePath);
     clean.createUser({ email: 'seq@veximglobal.com', name: 'Seq', password: 'Test@1234', role: 'admin' });
     const first = clean.nextQuoteNo();
+    const issueDate = new Date().toISOString().slice(0, 10);
     clean.createQuote(quotes.prepareQuoteInput({
-      template_key: 'FDA', company_name: 'KHÁCH ĐẦU TIÊN', issue_date: '2026-09-22',
+      template_key: 'FDA', company_name: 'KHÁCH ĐẦU TIÊN', issue_date: issueDate,
       items: templates.templateItems('FDA'),
     }), 1);
     const second = clean.nextQuoteNo();
@@ -214,11 +241,11 @@ test('báo giá không gửi VAT/hiệu lực vẫn lấy đúng mặc định c
   assert.equal((await store.loadQuoteTemplate('GACC')).validity_days, templates.getQuoteTemplate('GACC').validity_days);
 });
 
-test('server tự tính lại tiền: bỏ qua tổng do client gửi lên, có chiết khấu và hạng mục tùy chọn', async () => {
+test('server tự tính lại tiền: bỏ qua tổng do client gửi lên, có chiết khấu và dòng chưa cộng vào tổng', async () => {
   session = { id: 1, role: 'admin', name: 'Test Admin' };
   const items = [
     { name: 'Hạng mục chính', unit: 'Gói', qty: 2, unit_price: 10_000_000 },
-    { name: 'Hạng mục tùy chọn', unit: 'Năm', qty: 1, unit_price: 7_000_000, optional: true },
+    { name: 'Dòng tham khảo', unit: 'Năm', qty: 1, unit_price: 7_000_000, optional: true },
   ];
   const id = quickCreate({ items, discount_percent: 10, vat_rate: 8, subtotal: 1, total: 1, vat_amount: 1 });
   const quote = db.getQuote(id);
@@ -226,7 +253,7 @@ test('server tự tính lại tiền: bỏ qua tổng do client gửi lên, có 
   assert.equal(quote.discount_amount, 2_000_000);
   assert.equal(quote.vat_amount, Math.round(18_000_000 * 0.08));
   assert.equal(quote.total, 18_000_000 + quote.vat_amount);
-  assert.equal(quote.optional_total, 7_000_000, 'hạng mục tùy chọn không cộng vào tổng');
+  assert.equal(quote.optional_total, 7_000_000, 'dòng tham khảo không cộng vào tổng');
   assert.equal(quote.total_in_words, moneyInWords(quote.total));
   assert.equal(quote.state, 'draft');
   assert.equal(quote.days_left, quotes.quoteDaysLeft({ valid_until: quote.valid_until }), 'số ngày còn lại tính từ hiệu lực');
@@ -239,7 +266,7 @@ test('kiểm tra dữ liệu: chặn hạng mục sai, ngày/hiệu lực sai v�
   mustThrow({ ...base, items: [{ name: 'A', qty: 0, unit_price: 1 }] }, /số lượng/);
   mustThrow({ ...base, items: [{ name: 'A', qty: 1, unit_price: 1.5 }] }, /đơn giá/);
   mustThrow({ ...base, items: [{ name: '', qty: 1, unit_price: 1000 }] }, /nội dung/);
-  mustThrow({ ...base, items: [{ name: 'A', qty: 1, unit_price: 0, optional: true }] }, /ít nhất 01 hạng mục chính/);
+  mustThrow({ ...base, items: [{ name: 'A', qty: 1, unit_price: 0, optional: true }] }, /ít nhất một hạng mục có tính tiền/);
   mustThrow({ ...base, items: [{ name: 'A', qty: 1, unit_price: 1000 }], discount_percent: 120 }, /Chiết khấu/);
   mustThrow({ ...base, items: [{ name: 'A', qty: 1, unit_price: 1000 }], vat_rate: -1 }, /VAT/);
   mustThrow({ ...base, items: [{ name: 'A', qty: 1, unit_price: 1000 }], valid_until: '2026-09-20' }, /sau ngày báo giá/);
@@ -285,7 +312,8 @@ test('bản nháp sửa được; bản đã gửi khách bị khóa và phải 
 });
 
 test('báo giá hết hiệu lực được hiển thị đúng trạng thái', () => {
-  const id = quickCreate({ issue_date: '2026-01-01', valid_until: '2026-01-16' });
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const id = quickCreate({ issue_date: yesterday, valid_until: yesterday });
   const quote = db.getQuote(id);
   assert.equal(quote.status, 'draft');
   assert.equal(quote.state, 'expired');
@@ -388,7 +416,7 @@ test('chữ ký 2 bên cách nội dung phía trên đúng 3 dòng', async () =>
   assert.ok(pdf.getPageCount() <= 2, 'khoảng cách thêm không được làm phát sinh trang thừa');
 });
 
-test('nội dung gửi khách và PDF: đủ số tiền, bằng chữ, hạng mục tùy chọn', async () => {
+test('nội dung gửi khách và PDF: đủ số tiền, bằng chữ, dịch vụ đi kèm', async () => {
   const id = quickCreate({
     items: [
       { name: 'Đăng ký FDA cơ sở', unit: 'Hồ sơ', qty: 1, unit_price: 38_000_000, note: 'Bao gồm rà soát hồ sơ' },
@@ -401,8 +429,12 @@ test('nội dung gửi khách và PDF: đủ số tiền, bằng chữ, hạng m
   const message = quotes.buildQuoteMessage(quote);
   assert.ok(message.includes(quote.quote_no));
   assert.ok(message.includes('Đăng ký FDA cơ sở'));
-  assert.ok(message.includes('Hạng mục tùy chọn'));
+  assert.ok(message.includes('Dịch vụ đi kèm'));
   assert.ok(message.includes('TỔNG CỘNG'));
+  const { QuotePreview } = require('../components/quotes/QuotePreview.tsx');
+  const preview = renderToStaticMarkup(React.createElement(QuotePreview, { quote }));
+  assert.ok(preview.includes('Dịch vụ đi kèm — chưa tính vào tổng; Quý khách có thể chọn thêm.'));
+  assert.ok(preview.includes('US Agent 12 tháng'), 'dòng chưa cộng vào tổng vẫn hiển thị riêng');
   assert.ok(message.includes(quote.total_in_words.replace(' đồng', '')));
 
   const pdf = await generateQuotePdf(quote);
@@ -470,7 +502,7 @@ test('bảng giá dịch vụ: Admin sửa giá, báo giá tạo mới dùng gi�
 
 test('bảng giá dịch vụ: kiểm tra dữ liệu và phân quyền API', async () => {
   session = { id: ADMIN, role: 'admin', name: 'Test Admin' };
-  // Hạng mục không tên / giá âm / mã tùy chọn sai → 400
+  // Hạng mục không tên / giá âm / mã dịch vụ đi kèm sai → 400
   for (const bad of [
     { ...templates.getQuoteTemplate('GACC'), items: [{ name: '', unit: 'Gói', qty: 1, unit_price: 1000 }] },
     { ...templates.getQuoteTemplate('GACC'), items: [{ name: 'A', unit: 'Gói', qty: 1, unit_price: -1 }] },

@@ -20,7 +20,7 @@ export type QuoteLine = {
   qty: number;
   unit_price: number;
   note: string;
-  /** true = hạng mục tùy chọn, chỉ tính tiền khi khách chọn */
+  /** true = dòng chưa tính vào tổng, khách có thể chọn thêm */
   optional: boolean;
 };
 
@@ -33,7 +33,7 @@ export type QuoteTemplateItem = {
   note?: string;
 };
 
-/** Hạng mục tùy chọn gợi ý cho nhân viên tick chọn */
+/** Dịch vụ đi kèm gợi ý để nhân viên thêm vào báo giá khi cần. */
 export type QuoteOptionDef = {
   key: string;
   label: string;
@@ -255,7 +255,7 @@ export function itemsFromTemplate(template: QuoteTemplateDef): QuoteLine[] {
   }));
 }
 
-/** Hạng mục tùy chọn của mẫu → dòng hàng (đánh dấu optional, không cộng vào tổng) */
+/** Dịch vụ đi kèm đã chọn trở thành hạng mục chính và được cộng vào tổng. */
 export function optionLine(option: QuoteOptionDef): QuoteLine {
   return {
     name: option.label,
@@ -263,7 +263,7 @@ export function optionLine(option: QuoteOptionDef): QuoteLine {
     qty: option.qty,
     unit_price: option.unit_price,
     note: option.note || "",
-    optional: true,
+    optional: false,
   };
 }
 
@@ -331,11 +331,11 @@ export function normalizeQuoteTemplate(raw: unknown, key: QuoteTemplateKey): Quo
   });
 
   const optionsRaw = input.options === undefined ? base.options : input.options;
-  if (!Array.isArray(optionsRaw)) throw new Error("Danh sách hạng mục tùy chọn không hợp lệ.");
-  if (optionsRaw.length > MAX_TEMPLATE_OPTIONS) throw new Error(`Bảng giá tối đa ${MAX_TEMPLATE_OPTIONS} hạng mục tùy chọn.`);
+  if (!Array.isArray(optionsRaw)) throw new Error("Danh sách dịch vụ đi kèm không hợp lệ.");
+  if (optionsRaw.length > MAX_TEMPLATE_OPTIONS) throw new Error(`Bảng giá tối đa ${MAX_TEMPLATE_OPTIONS} dịch vụ đi kèm.`);
   const options: QuoteOptionDef[] = optionsRaw.map((row, index) => {
     const option = (row || {}) as Record<string, unknown>;
-    const label = `Tùy chọn ${index + 1}`;
+    const label = `Dịch vụ đi kèm ${index + 1}`;
     const optionKey = clean(option.key, `${label}: mã`, 60, true);
     if (!/^[a-z0-9_]+$/.test(optionKey)) throw new Error(`${label}: mã chỉ gồm chữ thường, số và dấu gạch dưới.`);
     return {
@@ -349,7 +349,7 @@ export function normalizeQuoteTemplate(raw: unknown, key: QuoteTemplateKey): Quo
     };
   });
   const optionKeys = new Set(options.map((o) => o.key));
-  if (optionKeys.size !== options.length) throw new Error("Mã hạng mục tùy chọn bị trùng.");
+  if (optionKeys.size !== options.length) throw new Error("Mã dịch vụ đi kèm bị trùng.");
 
   const vatRate = Number(input.vat_rate === undefined ? base.vat_rate : input.vat_rate);
   if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) throw new Error("VAT phải từ 0 đến 100%.");
